@@ -140,7 +140,12 @@ fn animation() void {
                     var y = @as(i32, @intCast(rowIndex)) * cellsize;
                     var e = @as(f32, @floatFromInt(elapsed_time));
                     var d = @as(f32, @floatFromInt(game.state.lineclearer.duration));
-                    var ratio: u8 = @intFromFloat(e / d * 250);
+
+                    // Calculate ratio and clamp between 0 and 255
+                    const computedValue = e / d * 250.0;
+                    const clampedValue = std.math.clamp(computedValue, 0.0, 255.0);
+                    var ratio: u8 = @intFromFloat(clampedValue);
+
                     const color = .{ 0, 0, 0, ratio };
                     box(x, y, color);
                 }
