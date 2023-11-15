@@ -9,7 +9,7 @@ I realized dad already made one
 
 https://github.com/andrewrk/tetris/
 
-however, block games [tm] have always b een my goto project for learning a new language. so here we are, my first zig program. im still at the stage where i'm casting everything 4 times.
+however, block games [tm] have always been my goto project for learning a new language. so here we are, my first zig program. im still at the stage where i'm casting everything 4 times.
 
  it mostly trys to follows the Tetris Guideline / SRS rotation.
 
@@ -26,4 +26,15 @@ cd yazbg
 zig build run
 ```
 
-tested with zig version: `0.12.0-dev.660+8f2f12f94`
+## controls
+```
+l/r arrow keys: move block
+up arrow key: rotate block
+down arrow key: soft drop
+space: hard drop
+c: swap block
+p: pause
+r: restart
+```
+
+tested with zig version: `0.12.0-dev.1606+569182dbb`
