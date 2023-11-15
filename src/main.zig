@@ -11,6 +11,7 @@ const cellpadding: i32 = 1;
 const offsetx: i32 = 145;
 const offsety: i32 = 30;
 const cellwidth: i32 = cellsize - 2 * cellpadding;
+
 pub fn main() !void {
     ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_VSYNC_HINT | ray.FLAG_WINDOW_ALWAYS_RUN);
     ray.InitWindow(width, height, "yazbg");
@@ -22,52 +23,54 @@ pub fn main() !void {
     game.init();
 
     while (!ray.WindowShouldClose()) {
-        sys.update();
-        defer draw();
-
+        sys.updatemusic();
+        draw();
         // game flow
-        // restart
         if (ray.IsKeyPressed(ray.KEY_R)) {
             game.init();
+            continue;
         }
         // pause
         if (ray.IsKeyPressed(ray.KEY_P)) {
-            if (game.state.gameover) continue;
-            game.state.paused = !game.state.paused;
+            game.pause();
+            continue;
         }
-        // we are frozen
-        if (game.state.gameover or game.state.paused)
+
+        if (game.frozen())
             continue;
 
         // game ticker
-        if (ray.GetTime() - game.state.lastdrop >= game.state.dropinterval) {
+        if (ray.GetTime() - game.state.lastmove >= game.state.dropinterval) {
             std.debug.print("tick\n", .{});
-            if (!move(game.down, sys.playclick, drop)) {
-                std.debug.print("tick failed, dropped\n", .{});
-            }
-            game.state.lastdrop = ray.GetTime();
+            move(game.down, sys.playclick, drop);
         }
 
-        // controls
-        if (ray.IsKeyPressed(ray.KEY_LEFT))
-            _ = move(game.left, sys.playclick, sys.playerror);
+        // left
+        if (ray.IsKeyPressed(ray.KEY_LEFT)) {
+            move(game.left, sys.playclick, sys.playerror);
+        }
 
-        if (ray.IsKeyPressed(ray.KEY_RIGHT))
-            _ = move(game.right, sys.playclick, sys.playerror);
+        // right
+        if (ray.IsKeyPressed(ray.KEY_RIGHT)) {
+            move(game.right, sys.playclick, sys.playerror);
+        }
 
+        // soft drop
         if (ray.IsKeyPressed(ray.KEY_DOWN)) {
-            _ = move(game.down, sys.playclick, drop);
-            game.state.lastdrop = ray.GetTime();
+            move(game.down, sys.playclick, drop);
         }
 
+        // rotate
         if (ray.IsKeyPressed(ray.KEY_UP)) {
-            _ = move(game.rotate, sys.playclick, sys.playerror);
+            move(game.rotate, sys.playclick, sys.playerror);
         }
 
+        // hard drop
         if (ray.IsKeyPressed(ray.KEY_SPACE)) {
             drop();
         }
 
+        // swap piece
         if (ray.IsKeyPressed(ray.KEY_C)) {
             swap();
         }
@@ -107,17 +110,14 @@ fn drop() void {
         sys.playclear();
     }
     game.nextpiece();
-    game.state.lastdrop = ray.GetTime();
 }
 
 // move the piece, if it can't move, call failback
-fn move(comptime movefn: fn () bool, comptime ok: fn () void, comptime fail: fn () void) bool {
+fn move(comptime movefn: fn () bool, comptime ok: fn () void, comptime fail: fn () void) void {
     if (movefn()) {
         ok();
-        return true;
     } else {
         fail();
-        return false;
     }
 }
 
@@ -257,7 +257,7 @@ fn ui() void {
     }
 
     // debug status
-    if (std.fmt.bufPrintZ(&buf, "{} {} {} {d:.2} {d:.2}", .{ game.state.piecex, game.state.piecey, game.state.piecer, game.state.dropinterval, game.state.lastdrop })) |status| {
+    if (std.fmt.bufPrintZ(&buf, "{} {} {} {d:.2} {d:.2}", .{ game.state.piecex, game.state.piecey, game.state.piecer, game.state.dropinterval, game.state.lastmove })) |status| {
         ray.DrawText(status, 10, 620, 12, ray.GRAY);
     } else |err| {
         std.debug.print("error printing score: {}\n", .{err});

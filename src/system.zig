@@ -1,5 +1,5 @@
+pub const ray = @import("raylib.zig");
 const std = @import("std");
-const ray = @import("raylib.zig");
 
 var errs = ray.Sound{};
 var clacks = ray.Sound{};
@@ -14,19 +14,6 @@ var win = ray.Sound{};
 pub var rng = std.rand.DefaultPrng.init(0);
 
 pub fn init() !void {
-    // const dir = try std.fs.cwd().openIterableDir("sfx", .{});
-    // var iterator = dir.iterate();
-    // var allocator = std.heap.page_allocator;
-    // var map = std.StringHashMap(ray.Sound).init(allocator);
-    // _ = map;
-
-    // while (try iterator.next()) |path| {
-    //     std.debug.print("{s} ", .{path.name});
-    //     //var sound = ray.LoadSound(path.name.ptr);
-    //     // try map.put(path.name, sound);
-    // }
-    // std.debug.print("\n", .{});
-
     // audio
     std.debug.print("init audio\n", .{});
     ray.InitAudioDevice();
@@ -67,10 +54,6 @@ pub fn deinit() void {
     ray.CloseAudioDevice();
 }
 
-pub fn playSoundByName(name: []const u8) void {
-    _ = name;
-}
-
 pub fn playwin() void {
     ray.PlaySound(win);
 }
@@ -107,6 +90,6 @@ pub fn playmusic() void {
     ray.PlayMusicStream(musics);
 }
 
-pub fn update() void {
+pub fn updatemusic() void {
     ray.UpdateMusicStream(musics);
 }

@@ -10,14 +10,15 @@ pub const YAZBG = struct {
     score: i32 = 0,
     level: i32 = 0,
     lines: i32 = 0,
+    swapped: bool = false,
     piece: ?pieces.tetramino = null,
     nextpiece: ?pieces.tetramino = null,
     heldpiece: ?pieces.tetramino = null,
-    swapped: bool = false,
     piecex: i32 = 0,
     piecey: i32 = 0,
     piecer: u32 = 0,
-    lastdrop: f64 = 0,
+    currtime: f64 = 0,
+    lastmove: f64 = 0,
     dropinterval: f64 = 2.0,
     gameover: bool = false,
     paused: bool = false,
@@ -28,26 +29,21 @@ pub const YAZBG = struct {
         duration: i64 = 500,
         lines: [cell_height]bool = undefined,
     } = .{},
-    // slider: struct {
-    //     active: bool = false,
-    //     start_time: i64 = 0,
-    //     duration: i64 = 500,
-    // } = .{},
 };
 
 pub var state = YAZBG{};
 
 pub fn init() void {
+    // reset
     state.score = 0;
     state.level = 0;
     state.lines = 0;
-    state.lastdrop = 0;
+    state.lastmove = 0;
     state.dropinterval = 2.0;
     state.nextpiece = pieces.tetraminos[sys.rng.random().intRangeAtMost(u32, 0, 6)];
-    state.heldpiece = null;
-    state.swapped = false;
-
     nextpiece();
+    state.heldpiece = null;
+
     state.lineclearer = .{
         .active = false,
         .start_time = 0,
@@ -59,9 +55,10 @@ pub fn init() void {
             state.cells[r][c] = .{ 0, 0, 0, 0 };
         }
     }
-    std.debug.print("init game\n", .{});
+
     state.gameover = false;
     state.paused = false;
+    std.debug.print("init game\n", .{});
 }
 
 pub fn nextpiece() void {
@@ -78,23 +75,22 @@ pub fn nextpiece() void {
 }
 
 pub fn clearlines() bool {
-    var linesCleared: i32 = 0;
+    var lines: i32 = 0;
     for (state.cells, 0..) |row, r| {
         if (iscompleted(row)) {
-            //removeline(r);
             state.lineclearer.lines[r] = true;
-            linesCleared += 1;
+            lines += 1;
         }
     }
 
-    state.lines += linesCleared;
+    state.lines += lines;
 
-    if (linesCleared > 0) {
+    if (lines > 0) {
         state.lineclearer.active = true;
         state.lineclearer.start_time = std.time.milliTimestamp();
-        state.score += 1000 * linesCleared * linesCleared;
+        state.score += 1000 * lines * lines;
 
-        if (linesCleared == 4) {
+        if (lines == 4) {
             sys.playwin();
         }
 
@@ -109,7 +105,7 @@ pub fn clearlines() bool {
             }
         }
     }
-    return linesCleared > 0;
+    return lines > 0;
 }
 
 fn iscompleted(row: [10][4]u8) bool {
@@ -132,6 +128,12 @@ pub fn removeline(row: usize) void {
     for (state.cells[0], 0..) |_, c| {
         state.cells[0][c] = .{ 0, 0, 0, 0 };
     }
+}
+
+pub fn pause() void {
+    if (state.gameover) return;
+    state.paused = !state.paused;
+    std.debug.print("game.paused {}\n", .{state.paused});
 }
 
 pub fn ghosty() i32 {
@@ -189,6 +191,7 @@ pub fn drop() bool {
             }
         }
     }
+    state.lastmove = sys.ray.GetTime();
     return clearlines();
 }
 
@@ -198,6 +201,7 @@ pub fn right() bool {
         state.piecex -= 1;
         return false;
     }
+    state.lastmove = sys.ray.GetTime();
     return true;
 }
 
@@ -207,7 +211,12 @@ pub fn left() bool {
         state.piecex += 1;
         return false;
     }
+    state.lastmove = sys.ray.GetTime();
     return true;
+}
+
+pub fn frozen() bool {
+    return state.gameover or state.paused;
 }
 
 pub fn rotate() bool {
@@ -217,6 +226,7 @@ pub fn rotate() bool {
 
     // after rotation, the piece fits, return
     if (checkmove()) {
+        state.lastmove = sys.ray.GetTime();
         return true;
     }
 
@@ -257,5 +267,7 @@ pub fn down() bool {
         state.piecey -= 1;
         return false;
     }
+    state.lastmove = sys.ray.GetTime();
+
     return true;
 }
