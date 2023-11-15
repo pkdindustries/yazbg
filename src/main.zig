@@ -13,27 +13,23 @@ pub fn main() !void {
     try sys.init();
     defer sys.deinit();
 
-    game.init();
+    game.reset();
 
     while (!ray.WindowShouldClose()) {
-
         // fill music and draw the frame
         sys.updatemusic();
         gfx.frame();
 
-        // user events
-        if (ray.IsKeyPressed(ray.KEY_R)) {
-            game.init();
-            continue;
-        }
-        // pause
-        if (ray.IsKeyPressed(ray.KEY_P)) {
-            game.pause();
-            continue;
-        }
-
-        if (game.frozen()) {
-            continue;
+        switch (ray.GetKeyPressed()) {
+            ray.KEY_P => game.pause(),
+            ray.KEY_R => game.reset(),
+            ray.KEY_LEFT => move(game.left, sys.playclick, sys.playerror),
+            ray.KEY_RIGHT => move(game.right, sys.playclick, sys.playerror),
+            ray.KEY_DOWN => move(game.down, sys.playclick, drop),
+            ray.KEY_UP => move(game.rotate, sys.playclick, sys.playerror),
+            ray.KEY_SPACE => drop(),
+            ray.KEY_C => move(game.swappiece, sys.playwoosh, sys.playerror),
+            else => {},
         }
 
         // game ticker
@@ -42,49 +38,13 @@ pub fn main() !void {
             move(game.down, sys.playclick, drop);
             continue;
         }
-
-        // left
-        if (ray.IsKeyPressed(ray.KEY_LEFT)) {
-            move(game.left, sys.playclick, sys.playerror);
-        }
-
-        // right
-        if (ray.IsKeyPressed(ray.KEY_RIGHT)) {
-            move(game.right, sys.playclick, sys.playerror);
-        }
-
-        // soft drop
-        if (ray.IsKeyPressed(ray.KEY_DOWN)) {
-            move(game.down, sys.playclick, drop);
-        }
-
-        // rotate
-        if (ray.IsKeyPressed(ray.KEY_UP)) {
-            move(game.rotate, sys.playclick, sys.playerror);
-        }
-
-        // hard drop
-        if (ray.IsKeyPressed(ray.KEY_SPACE)) {
-            drop();
-        }
-
-        // swap piece
-        if (ray.IsKeyPressed(ray.KEY_C)) {
-            swap();
-        }
-    }
-}
-
-fn swap() void {
-    if (game.swappiece()) {
-        sys.playwoosh();
-    } else {
-        sys.playerror();
     }
 }
 
 fn drop() void {
-    std.debug.print("drop\n", .{});
+    if (game.frozen()) {
+        return;
+    }
     sys.playwoosh();
     sys.playclack();
     if (game.drop()) {
@@ -95,6 +55,9 @@ fn drop() void {
 
 // move the piece, if it can't move, call failback
 fn move(comptime movefn: fn () bool, comptime ok: fn () void, comptime fail: fn () void) void {
+    if (game.frozen()) {
+        return;
+    }
     if (movefn()) {
         ok();
     } else {

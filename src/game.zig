@@ -33,7 +33,7 @@ pub const YAZBG = struct {
 
 pub var state = YAZBG{};
 
-pub fn init() void {
+pub fn reset() void {
     // reset
     state.score = 0;
     state.level = 0;
