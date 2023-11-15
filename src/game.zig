@@ -74,6 +74,22 @@ pub fn nextpiece() void {
     }
 }
 
+pub fn swappiece() bool {
+    if (state.swapped) {
+        std.debug.print("already swapped\n", .{});
+        return false;
+    }
+    if (state.heldpiece) |held| {
+        state.heldpiece = state.piece;
+        state.piece = held;
+    } else {
+        state.heldpiece = state.piece;
+        nextpiece();
+    }
+    state.swapped = true;
+    return state.swapped;
+}
+
 pub fn clearlines() bool {
     var lines: i32 = 0;
     for (state.cells, 0..) |row, r| {
