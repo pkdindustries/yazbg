@@ -1,6 +1,10 @@
 # yazbg
 yet another zig block game! 
 
+![Screenshot of yazbg](screenshot.png)
+
+
+
 I realized dad already made one 
 
 https://github.com/andrewrk/tetris/
