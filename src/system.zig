@@ -8,7 +8,6 @@ var clears = ray.Sound{};
 var level = ray.Sound{};
 var musics = ray.Music{};
 var woosh = ray.Sound{};
-var hit = ray.Sound{};
 var win = ray.Sound{};
 
 pub var rng = std.rand.DefaultPrng.init(0);
@@ -24,7 +23,6 @@ pub fn init() !void {
         clears = ray.LoadSound("sfx/clear.mp3");
         level = ray.LoadSound("sfx/level.mp3");
         woosh = ray.LoadSound("sfx/woosh.mp3");
-        hit = ray.LoadSound("sfx/hit.mp3");
         win = ray.LoadSound("sfx/win.mp3");
         musics = ray.LoadMusicStream("sfx/music2.mp3");
         playmusic();
@@ -48,7 +46,6 @@ pub fn deinit() void {
     ray.UnloadSound(clears);
     ray.UnloadSound(level);
     ray.UnloadSound(woosh);
-    ray.UnloadSound(hit);
     ray.UnloadSound(win);
     ray.UnloadMusicStream(musics);
     ray.CloseAudioDevice();
@@ -56,10 +53,6 @@ pub fn deinit() void {
 
 pub fn playwin() void {
     ray.PlaySound(win);
-}
-
-pub fn playhit() void {
-    ray.PlaySound(hit);
 }
 
 pub fn playwoosh() void {

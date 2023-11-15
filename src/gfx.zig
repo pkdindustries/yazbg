@@ -10,6 +10,8 @@ pub const cellpadding: i32 = 1;
 pub const offsetx: i32 = 145;
 pub const offsety: i32 = 30;
 pub const cellwidth: i32 = cellsize - 2 * cellpadding;
+const scrambles = "!@#$%^&*+-=<>?/\\|~`";
+
 var buf: [1000]u8 = undefined;
 
 pub fn frame() void {
@@ -32,10 +34,10 @@ fn animation() void {
                     var e = @as(f32, @floatFromInt(elapsed_time));
                     var d = @as(f32, @floatFromInt(game.state.lineclearer.duration));
 
-                    // Calculate ratio and clamp between 0 and 255
-                    const computedValue = e / d * 250.0;
-                    const clampedValue = std.math.clamp(computedValue, 0.0, 255.0);
-                    var ratio: u8 = @intFromFloat(clampedValue);
+                    // clamp between 0 and 255
+                    const computed = e / d * 250.0;
+                    const clamped = std.math.clamp(computed, 0.0, 255.0);
+                    var ratio: u8 = @intFromFloat(clamped);
 
                     const color = .{ 0, 0, 0, ratio };
                     box(x, y, color);
@@ -82,9 +84,6 @@ fn box(x: i32, y: i32, color: [4]u8) void {
 fn player() void {
     // draw shape
     if (game.state.piece) |p| {
-        if (game.state.gameover) {
-            return;
-        }
         const pcolor = .{ p.color[0], p.color[1], p.color[2], sys.rng.random().intRangeAtMost(u8, 200, 255) };
         piece(game.state.piecex * cellsize, game.state.piecey * cellsize, p.shape[game.state.piecer], pcolor);
 
@@ -167,12 +166,12 @@ fn ui() void {
             .a = 210,
         });
         ray.DrawText("GAME OVER", 170, 300, 40, ray.RED);
-        ray.DrawText("press r to restart", 200, 350, 20, ray.WHITE);
+        ray.DrawText("r to restart", 225, 350, 20, ray.WHITE);
+        ray.DrawText("esc to exit", 225, 375, 20, ray.WHITE);
     }
 }
 
 fn scramblefx(s: []u8) void {
-    var scrambles = "!@#$%^&*+-=<>?/\\|~`";
     for (s) |*c| {
         var n = scrambles[sys.rng.random().intRangeAtMost(u32, 0, scrambles.len)];
         if (sys.rng.random().intRangeAtMost(u32, 0, 100) > 99) {

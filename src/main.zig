@@ -33,7 +33,7 @@ pub fn main() !void {
         }
 
         // game ticker
-        if (ray.GetTime() - game.state.lastmove >= game.state.dropinterval) {
+        if (game.tickable()) {
             std.debug.print("tick\n", .{});
             move(game.down, sys.playclick, drop);
             continue;
@@ -42,22 +42,38 @@ pub fn main() !void {
 }
 
 fn drop() void {
-    if (game.frozen()) {
+    if (game.frozen())
         return;
-    }
+
     sys.playwoosh();
     sys.playclack();
-    if (game.drop()) {
-        sys.playclear();
+
+    var lines: i32 = game.drop();
+    if (lines > 0) {
+        progression(lines);
     }
     game.nextpiece();
 }
 
+fn progression(lines: i32) void {
+    sys.playclear();
+    game.state.score += 1000 * lines * lines;
+    if (@rem(game.state.lines, 3) == 0) {
+        std.debug.print("level up\n", .{});
+        sys.playlevel();
+        game.state.level += 1;
+        game.state.score += 1000 * game.state.level;
+        game.state.dropinterval -= 0.15;
+        if (game.state.dropinterval < 0.2) {
+            game.state.dropinterval = 0.2;
+        }
+    }
+}
+
 // move the piece, if it can't move, call failback
 fn move(comptime movefn: fn () bool, comptime ok: fn () void, comptime fail: fn () void) void {
-    if (game.frozen()) {
+    if (game.frozen())
         return;
-    }
     if (movefn()) {
         ok();
     } else {
