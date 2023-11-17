@@ -231,13 +231,7 @@ pub fn right() bool {
     if (!checkmove(x, y)) {
         return false;
     }
-    state.pieceslider.sourcex = state.piecex;
-    state.pieceslider.sourcey = state.piecey;
-    state.pieceslider.targetx = x;
-    state.pieceslider.targety = y;
-    state.pieceslider.targetr = state.piecer;
-    state.pieceslider.active = true;
-    state.pieceslider.start_time = std.time.milliTimestamp();
+    slidepiece(x, y);
     state.lastmove = sys.ray.GetTime();
     return true;
 }
@@ -250,13 +244,7 @@ pub fn left() bool {
         return false;
     }
 
-    state.pieceslider.sourcex = state.piecex;
-    state.pieceslider.sourcey = state.piecey;
-    state.pieceslider.targetx = x;
-    state.pieceslider.targety = y;
-    state.pieceslider.targetr = state.piecer;
-    state.pieceslider.active = true;
-    state.pieceslider.start_time = std.time.milliTimestamp();
+    slidepiece(x, y);
     state.lastmove = sys.ray.GetTime();
     return true;
 }
@@ -268,13 +256,7 @@ pub fn down() bool {
     if (!checkmove(x, y)) {
         return false;
     }
-    state.pieceslider.sourcex = state.piecex;
-    state.pieceslider.sourcey = state.piecey;
-    state.pieceslider.targetx = x;
-    state.pieceslider.targety = y;
-    state.pieceslider.targetr = state.piecer;
-    state.pieceslider.active = true;
-    state.pieceslider.start_time = std.time.milliTimestamp();
+    slidepiece(x, y);
     state.lastmove = sys.ray.GetTime();
     return true;
 }
@@ -320,4 +302,14 @@ pub fn rotate() bool {
 fn finddirection(oldr: u32, newr: u32) u32 {
     if (oldr > newr or (oldr == 0 and newr == 3) or (oldr == 3 and newr == 0)) return 1;
     return 0;
+}
+
+fn slidepiece(x: i32, y: i32) void {
+    state.pieceslider.sourcex = state.piecex;
+    state.pieceslider.sourcey = state.piecey;
+    state.pieceslider.targetx = x;
+    state.pieceslider.targety = y;
+    state.pieceslider.targetr = state.piecer;
+    state.pieceslider.start_time = std.time.milliTimestamp();
+    state.pieceslider.active = true;
 }

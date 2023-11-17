@@ -6,19 +6,21 @@ const gfx = @import("gfx.zig");
 
 pub fn main() !void {
     ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_VSYNC_HINT | ray.FLAG_WINDOW_ALWAYS_RUN);
-    ray.InitWindow(gfx.width, gfx.height, "yazbg");
+    ray.InitWindow(gfx.windowwidth, gfx.windowheight, "yazbg");
     ray.SetTraceLogLevel(ray.LOG_WARNING);
     ray.SetTargetFPS(120);
 
     try sys.init();
     defer sys.deinit();
 
-    game.reset();
     sys.playmusic();
+    game.reset();
 
     while (!ray.WindowShouldClose()) {
         // fill music buffer
         sys.updatemusic();
+        // tick
+        tick();
         // draw the frame
         gfx.frame();
         // handle input
@@ -33,11 +35,13 @@ pub fn main() !void {
             ray.KEY_C => move(game.swappiece, sys.playwoosh, sys.playerror),
             else => {},
         }
-        // game ticker
-        if (game.tickable()) {
-            std.debug.print("tick\n", .{});
-            move(game.down, sys.playclick, drop);
-        }
+    }
+}
+
+fn tick() void {
+    if (game.tickable()) {
+        std.debug.print("tick\n", .{});
+        move(game.down, sys.playclick, drop);
     }
 }
 
@@ -48,9 +52,9 @@ fn drop() void {
     sys.playclack();
 
     const lines: i32 = game.harddrop();
-    progression(lines);
     if (lines > 0) sys.playclear();
     if (lines > 3) sys.playwin();
+    progression(lines);
 
     game.nextpiece();
 }

@@ -3,13 +3,13 @@ const ray = @import("raylib.zig");
 const sys = @import("system.zig");
 const game = @import("game.zig");
 
-pub const width = 570;
-pub const height = 660;
+pub const windowwidth = 570;
+pub const windowheight = 660;
 pub const cellsize: i32 = 30;
 pub const cellpadding: i32 = 1;
-pub const offsetx: i32 = 145;
-pub const offsety: i32 = 30;
 pub const cellwidth: i32 = cellsize - 2 * cellpadding;
+pub const windowoffsetx: i32 = 145;
+pub const windowoffsety: i32 = 30;
 
 pub fn frame() void {
     ray.BeginDrawing();
@@ -88,7 +88,7 @@ fn player() void {
         // draw ghost
         const ghostY = game.ghosty();
         const color = .{ p.color[0], p.color[1], p.color[2], sys.rng.random().intRangeAtMost(u8, 60, 70) };
-        piece(drawX, ghostY * cellsize, p.shape[game.state.piecer], color);
+        piece(xdx, ghostY * cellsize, p.shape[game.state.piecer], color);
     }
 }
 
@@ -106,8 +106,8 @@ fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
 // draw a box
 fn box(x: i32, y: i32, color: [4]u8) void {
     ray.DrawRectangleLinesEx(ray.Rectangle{
-        .x = @as(f32, @floatFromInt(offsetx + x)),
-        .y = @as(f32, @floatFromInt(offsety + y)),
+        .x = @as(f32, @floatFromInt(windowoffsetx + x)),
+        .y = @as(f32, @floatFromInt(windowoffsety + y)),
         .width = @as(f32, @floatFromInt(cellwidth)),
         .height = @as(f32, @floatFromInt(cellwidth)),
     }, 2, ray.Color{
@@ -165,15 +165,15 @@ fn ui() void {
 
     ray.DrawText("next", 460, 30, 18, ray.GRAY);
     if (game.state.nextpiece) |nextpiece| {
-        piece(width - 240, 35, nextpiece.shape[0], nextpiece.color);
+        piece(windowwidth - 240, 35, nextpiece.shape[0], nextpiece.color);
     }
     ray.DrawText("held", 5, 30, 18, ray.GRAY);
     if (game.state.heldpiece) |held| {
-        piece(35 - offsetx, 35, held.shape[0], held.color);
+        piece(35 - windowoffsetx, 35, held.shape[0], held.color);
     }
 
     if (game.state.paused) {
-        ray.DrawRectangle(0, 0, width, height, ray.Color{
+        ray.DrawRectangle(0, 0, windowwidth, windowheight, ray.Color{
             .r = 0,
             .g = 0,
             .b = 0,
@@ -184,7 +184,7 @@ fn ui() void {
     }
 
     if (game.state.gameover) {
-        ray.DrawRectangle(0, 0, width, height, ray.Color{
+        ray.DrawRectangle(0, 0, windowwidth, windowheight, ray.Color{
             .r = 0,
             .g = 0,
             .b = 0,
