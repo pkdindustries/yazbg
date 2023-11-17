@@ -1,5 +1,5 @@
-const pieces = @import("pieces.zig");
 const std = @import("std");
+const pieces = @import("pieces.zig");
 const sys = @import("system.zig");
 
 const cell_height = 20;
@@ -11,21 +11,36 @@ pub const YAZBG = struct {
     level: i32 = 0,
     lines: i32 = 0,
     swapped: bool = false,
-    piece: ?pieces.tetramino = null,
-    nextpiece: ?pieces.tetramino = null,
-    heldpiece: ?pieces.tetramino = null,
-    piecex: i32 = 0,
-    piecey: i32 = 0,
-    piecer: u32 = 0,
-    lastmove: f64 = 0,
+    // time between drops
     dropinterval: f64 = 2.0,
     gameover: bool = false,
     paused: bool = false,
+    // time of last move
+    lastmove: f64 = 0,
+    // current, next and held piece shapes
+    piece: ?pieces.tetramino = null,
+    nextpiece: ?pieces.tetramino = null,
+    heldpiece: ?pieces.tetramino = null,
+    // player piece position,rotation
+    piecex: i32 = 0,
+    piecey: i32 = 0,
+    piecer: u32 = 0,
+    // state for various animations
     lineclearer: struct {
         active: bool = false,
         start_time: i64 = 0,
         duration: i64 = 500,
         lines: [cell_height]bool = undefined,
+    } = .{},
+    pieceslider: struct {
+        active: bool = false,
+        start_time: i64 = 0,
+        duration: i64 = 50,
+        targetx: i32 = 0,
+        sourcex: i32 = 0,
+        sourcey: i32 = 0,
+        targety: i32 = 0,
+        targetr: u32 = 0,
     } = .{},
 };
 
@@ -54,6 +69,17 @@ pub fn reset() void {
         .duration = 500,
         .lines = undefined,
     };
+    state.pieceslider = .{
+        .active = false,
+        .start_time = 0,
+        .duration = 50,
+        .sourcex = 0,
+        .sourcey = 0,
+        .targetx = 0,
+        .targety = 0,
+        .targetr = 0,
+    };
+
     for (state.cells, 0..) |row, r| {
         for (row, 0..) |_, c| {
             state.cells[r][c] = .{ 0, 0, 0, 0 };
@@ -72,7 +98,7 @@ pub fn nextpiece() void {
     state.piecer = 0;
     state.swapped = false;
 
-    if (!checkmove()) {
+    if (!checkmove(state.piecex, state.piecey)) {
         state.gameover = true;
     }
 }
@@ -90,42 +116,34 @@ pub fn swappiece() bool {
         nextpiece();
     }
     state.swapped = true;
+    state.lastmove = sys.ray.GetTime();
     return state.swapped;
 }
 
-pub fn clearlines() i32 {
-    var lines: i32 = 0;
-    for (state.cells, 0..) |row, r| {
-        if (iscompleted(row)) {
-            state.lineclearer.lines[r] = true;
-            state.lineclearer.active = true;
-            state.lineclearer.start_time = std.time.milliTimestamp();
-            lines += 1;
-        }
-    }
-    state.lines += lines;
-    return lines;
-}
-
+// check if a row is completed
 fn iscompleted(row: [10][4]u8) bool {
     for (row) |cell| {
         if (cell[3] == 0) return false;
     }
-
     return true;
 }
 
+// removes a line from the game board at the specified row.
 pub fn removeline(row: usize) void {
-    // lines from the removed line upwards.
     var r = row;
-    while (r > 0) {
+    while (r > 0) : (r -= 1) {
         state.cells[r] = state.cells[r - 1];
-        r -= 1;
     }
+    @memset(&state.cells[0], .{ 0, 0, 0, 0 });
+    state.lineclearer.lines[row] = false;
+}
 
-    // clear the topmost line.
-    for (state.cells[0], 0..) |_, c| {
-        state.cells[0][c] = .{ 0, 0, 0, 0 };
+// removes all lines specified in lineclearer.lines
+pub fn removelines() void {
+    for (state.lineclearer.lines, 0..) |line, r| {
+        if (line) {
+            removeline(r);
+        }
     }
 }
 
@@ -137,26 +155,18 @@ pub fn pause() void {
 
 pub fn ghosty() i32 {
     var y = state.piecey;
-    while (true) {
-        state.piecey += 1;
-        if (!checkmove()) {
-            state.piecey -= 1;
-            break;
-        }
-    }
-    var f = state.piecey;
-    state.piecey = y;
-    return f;
+    while (checkmove(state.piecex, y + 1)) : (y += 1) {}
+    return y;
 }
 
-pub fn checkmove() bool {
+pub fn checkmove(x: i32, y: i32) bool {
     if (state.piece) |piece| {
         const shape = piece.shape[state.piecer];
         for (shape, 0..) |row, j| {
             for (row, 0..) |cell, i| {
                 if (cell) {
-                    const gx = state.piecex + @as(i32, @intCast(j));
-                    const gy = state.piecey + @as(i32, @intCast(i));
+                    const gx = x + @as(i32, @intCast(j));
+                    const gy = y + @as(i32, @intCast(i));
                     // cell is out of bounds
                     if (gx < 0 or gx >= cell_width or gy < 0 or gy >= cell_height) {
                         return false;
@@ -172,9 +182,12 @@ pub fn checkmove() bool {
     return true;
 }
 
-pub fn drop() i32 {
+// drop the piece to the bottom, clear lines and return num cleared
+pub fn harddrop() i32 {
     std.debug.print("game.drop\n", .{});
-    while (down()) {}
+    var y = state.piecey;
+    while (checkmove(state.piecex, y + 1)) : (y += 1) {}
+    state.piecey = y;
     if (state.piece) |piece| {
         const shape = piece.shape[state.piecer];
         for (shape, 0..) |row, i| {
@@ -189,37 +202,91 @@ pub fn drop() i32 {
             }
         }
     }
+
     state.lastmove = sys.ray.GetTime();
-    return clearlines();
+    var cleared = clearlines();
+    return cleared;
 }
 
+// clear completed lines and return the number of cleared lines
+pub fn clearlines() i32 {
+    var lines: i32 = 0;
+    for (state.cells, 0..) |row, r| {
+        if (iscompleted(row)) {
+            state.lineclearer.lines[r] = true;
+            state.lineclearer.active = true;
+            state.lineclearer.start_time = std.time.milliTimestamp();
+            lines += 1;
+        }
+    }
+    state.lines += lines;
+    return lines;
+}
+
+// move piece right
 pub fn right() bool {
-    state.piecex += 1;
-    if (!checkmove()) {
-        state.piecex -= 1;
+    var x: i32 = state.piecex + 1;
+    var y = state.piecey;
+
+    if (!checkmove(x, y)) {
         return false;
     }
+    state.pieceslider.sourcex = state.piecex;
+    state.pieceslider.sourcey = state.piecey;
+    state.pieceslider.targetx = x;
+    state.pieceslider.targety = y;
+    state.pieceslider.targetr = state.piecer;
+    state.pieceslider.active = true;
+    state.pieceslider.start_time = std.time.milliTimestamp();
     state.lastmove = sys.ray.GetTime();
     return true;
 }
 
+// move piece left
 pub fn left() bool {
-    state.piecex -= 1;
-    if (!checkmove()) {
-        state.piecex += 1;
+    var x: i32 = state.piecex - 1;
+    var y = state.piecey;
+    if (!checkmove(x, y)) {
         return false;
     }
+
+    state.pieceslider.sourcex = state.piecex;
+    state.pieceslider.sourcey = state.piecey;
+    state.pieceslider.targetx = x;
+    state.pieceslider.targety = y;
+    state.pieceslider.targetr = state.piecer;
+    state.pieceslider.active = true;
+    state.pieceslider.start_time = std.time.milliTimestamp();
     state.lastmove = sys.ray.GetTime();
     return true;
 }
 
+// move piece down
+pub fn down() bool {
+    var x: i32 = state.piecex;
+    var y: i32 = state.piecey + 1;
+    if (!checkmove(x, y)) {
+        return false;
+    }
+    state.pieceslider.sourcex = state.piecex;
+    state.pieceslider.sourcey = state.piecey;
+    state.pieceslider.targetx = x;
+    state.pieceslider.targety = y;
+    state.pieceslider.targetr = state.piecer;
+    state.pieceslider.active = true;
+    state.pieceslider.start_time = std.time.milliTimestamp();
+    state.lastmove = sys.ray.GetTime();
+    return true;
+}
+
+// rotate piece clockwise
 pub fn rotate() bool {
     var oldr: u32 = state.piecer;
-    state.piecer = (state.piecer + 1) % 4; // Increment and wrap around the rotation
+    state.piecer = (state.piecer + 1) % 4; // increment and wrap around the rotation
     std.debug.print("rotation {} -> {}\n", .{ oldr, state.piecer });
 
     // after rotation, the piece fits, return
-    if (checkmove()) {
+    if (checkmove(0, 0)) {
         state.lastmove = sys.ray.GetTime();
         return true;
     }
@@ -233,7 +300,7 @@ pub fn rotate() bool {
             state.piecex += kick[0];
             state.piecey += kick[1];
 
-            if (checkmove()) {
+            if (checkmove(0, 0)) {
                 std.debug.print("kick\n", .{});
                 return true;
             }
@@ -253,14 +320,4 @@ pub fn rotate() bool {
 fn finddirection(oldr: u32, newr: u32) u32 {
     if (oldr > newr or (oldr == 0 and newr == 3) or (oldr == 3 and newr == 0)) return 1;
     return 0;
-}
-
-pub fn down() bool {
-    state.piecey += 1;
-    if (!checkmove()) {
-        state.piecey -= 1;
-        return false;
-    }
-    state.lastmove = sys.ray.GetTime();
-    return true;
 }
