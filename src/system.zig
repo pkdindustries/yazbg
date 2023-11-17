@@ -25,7 +25,6 @@ pub fn init() !void {
         woosh = ray.LoadSound("sfx/woosh.mp3");
         win = ray.LoadSound("sfx/win.mp3");
         musics = ray.LoadMusicStream("sfx/music2.mp3");
-        playmusic();
     }
 
     // rng
