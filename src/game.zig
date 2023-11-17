@@ -286,7 +286,7 @@ pub fn rotate() bool {
     std.debug.print("rotation {} -> {}\n", .{ oldr, state.piecer });
 
     // after rotation, the piece fits, return
-    if (checkmove(0, 0)) {
+    if (checkmove(state.piecex, state.piecey)) {
         state.lastmove = sys.ray.GetTime();
         return true;
     }
@@ -300,7 +300,7 @@ pub fn rotate() bool {
             state.piecex += kick[0];
             state.piecey += kick[1];
 
-            if (checkmove(0, 0)) {
+            if (checkmove(state.piecex, state.piecey)) {
                 std.debug.print("kick\n", .{});
                 return true;
             }
