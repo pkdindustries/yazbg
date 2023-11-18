@@ -6,25 +6,27 @@ var clacks = ray.Sound{};
 var clicks = ray.Sound{};
 var clears = ray.Sound{};
 var level = ray.Sound{};
-var musics = ray.Music{};
+var songs = std.ArrayList(ray.Music).init(std.heap.page_allocator);
 var woosh = ray.Sound{};
 var win = ray.Sound{};
 
 pub var rng = std.rand.DefaultPrng.init(0);
+pub var songindex: usize = 0;
 
 pub fn init() !void {
     // audio
     std.debug.print("init audio\n", .{});
     ray.InitAudioDevice();
     if (ray.IsAudioDeviceReady()) {
-        errs = ray.LoadSound("sfx/deny.mp3");
-        clacks = ray.LoadSound("sfx/clack.mp3");
-        clicks = ray.LoadSound("sfx/click.mp3");
-        clears = ray.LoadSound("sfx/clear.mp3");
-        level = ray.LoadSound("sfx/level.mp3");
-        woosh = ray.LoadSound("sfx/woosh.mp3");
-        win = ray.LoadSound("sfx/win.mp3");
-        musics = ray.LoadMusicStream("sfx/music2.mp3");
+        errs = ray.LoadSound("resources/sfx/deny.mp3");
+        clacks = ray.LoadSound("resources/sfx/clack.mp3");
+        clicks = ray.LoadSound("resources/sfx/click.mp3");
+        clears = ray.LoadSound("resources/sfx/clear.mp3");
+        level = ray.LoadSound("resources/sfx/level.mp3");
+        woosh = ray.LoadSound("resources/sfx/woosh.mp3");
+        win = ray.LoadSound("resources/sfx/win.mp3");
+        try songs.append(ray.LoadMusicStream("resources/music/level0.mp3"));
+        try songs.append(ray.LoadMusicStream("resrouces/music/level1.mp3"));
     }
 
     // rng
@@ -38,7 +40,7 @@ pub fn init() !void {
 
 pub fn deinit() void {
     std.debug.print("deinit audio\n", .{});
-    ray.StopMusicStream(musics);
+    ray.StopMusicStream(songs.items[songindex]);
     ray.UnloadSound(errs);
     ray.UnloadSound(clacks);
     ray.UnloadSound(clicks);
@@ -46,7 +48,7 @@ pub fn deinit() void {
     ray.UnloadSound(level);
     ray.UnloadSound(woosh);
     ray.UnloadSound(win);
-    ray.UnloadMusicStream(musics);
+    ray.UnloadMusicStream(songs.items[songindex]);
     ray.CloseAudioDevice();
 }
 
@@ -78,10 +80,10 @@ pub fn playclear() void {
 }
 
 pub fn playmusic() void {
-    ray.SetMusicVolume(musics, 0.05);
-    ray.PlayMusicStream(musics);
+    ray.SetMusicVolume(songs.items[songindex], 0.05);
+    ray.PlayMusicStream(songs.items[songindex]);
 }
 
 pub fn updatemusic() void {
-    ray.UpdateMusicStream(musics);
+    ray.UpdateMusicStream(songs.items[songindex]);
 }

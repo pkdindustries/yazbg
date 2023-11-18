@@ -13,8 +13,8 @@ pub const windowoffsety: i32 = 30;
 
 pub fn frame() void {
     ray.BeginDrawing();
-    grid();
     player();
+    grid();
     lineclears();
     ui();
     ray.EndDrawing();
@@ -36,7 +36,7 @@ fn lineclears() void {
                     var ratio: u8 = @intFromFloat(clamped);
                     // layer black over the cells with decreasing opacity
                     const color = .{ 0, 0, 0, ratio };
-                    box(x, y, color);
+                    roundedfillbox(x, y, color);
                 }
             }
         }
@@ -77,17 +77,15 @@ fn player() void {
 
         var xdx = @as(i32, @intFromFloat(fdrawx));
         var ydx = @as(i32, @intFromFloat(fdrawy));
-        if (game.state.pieceslider.active) {
-            std.debug.print("slide lerp {} {}\n", .{ xdx, ydx });
-        }
 
         // draw the piece at the interpolated position
-        const pcolor = .{ p.color[0], p.color[1], p.color[2], sys.rng.random().intRangeAtMost(u8, 200, 255) };
-        piece(xdx, ydx, p.shape[game.state.piecer], pcolor);
+        //const pcolor = .{ p.color[0], p.color[1], p.color[2], sys.rng.random().intRangeAtMost(u8, 200, 255) };
+        piece(xdx, ydx, p.shape[game.state.piecer], p.color);
 
         // draw ghost
         const ghostY = game.ghosty();
-        const color = .{ p.color[0], p.color[1], p.color[2], sys.rng.random().intRangeAtMost(u8, 60, 70) };
+
+        const color = .{ p.color[0], p.color[1], p.color[2], 30 };
         piece(xdx, ghostY * cellsize, p.shape[game.state.piecer], color);
     }
 }
@@ -97,7 +95,7 @@ fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
     for (shape, 0..) |row, i| {
         for (row, 0..) |cell, j| {
             if (cell) {
-                box(x + @as(i32, @intCast(i)) * cellsize, y + @as(i32, @intCast(j)) * cellsize, color);
+                roundedfillbox(x + @as(i32, @intCast(i)) * cellsize, y + @as(i32, @intCast(j)) * cellsize, color);
             }
         }
     }
@@ -118,12 +116,36 @@ fn box(x: i32, y: i32, color: [4]u8) void {
     });
 }
 
-// draw the grid
+// draw a filled box
+fn fillbox(x: i32, y: i32, color: [4]u8) void {
+    ray.DrawRectangle(windowoffsetx + x, windowoffsety + y, cellwidth, cellwidth, ray.Color{
+        .r = color[0],
+        .g = color[1],
+        .b = color[2],
+        .a = color[3],
+    });
+}
+
+// draw a rounded box
+fn roundedfillbox(x: i32, y: i32, color: [4]u8) void {
+    ray.DrawRectangleRounded(ray.Rectangle{
+        .x = @as(f32, @floatFromInt(windowoffsetx + x)),
+        .y = @as(f32, @floatFromInt(windowoffsety + y)),
+        .width = @as(f32, @floatFromInt(cellwidth)),
+        .height = @as(f32, @floatFromInt(cellwidth)),
+    }, 0.5, 5, ray.Color{
+        .r = color[0],
+        .g = color[1],
+        .b = color[2],
+        .a = color[3],
+    });
+}
+// draw the cemented cells
 fn grid() void {
     for (game.state.cells, 0..) |row, y| {
         for (row, 0..) |color, x| {
             if (color[3] != 0) {
-                box(@as(i32, @intCast(x * cellsize)), @as(i32, @intCast(y * cellsize)), color);
+                roundedfillbox(@as(i32, @intCast(x * cellsize)), @as(i32, @intCast(y * cellsize)), color);
             }
         }
     }
