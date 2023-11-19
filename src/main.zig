@@ -8,11 +8,14 @@ pub fn main() !void {
     ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_VSYNC_HINT | ray.FLAG_WINDOW_ALWAYS_RUN);
     ray.InitWindow(gfx.windowwidth, gfx.windowheight, "yazbg");
     ray.SetTraceLogLevel(ray.LOG_WARNING);
-    ray.SetTargetFPS(120);
+    //ray.SetTargetFPS(120);
 
     try sys.init();
     defer sys.deinit();
 
+    try gfx.init();
+    defer gfx.deinit();
+    
     sys.playmusic();
     game.reset();
 

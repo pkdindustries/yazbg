@@ -3,21 +3,101 @@ const ray = @import("raylib.zig");
 const sys = @import("system.zig");
 const game = @import("game.zig");
 
-pub const windowwidth = 570;
-pub const windowheight = 660;
+pub var windowwidth: i32 = 570;
+pub var windowheight: i32= 660;
+pub var gridoffsetx: i32 = 145;
+pub var gridoffsety: i32 = 30;
 pub const cellsize: i32 = 30;
 pub const cellpadding: i32 = 1;
 pub const cellwidth: i32 = cellsize - 2 * cellpadding;
-pub const windowoffsetx: i32 = 145;
-pub const windowoffsety: i32 = 30;
+
+
+var bgshader: ray.Shader = undefined;
+var bgtexture: ray.Texture2D = undefined;
+var secondsloc: i32 = 0;
+var freqXLoc: i32 = 0;
+var freqYLoc: i32 = 0;
+var ampXLoc: i32 = 0;
+var ampYLoc: i32 = 0;
+var speedXLoc: i32 = 0;
+var speedYLoc: i32 = 0;
+var freqX: f32 = 10.0;
+var freqY: f32 = 10.0;
+var ampX: f32 = 2.0;
+var ampY: f32 = 2.0;
+var speedX: f32 = 0.25;
+var speedY: f32 = 0.25;
 
 pub fn frame() void {
+    predraw();
     ray.BeginDrawing();
+    background();
     player();
     grid();
     lineclears();
     ui();
     ray.EndDrawing();
+}
+
+pub fn init() !void {
+    std.debug.print("init gfx\n", .{});
+    bgshader = ray.LoadShader(null, "resources/shader/warp.fs");
+    bgtexture = ray.LoadTexture("resources/texture/starfield.png");
+    secondsloc = ray.GetShaderLocation(bgshader, "seconds");
+    freqXLoc = ray.GetShaderLocation(bgshader, "freqX");
+    freqYLoc = ray.GetShaderLocation(bgshader, "freqY");
+    ampXLoc = ray.GetShaderLocation(bgshader, "ampX");
+    ampYLoc = ray.GetShaderLocation(bgshader, "ampY");
+    speedXLoc = ray.GetShaderLocation(bgshader, "speedX");
+    speedYLoc = ray.GetShaderLocation(bgshader, "speedY");
+
+    var screenSize: [2]f32 = undefined;
+    screenSize[0] =  @as(f32, @floatFromInt(ray.GetScreenWidth()));
+    screenSize[1] = @as(f32, @floatFromInt(ray.GetScreenHeight()));
+    ray.SetShaderValue(bgshader, ray.GetShaderLocation(bgshader, "size"), &screenSize, ray.SHADER_UNIFORM_VEC2);
+}
+
+pub fn deinit() void {
+    std.debug.print("deinit gfx\n", .{});
+    ray.UnloadShader(bgshader);
+    ray.UnloadTexture(bgtexture);
+}
+
+// update shader stuff before draw call
+fn predraw() void {
+    ray.SetShaderValue(bgshader, secondsloc, &@as(f32, @floatCast(ray.GetTime())), ray.SHADER_UNIFORM_FLOAT);
+    
+    // go wild during a clear
+    if (game.state.lineclearer.active) {
+        freqX = 50.0;
+        freqY = 50.0;
+        ampX = 10.0;
+        ampY = 10.0;
+        speedX = 2.5;
+        speedY = 2.5;
+    } else {
+        freqX = 10.0;
+        freqY = 10.0;
+        ampX = 2.0;
+        ampY = 2.0;
+        speedX =0.25;
+        speedY = 0.25 * (@as(f32, @floatFromInt(game.state.level))+1);
+    }
+
+    ray.SetShaderValue(bgshader, freqXLoc, &freqX, ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(bgshader, freqYLoc, &freqY, ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(bgshader, ampXLoc, &ampX, ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(bgshader, ampYLoc, &ampY, ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(bgshader, speedXLoc, &speedX, ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(bgshader, speedYLoc, &speedY, ray.SHADER_UNIFORM_FLOAT);
+}
+
+fn background() void {
+    ray.ClearBackground(ray.BLACK); 
+    ray.BeginShaderMode(bgshader);
+    ray.DrawTexture(bgtexture, 0, 0, ray.WHITE);
+    //ray.DrawTexture(bgtexture, bgtexture.width, 0, ray.WHITE);
+    ray.EndShaderMode();
 }
 
 fn lineclears() void {
@@ -83,10 +163,8 @@ fn player() void {
         piece(xdx, ydx, p.shape[game.state.piecer], p.color);
 
         // draw ghost
-        const ghostY = game.ghosty();
-
         const color = .{ p.color[0], p.color[1], p.color[2], 30 };
-        piece(xdx, ghostY * cellsize, p.shape[game.state.piecer], color);
+        piece(xdx, game.ghosty() * cellsize, p.shape[game.state.piecer], color);
     }
 }
 
@@ -104,8 +182,8 @@ fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
 // draw a box
 fn box(x: i32, y: i32, color: [4]u8) void {
     ray.DrawRectangleLinesEx(ray.Rectangle{
-        .x = @as(f32, @floatFromInt(windowoffsetx + x)),
-        .y = @as(f32, @floatFromInt(windowoffsety + y)),
+        .x = @as(f32, @floatFromInt(gridoffsetx + x)),
+        .y = @as(f32, @floatFromInt(gridoffsety + y)),
         .width = @as(f32, @floatFromInt(cellwidth)),
         .height = @as(f32, @floatFromInt(cellwidth)),
     }, 2, ray.Color{
@@ -118,7 +196,7 @@ fn box(x: i32, y: i32, color: [4]u8) void {
 
 // draw a filled box
 fn fillbox(x: i32, y: i32, color: [4]u8) void {
-    ray.DrawRectangle(windowoffsetx + x, windowoffsety + y, cellwidth, cellwidth, ray.Color{
+    ray.DrawRectangle(gridoffsetx + x, gridoffsety + y, cellwidth, cellwidth, ray.Color{
         .r = color[0],
         .g = color[1],
         .b = color[2],
@@ -129,8 +207,8 @@ fn fillbox(x: i32, y: i32, color: [4]u8) void {
 // draw a rounded box
 fn roundedfillbox(x: i32, y: i32, color: [4]u8) void {
     ray.DrawRectangleRounded(ray.Rectangle{
-        .x = @as(f32, @floatFromInt(windowoffsetx + x)),
-        .y = @as(f32, @floatFromInt(windowoffsety + y)),
+        .x = @as(f32, @floatFromInt(gridoffsetx + x)),
+        .y = @as(f32, @floatFromInt(gridoffsety + y)),
         .width = @as(f32, @floatFromInt(cellwidth)),
         .height = @as(f32, @floatFromInt(cellwidth)),
     }, 0.5, 5, ray.Color{
@@ -153,9 +231,8 @@ fn grid() void {
 
 var textbuf: [1000]u8 = undefined;
 fn ui() void {
-    ray.ClearBackground(ray.BLACK);
 
-    ray.DrawRectangleLines(140, 5, 310, 632, ray.WHITE);
+    ray.DrawRectangleLines(140, 15, 310, 622, ray.WHITE);
 
     if (std.fmt.bufPrintZ(&textbuf, "score {}", .{game.state.score})) |score| {
         scramblefx(score);
@@ -178,6 +255,7 @@ fn ui() void {
         std.debug.print("error printing score: {}\n", .{err});
     }
 
+
     // debug status
     if (std.fmt.bufPrintZ(&textbuf, "{} {} {} {d:.2} {d:.2}", .{ game.state.piecex, game.state.piecey, game.state.piecer, game.state.dropinterval, game.state.lastmove })) |status| {
         ray.DrawText(status, 10, 620, 12, ray.GRAY);
@@ -185,13 +263,28 @@ fn ui() void {
         std.debug.print("error printing score: {}\n", .{err});
     }
 
-    ray.DrawText("next", 460, 30, 18, ray.GRAY);
+ ray.DrawTextEx(
+        sys.spacefont, 
+        "next", 
+        ray.Vector2{ .x = 460, .y = 30 }, 
+        22, // font size
+        2,  // spacing
+        ray.GRAY // color
+    );
     if (game.state.nextpiece) |nextpiece| {
         piece(windowwidth - 240, 35, nextpiece.shape[0], nextpiece.color);
     }
-    ray.DrawText("held", 5, 30, 18, ray.GRAY);
+
+    ray.DrawTextEx(
+        sys.spacefont, 
+        "held", 
+        ray.Vector2{ .x = 5, .y = 30 }, 
+        22, // font size
+        2,  // spacing
+        ray.GRAY // color
+    );
     if (game.state.heldpiece) |held| {
-        piece(35 - windowoffsetx, 35, held.shape[0], held.color);
+        piece(35 - gridoffsetx, 35, held.shape[0], held.color);
     }
 
     if (game.state.paused) {

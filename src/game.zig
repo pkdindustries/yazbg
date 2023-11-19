@@ -216,6 +216,16 @@ pub fn clearlines() i32 {
             state.lineclearer.lines[r] = true;
             state.lineclearer.active = true;
             state.lineclearer.start_time = std.time.milliTimestamp();
+            
+            // jank.. avoid pilups. need better.
+            if (state.dropinterval < 0.5) {
+                state.lineclearer.duration = 100;
+            }
+
+            if (state.dropinterval < 0.1) {
+                state.lineclearer.duration = 0;
+            }
+            
             lines += 1;
         }
     }
