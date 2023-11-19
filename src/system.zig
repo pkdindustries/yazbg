@@ -1,32 +1,35 @@
 pub const ray = @import("raylib.zig");
 const std = @import("std");
 
-var errs = ray.Sound{};
-var clacks = ray.Sound{};
-var clicks = ray.Sound{};
-var clears = ray.Sound{};
-var level = ray.Sound{};
+
+var errsound = ray.Sound{};
+var clacksound = ray.Sound{};
+var clicksound = ray.Sound{};
+var clearsound = ray.Sound{};
+var levelupsound = ray.Sound{};
+var wooshsound = ray.Sound{};
+var winsound = ray.Sound{};
 var songs = std.ArrayList(ray.Music).init(std.heap.page_allocator);
-var woosh = ray.Sound{};
-var win = ray.Sound{};
 
 pub var rng = std.rand.DefaultPrng.init(0);
 pub var songindex: usize = 0;
+
+pub var spacefont = ray.Font{};
 
 pub fn init() !void {
     // audio
     std.debug.print("init audio\n", .{});
     ray.InitAudioDevice();
-    if (ray.IsAudioDeviceReady()) {
-        errs = ray.LoadSound("resources/sfx/deny.mp3");
-        clacks = ray.LoadSound("resources/sfx/clack.mp3");
-        clicks = ray.LoadSound("resources/sfx/click.mp3");
-        clears = ray.LoadSound("resources/sfx/clear.mp3");
-        level = ray.LoadSound("resources/sfx/level.mp3");
-        woosh = ray.LoadSound("resources/sfx/woosh.mp3");
-        win = ray.LoadSound("resources/sfx/win.mp3");
+    if (ray.IsAudioDeviceReady()  ) {
+        errsound = ray.LoadSound("resources/sfx/deny.mp3");
+        clacksound = ray.LoadSound("resources/sfx/clack.mp3");
+        clicksound = ray.LoadSound("resources/sfx/click.mp3");
+        clearsound = ray.LoadSound("resources/sfx/clear.mp3");
+        levelupsound = ray.LoadSound("resources/sfx/level.mp3");
+        wooshsound = ray.LoadSound("resources/sfx/woosh.mp3");
+        winsound = ray.LoadSound("resources/sfx/win.mp3");
         try songs.append(ray.LoadMusicStream("resources/music/level0.mp3"));
-        try songs.append(ray.LoadMusicStream("resrouces/music/level1.mp3"));
+        try songs.append(ray.LoadMusicStream("resources/music/level1.mp3"));
     }
 
     // rng
@@ -36,47 +39,55 @@ pub fn init() !void {
         try std.os.getrandom(std.mem.asBytes(&seed));
         break :blk seed;
     });
+
+    // font 
+    std.debug.print("init font\n", .{});
+    spacefont = ray.LoadFont("resources/fonts/spaceage.ttf");
 }
 
 pub fn deinit() void {
     std.debug.print("deinit audio\n", .{});
     ray.StopMusicStream(songs.items[songindex]);
-    ray.UnloadSound(errs);
-    ray.UnloadSound(clacks);
-    ray.UnloadSound(clicks);
-    ray.UnloadSound(clears);
-    ray.UnloadSound(level);
-    ray.UnloadSound(woosh);
-    ray.UnloadSound(win);
-    ray.UnloadMusicStream(songs.items[songindex]);
+    ray.UnloadSound(errsound);
+    ray.UnloadSound(clacksound);
+    ray.UnloadSound(clicksound);
+    ray.UnloadSound(clearsound);
+    ray.UnloadSound(levelupsound);
+    ray.UnloadSound(wooshsound);
+    ray.UnloadSound(winsound);
+    for (songs.items) |song| {
+        ray.UnloadMusicStream(song);
+    }
+    
+    ray.UnloadFont(spacefont);
     ray.CloseAudioDevice();
 }
 
 pub fn playwin() void {
-    ray.PlaySound(win);
+    ray.PlaySound(winsound);
 }
 
 pub fn playwoosh() void {
-    ray.PlaySound(woosh);
+    ray.PlaySound(wooshsound);
 }
 
 pub fn playlevel() void {
-    ray.PlaySound(level);
+    ray.PlaySound(levelupsound);
 }
 pub fn playerror() void {
-    ray.PlaySound(errs);
+    ray.PlaySound(errsound);
 }
 
 pub fn playclack() void {
-    ray.PlaySound(clacks);
+    ray.PlaySound(clacksound);
 }
 
 pub fn playclick() void {
-    ray.PlaySound(clicks);
+    ray.PlaySound(clicksound);
 }
 
 pub fn playclear() void {
-    ray.PlaySound(clears);
+    ray.PlaySound(clearsound);
 }
 
 pub fn playmusic() void {
