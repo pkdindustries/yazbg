@@ -1,6 +1,6 @@
 pub const ray = @import("raylib.zig");
 const std = @import("std");
-
+const builtin = @import("builtin");
 
 var errsound = ray.Sound{};
 var clacksound = ray.Sound{};
@@ -13,14 +13,13 @@ var songs = std.ArrayList(ray.Music).init(std.heap.page_allocator);
 
 pub var rng = std.rand.DefaultPrng.init(0);
 pub var songindex: usize = 0;
-
 pub var spacefont = ray.Font{};
 
 pub fn init() !void {
     // audio
     std.debug.print("init audio\n", .{});
     ray.InitAudioDevice();
-    if (ray.IsAudioDeviceReady()  ) {
+    if (ray.IsAudioDeviceReady()) {
         errsound = ray.LoadSound("resources/sfx/deny.mp3");
         clacksound = ray.LoadSound("resources/sfx/clack.mp3");
         clicksound = ray.LoadSound("resources/sfx/click.mp3");
@@ -40,7 +39,7 @@ pub fn init() !void {
         break :blk seed;
     });
 
-    // font 
+    // font
     std.debug.print("init font\n", .{});
     spacefont = ray.LoadFont("resources/fonts/spaceage.ttf");
 }
@@ -58,7 +57,7 @@ pub fn deinit() void {
     for (songs.items) |song| {
         ray.UnloadMusicStream(song);
     }
-    
+
     ray.UnloadFont(spacefont);
     ray.CloseAudioDevice();
 }
@@ -92,6 +91,19 @@ pub fn playclear() void {
 
 pub fn playmusic() void {
     ray.SetMusicVolume(songs.items[songindex], 0.05);
+    ray.PlayMusicStream(songs.items[songindex]);
+}
+
+pub fn mute() void {
+    ray.SetMusicVolume(songs.items[songindex], 0.00);
+}
+
+pub fn nextmusic() void {
+    ray.StopMusicStream(songs.items[songindex]);
+    songindex += 1;
+    if (songindex >= songs.items.len) {
+        songindex = 0;
+    }
     ray.PlayMusicStream(songs.items[songindex]);
 }
 

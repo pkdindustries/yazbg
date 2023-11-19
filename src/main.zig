@@ -15,7 +15,7 @@ pub fn main() !void {
 
     try gfx.init();
     defer gfx.deinit();
-    
+
     sys.playmusic();
     game.reset();
 
@@ -28,7 +28,7 @@ pub fn main() !void {
         gfx.frame();
         // handle input
         switch (ray.GetKeyPressed()) {
-            ray.KEY_P => game.pause(),
+            ray.KEY_P => _ = game.pause(),
             ray.KEY_R => game.reset(),
             ray.KEY_SPACE => drop(),
             ray.KEY_LEFT => move(game.left, sys.playclick, sys.playerror),
@@ -43,7 +43,6 @@ pub fn main() !void {
 
 fn tick() void {
     if (game.tickable()) {
-        std.debug.print("tick\n", .{});
         move(game.down, sys.playclick, drop);
     }
 }
@@ -71,8 +70,8 @@ fn progression(lines: i32) void {
         game.state.level += 1;
         game.state.score += 1000 * game.state.level;
         game.state.dropinterval -= 0.15;
-        if (game.state.dropinterval < 0.2) {
-            game.state.dropinterval = 0.2;
+        if (game.state.dropinterval < 0.15) {
+            game.state.dropinterval = 0.15;
         }
     }
 }
