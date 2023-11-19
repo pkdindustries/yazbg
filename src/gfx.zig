@@ -80,7 +80,7 @@ fn predraw() void {
         freqY = 10.0;
         ampX = 2.0;
         ampY = 2.0;
-        speedX =0.25;
+        speedX = 0.25 * (@as(f32, @floatFromInt(game.state.level))+1);
         speedY = 0.25 * (@as(f32, @floatFromInt(game.state.level))+1);
     }
 
