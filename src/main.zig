@@ -3,9 +3,9 @@ const ray = @import("raylib.zig");
 const game = @import("game.zig");
 const sys = @import("system.zig");
 const gfx = @import("gfx.zig");
-
+const MS = 1_000_000;
 pub fn main() !void {
-    ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT);
+    ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
     ray.InitWindow(gfx.windowwidth, gfx.windowheight, "yazbg");
     //ray.SetTargetFPS(120);
 
@@ -17,9 +17,9 @@ pub fn main() !void {
 
     sys.playmusic();
     game.reset();
-    while (!ray.WindowShouldClose()) {
-        var now = std.time.milliTimestamp();
 
+    while (!ray.WindowShouldClose()) {
+        var timer = try std.time.Timer.start();
         // fill music buffer
         sys.updatemusic(game.state.paused);
         // tick
@@ -38,15 +38,14 @@ pub fn main() !void {
             else => {},
         }
 
-        var gamelogic_elapsed = std.time.milliTimestamp() - now;
+        var gamelogic_elapsed = timer.lap();
+
         // draw the frame
         gfx.frame();
-        // frame time
-        var frametime_elapsed = std.time.milliTimestamp() - now - gamelogic_elapsed;
-        // total time
-        var total_elapsed = std.time.milliTimestamp() - now;
-        if (frametime_elapsed + gamelogic_elapsed + total_elapsed > 10) {
-            std.debug.print("frame {}ms, game {}ms, total {}ms\n", .{ frametime_elapsed, gamelogic_elapsed, total_elapsed });
+        var frametime_elapsed = timer.lap();
+        var total_elapsed = gamelogic_elapsed + frametime_elapsed;
+        if (gamelogic_elapsed > 1 * MS or frametime_elapsed > 5 * MS) {
+            std.debug.print("frame {}ms, game {}ms, total {}ms, raytime {d}\n", .{ frametime_elapsed / MS, gamelogic_elapsed / MS, total_elapsed / MS, ray.GetFrameTime() * MS / 1000 });
         }
     }
 }
@@ -71,7 +70,7 @@ fn drop() void {
 fn progression(lines: i32) void {
     if (lines < 1) return;
     game.state.score += 1000 * lines * lines;
-    if (lines >= 1) sys.playclear();
+    sys.playclear();
     if (lines > 3) sys.playwin();
     if (@rem(game.state.lines, 3) == 0) {
         std.debug.print("level up\n", .{});
