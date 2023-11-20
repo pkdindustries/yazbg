@@ -1,6 +1,7 @@
 pub const ray = @import("raylib.zig");
 const std = @import("std");
 const builtin = @import("builtin");
+const rnd = @import("random.zig");
 
 var errsound = ray.Sound{};
 var clacksound = ray.Sound{};
@@ -10,10 +11,7 @@ var levelupsound = ray.Sound{};
 var wooshsound = ray.Sound{};
 var winsound = ray.Sound{};
 var songs = std.ArrayList(ray.Music).init(std.heap.page_allocator);
-
-pub var rng = std.rand.DefaultPrng.init(0);
-pub var songindex: usize = 0;
-pub var spacefont = ray.Font{};
+var songindex: usize = 0;
 
 pub fn init() !void {
     // audio
@@ -30,19 +28,6 @@ pub fn init() !void {
         try songs.append(ray.LoadMusicStream("resources/music/level0.mp3"));
         try songs.append(ray.LoadMusicStream("resources/music/level1.mp3"));
     }
-
-    // rng
-    std.debug.print("init rng\n", .{});
-    rng = std.rand.DefaultPrng.init(blk: {
-        var seed: u64 = undefined;
-        try std.os.getrandom(std.mem.asBytes(&seed));
-        break :blk seed;
-    });
-
-    // font
-    std.debug.print("init font\n", .{});
-    spacefont = ray.LoadFont("resources/fonts/nasa.otf");
-    ray.SetTextureFilter(spacefont.texture, ray.TEXTURE_FILTER_TRILINEAR);
 }
 
 pub fn deinit() void {
@@ -59,7 +44,6 @@ pub fn deinit() void {
         ray.UnloadMusicStream(song);
     }
 
-    ray.UnloadFont(spacefont);
     ray.CloseAudioDevice();
 }
 
@@ -106,7 +90,7 @@ pub fn nextmusic() void {
 
 pub fn randommusic() void {
     ray.StopMusicStream(songs.items[songindex]);
-    songindex = rng.random().intRangeAtMost(usize, 0, songs.items.len - 1);
+    songindex = rnd.ng.intRangeAtMost(usize, 0, songs.items.len - 1);
     ray.PlayMusicStream(songs.items[songindex]);
 }
 

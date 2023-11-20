@@ -1,6 +1,7 @@
 const std = @import("std");
 const pieces = @import("pieces.zig");
-const sys = @import("system.zig");
+const sfx = @import("sfx.zig");
+const rnd = @import("random.zig");
 
 pub const grid_rows = 20;
 pub const grid_cols = 10;
@@ -51,7 +52,7 @@ pub fn frozen() bool {
 }
 
 pub fn tickable() bool {
-    return !state.lineclearer.active and !frozen() and sys.ray.GetTime() - state.lastmove >= state.dropinterval;
+    return !state.lineclearer.active and !frozen() and sfx.ray.GetTime() - state.lastmove >= state.dropinterval;
 }
 
 pub fn reset() void {
@@ -60,7 +61,7 @@ pub fn reset() void {
     state.lines = 0;
     state.lastmove = 0;
     state.dropinterval = 2.0;
-    state.nextpiece = pieces.tetraminos[sys.rng.random().intRangeAtMost(u32, 0, 6)];
+    state.nextpiece = pieces.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
     nextpiece();
     state.heldpiece = null;
     state.lineclearer = .{
@@ -92,7 +93,7 @@ pub fn reset() void {
 
 pub fn nextpiece() void {
     state.piece = state.nextpiece;
-    state.nextpiece = pieces.tetraminos[sys.rng.random().intRangeAtMost(u32, 0, 6)];
+    state.nextpiece = pieces.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
     state.piecex = 3;
     state.piecey = 0;
     state.piecer = 0;
@@ -116,7 +117,7 @@ pub fn swappiece() bool {
         nextpiece();
     }
     state.swapped = true;
-    state.lastmove = sys.ray.GetTime();
+    state.lastmove = sfx.ray.GetTime();
     return state.swapped;
 }
 
@@ -203,7 +204,7 @@ pub fn harddrop() i32 {
         }
     }
 
-    state.lastmove = sys.ray.GetTime();
+    state.lastmove = sfx.ray.GetTime();
     var cleared = clearlines();
     return cleared;
 }
@@ -232,7 +233,7 @@ pub fn right() bool {
         return false;
     }
     slidepiece(x, y);
-    state.lastmove = sys.ray.GetTime();
+    state.lastmove = sfx.ray.GetTime();
     return true;
 }
 
@@ -245,7 +246,7 @@ pub fn left() bool {
     }
 
     slidepiece(x, y);
-    state.lastmove = sys.ray.GetTime();
+    state.lastmove = sfx.ray.GetTime();
     return true;
 }
 
@@ -257,7 +258,7 @@ pub fn down() bool {
         return false;
     }
     slidepiece(x, y);
-    state.lastmove = sys.ray.GetTime();
+    state.lastmove = sfx.ray.GetTime();
     return true;
 }
 
@@ -269,7 +270,7 @@ pub fn rotate() bool {
 
     // after rotation, the piece fits, return
     if (checkmove(state.piecex, state.piecey)) {
-        state.lastmove = sys.ray.GetTime();
+        state.lastmove = sfx.ray.GetTime();
         return true;
     }
 

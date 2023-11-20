@@ -1,7 +1,8 @@
 const std = @import("std");
 const ray = @import("raylib.zig");
-const sys = @import("system.zig");
+const sfx = @import("sfx.zig");
 const game = @import("game.zig");
+const rnd = @import("random.zig");
 
 pub var windowwidth: i32 = 640;
 pub var windowheight: i32 = 760;
@@ -21,6 +22,7 @@ pub const backgrounds: [5][*:0]const u8 = .{
     "resources/texture/bokefall.png",
 };
 
+var spacefont = ray.Font{};
 var bgshader: ray.Shader = undefined;
 var bgtexture: ray.Texture2D = undefined;
 var secondsloc: i32 = 0;
@@ -52,8 +54,14 @@ pub fn frame() void {
 
 pub fn init() !void {
     std.debug.print("init gfx\n", .{});
+
+    // window init
+    ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
+    ray.InitWindow(windowwidth, windowheight, "yazbg");
+    //ray.SetTargetFPS(120);
+
+    // shader init
     bgshader = ray.LoadShader(null, "resources/shader/warp.fs");
-    randombackground();
     secondsloc = ray.GetShaderLocation(bgshader, "seconds");
     freqXLoc = ray.GetShaderLocation(bgshader, "freqX");
     freqYLoc = ray.GetShaderLocation(bgshader, "freqY");
@@ -62,18 +70,25 @@ pub fn init() !void {
     speedXLoc = ray.GetShaderLocation(bgshader, "speedX");
     speedYLoc = ray.GetShaderLocation(bgshader, "speedY");
     sizeLoc = ray.GetShaderLocation(bgshader, "size");
+
+    // font init
+    spacefont = ray.LoadFont("resources/fonts/nasa.otf");
+    ray.SetTextureFilter(spacefont.texture, ray.TEXTURE_FILTER_TRILINEAR);
+    randombackground();
 }
 
 pub fn deinit() void {
     std.debug.print("deinit gfx\n", .{});
     ray.UnloadShader(bgshader);
     ray.UnloadTexture(bgtexture);
+    ray.UnloadTexture(spacefont.texture);
+    ray.UnloadFont(spacefont);
 }
 
 // set random background
 pub fn randombackground() void {
     ray.UnloadTexture(bgtexture);
-    var i: u32 = sys.rng.random().intRangeAtMost(u32, 0, backgrounds.len - 1);
+    var i: u32 = rnd.ng.random().intRangeAtMost(u32, 0, backgrounds.len - 1);
     var f = backgrounds[i];
     bgtexture = ray.LoadTexture(f);
     ray.SetTextureFilter(bgtexture, ray.TEXTURE_FILTER_TRILINEAR);
@@ -310,12 +325,12 @@ fn ui() void {
         }
         // var scoreheight = ray.MeasureTextEx(sys.spacefont, score, size, 3).y;
         // var scorey = @as(f32, @floatFromInt(windowheight)) - scoreheight * 2;
-        ray.DrawTextEx(sys.spacefont, score, ray.Vector2{ .x = 10, .y = 620 }, size, 3, color);
+        ray.DrawTextEx(spacefont, score, ray.Vector2{ .x = 10, .y = 620 }, size, 3, color);
     } else |err| {
         std.debug.print("error printing score: {}\n", .{err});
     }
 
-    ray.DrawTextEx(sys.spacefont, "next", ray.Vector2{ .x = 520, .y = 30 }, 22, // font size
+    ray.DrawTextEx(spacefont, "next", ray.Vector2{ .x = 520, .y = 30 }, 22, // font size
         2, // spacing
         ray.GRAY // color
     );
@@ -323,7 +338,7 @@ fn ui() void {
         piece(windowwidth - 240, 35, nextpiece.shape[0], nextpiece.color);
     }
 
-    ray.DrawTextEx(sys.spacefont, "held", ray.Vector2{ .x = 5, .y = 30 }, 22, // font size
+    ray.DrawTextEx(spacefont, "held", ray.Vector2{ .x = 5, .y = 30 }, 22, // font size
         2, // spacing
         ray.GRAY // color
     );
@@ -339,7 +354,7 @@ fn ui() void {
             .a = 210,
         });
 
-        ray.DrawTextEx(sys.spacefont, "PAUSED", ray.Vector2{ .x = 180, .y = 300 }, 60, 3, ray.ORANGE);
+        ray.DrawTextEx(spacefont, "PAUSED", ray.Vector2{ .x = 180, .y = 300 }, 60, 3, ray.ORANGE);
         ray.DrawText("press p to unpause", 190, 350, 20, ray.RED);
     }
 
@@ -351,7 +366,7 @@ fn ui() void {
             .a = 200,
         });
 
-        ray.DrawTextEx(sys.spacefont, "GAME OVER", ray.Vector2{ .x = 110, .y = 290 }, 60, 3, ray.RED);
+        ray.DrawTextEx(spacefont, "GAME OVER", ray.Vector2{ .x = 110, .y = 290 }, 60, 3, ray.RED);
         ray.DrawText("r to restart", 225, 350, 20, ray.WHITE);
         ray.DrawText("esc to exit", 225, 375, 20, ray.WHITE);
     }
@@ -360,12 +375,12 @@ fn ui() void {
 const scrambles = "!@#$%^&*+-=<>?/\\|~`";
 fn scramblefx(s: []u8) void {
     for (s) |*c| {
-        var n = scrambles[sys.rng.random().intRangeAtMost(u32, 0, scrambles.len)];
+        var n = scrambles[rnd.ng.random().intRangeAtMost(u32, 0, scrambles.len)];
         if (c.* == '\n') {
             continue;
         }
 
-        if (sys.rng.random().intRangeAtMost(u32, 0, 100) > 90) {
+        if (rnd.ng.random().intRangeAtMost(u32, 0, 100) > 90) {
             c.* = n;
         }
     }
