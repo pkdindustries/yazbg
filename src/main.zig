@@ -5,10 +5,9 @@ const sys = @import("system.zig");
 const gfx = @import("gfx.zig");
 
 pub fn main() !void {
-    ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_VSYNC_HINT | ray.FLAG_WINDOW_ALWAYS_RUN);
+    ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT);
     ray.InitWindow(gfx.windowwidth, gfx.windowheight, "yazbg");
-    ray.SetTraceLogLevel(ray.LOG_WARNING);
-    ray.SetTargetFPS(120);
+    //ray.SetTargetFPS(120);
 
     try sys.init();
     defer sys.deinit();
@@ -19,12 +18,12 @@ pub fn main() !void {
     sys.playmusic();
     game.reset();
     while (!ray.WindowShouldClose()) {
+        var now = std.time.milliTimestamp();
+
         // fill music buffer
         sys.updatemusic(game.state.paused);
         // tick
         tick();
-        // draw the frame
-        gfx.frame();
         // handle input
         switch (ray.GetKeyPressed()) {
             ray.KEY_P => game.pause(),
@@ -37,6 +36,17 @@ pub fn main() !void {
             ray.KEY_C => move(game.swappiece, sys.playwoosh, sys.playerror),
             ray.KEY_B => gfx.randombackground(),
             else => {},
+        }
+
+        var gamelogic_elapsed = std.time.milliTimestamp() - now;
+        // draw the frame
+        gfx.frame();
+        // frame time
+        var frametime_elapsed = std.time.milliTimestamp() - now - gamelogic_elapsed;
+        // total time
+        var total_elapsed = std.time.milliTimestamp() - now;
+        if (frametime_elapsed + gamelogic_elapsed + total_elapsed > 10) {
+            std.debug.print("frame {}ms, game {}ms, total {}ms\n", .{ frametime_elapsed, gamelogic_elapsed, total_elapsed });
         }
     }
 }

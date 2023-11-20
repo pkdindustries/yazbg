@@ -34,7 +34,6 @@ var ampX: f32 = 2.0;
 var ampY: f32 = 2.0;
 var speedX: f32 = 0.25;
 var speedY: f32 = 0.25;
-
 pub fn frame() void {
     predraw();
     ray.BeginDrawing();
@@ -75,7 +74,6 @@ pub fn randombackground() void {
     ray.UnloadTexture(bgtexture);
     var i: u32 = sys.rng.random().intRangeAtMost(u32, 0, backgrounds.len - 1);
     var f = backgrounds[i];
-    std.debug.print("** loading background {s}\n", .{f});
     bgtexture = ray.LoadTexture(f);
 }
 
@@ -142,7 +140,8 @@ fn lineclears() void {
             game.removelines();
             game.state.lineclearer.active = false;
             game.state.lineclearer.lines = undefined;
-            std.debug.print("line clear animation finished {}\n", .{elapsed_time});
+            if (elapsed_time > game.state.lineclearer.duration)
+                std.debug.print("lineclear animation {}ms\n", .{elapsed_time});
         }
     }
 }
@@ -169,7 +168,8 @@ fn player() void {
                 game.state.pieceslider.active = false;
                 game.state.piecex = game.state.pieceslider.targetx;
                 game.state.piecey = game.state.pieceslider.targety;
-                std.debug.print("slide animation finished {}\n", .{elapsed_time});
+                if (elapsed_time > game.state.pieceslider.duration)
+                    std.debug.print("slide {}ms\n", .{elapsed_time});
             }
         }
 
@@ -267,7 +267,7 @@ fn ui() void {
         .a = 100,
     });
 
-    ray.DrawRectangle(125, windowheight - 20, windowwidth - 125 - 125, 20, ray.Color{
+    ray.DrawRectangle(125, windowheight - 25, windowwidth - 125 - 125, 25, ray.Color{
         .r = 0,
         .g = 0,
         .b = 0,
