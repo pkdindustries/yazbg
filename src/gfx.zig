@@ -5,11 +5,19 @@ const game = @import("game.zig");
 
 pub var windowwidth: i32 = 570;
 pub var windowheight: i32 = 660;
-pub var gridoffsetx: i32 = 145;
+pub var gridoffsetx: i32 = 135;
 pub var gridoffsety: i32 = 30;
 pub const cellsize: i32 = 30;
 pub const cellpadding: i32 = 1;
 pub const cellwidth: i32 = cellsize - 2 * cellpadding;
+pub const totalgridwidth: i32 = game.grid_cols * cellsize + 2 * gridoffsetx;
+pub const backgrounds: [5][*:0]const u8 = .{
+    "resources/texture/bluestars.png",
+    "resources/texture/nebula.png",
+    "resources/texture/starfall.png",
+    "resources/texture/starfield.png",
+    "resources/texture/bokefall.png",
+};
 
 var bgshader: ray.Shader = undefined;
 var bgtexture: ray.Texture2D = undefined;
@@ -41,7 +49,7 @@ pub fn frame() void {
 pub fn init() !void {
     std.debug.print("init gfx\n", .{});
     bgshader = ray.LoadShader(null, "resources/shader/warp.fs");
-    bgtexture = ray.LoadTexture("resources/texture/starfield.png");
+    randombackground();
     secondsloc = ray.GetShaderLocation(bgshader, "seconds");
     freqXLoc = ray.GetShaderLocation(bgshader, "freqX");
     freqYLoc = ray.GetShaderLocation(bgshader, "freqY");
@@ -60,6 +68,15 @@ pub fn deinit() void {
     std.debug.print("deinit gfx\n", .{});
     ray.UnloadShader(bgshader);
     ray.UnloadTexture(bgtexture);
+}
+
+// set random background
+pub fn randombackground() void {
+    ray.UnloadTexture(bgtexture);
+    var i: u32 = sys.rng.random().intRangeAtMost(u32, 0, backgrounds.len - 1);
+    var f = backgrounds[i];
+    std.debug.print("** loading background {s}\n", .{f});
+    bgtexture = ray.LoadTexture(f);
 }
 
 // update shader stuff before draw call
@@ -95,7 +112,6 @@ fn background() void {
     ray.ClearBackground(ray.BLACK);
     ray.BeginShaderMode(bgshader);
     ray.DrawTexture(bgtexture, 0, 0, ray.WHITE);
-    //ray.DrawTexture(bgtexture, bgtexture.width, 0, ray.WHITE);
     ray.EndShaderMode();
 }
 
@@ -161,11 +177,10 @@ fn player() void {
         var ydx = @as(i32, @intFromFloat(fdrawy));
 
         // draw the piece at the interpolated position
-        //const pcolor = .{ p.color[0], p.color[1], p.color[2], sys.rng.random().intRangeAtMost(u8, 200, 255) };
         piece(xdx, ydx, p.shape[game.state.piecer], p.color);
 
         // draw ghost
-        const color = .{ p.color[0], p.color[1], p.color[2], 100 };
+        const color = .{ p.color[0], p.color[1], p.color[2], 50 };
         piece(xdx, game.ghosty() * cellsize, p.shape[game.state.piecer], color);
     }
 }
@@ -222,7 +237,6 @@ fn roundedfillbox(x: i32, y: i32, color: [4]u8) void {
 }
 // draw the cemented cells and border
 fn grid() void {
-    ray.DrawRectangleLines(140, 15, 310, 622, ray.WHITE);
     for (game.state.cells, 0..) |row, y| {
         if (game.state.lineclearer.active and game.state.lineclearer.lines[y]) {
             continue;
@@ -238,6 +252,27 @@ fn grid() void {
 var textbuf: [1000]u8 = undefined;
 fn ui() void {
     ray.SetTextLineSpacing(22);
+    //ray.DrawRectangleLines(gridoffsetx - 10, gridoffsety - 10, 320, 622, ray.WHITE);
+    ray.DrawRectangle(0, 0, 125, windowheight, ray.Color{
+        .r = 0,
+        .g = 0,
+        .b = 0,
+        .a = 100,
+    });
+
+    ray.DrawRectangle(windowwidth - 125, 0, 125, windowheight, ray.Color{
+        .r = 0,
+        .g = 0,
+        .b = 0,
+        .a = 100,
+    });
+
+    ray.DrawRectangle(125, windowheight - 20, windowwidth - 125 - 125, 20, ray.Color{
+        .r = 0,
+        .g = 0,
+        .b = 0,
+        .a = 100,
+    });
 
     if (std.fmt.bufPrintZ(&textbuf, "score\n{}\nlines\n{}\nlevel\n{}", .{ game.state.score, game.state.lines, game.state.level })) |score| {
         var color = ray.GREEN;
@@ -252,27 +287,6 @@ fn ui() void {
     } else |err| {
         std.debug.print("error printing score: {}\n", .{err});
     }
-
-    // if (std.fmt.bufPrintZ(&textbuf, "lines {}", .{game.state.lines})) |lines| {
-    //     //scramblefx(lines);
-    //     ray.DrawText(lines, 10, 580, 20, ray.GREEN);
-    // } else |err| {
-    //     std.debug.print("error printing score: {}\n", .{err});
-    // }
-
-    // if (std.fmt.bufPrintZ(&textbuf, "level {}", .{game.state.level})) |level| {
-    //     //scramblefx(level);
-    //     ray.DrawText(level, 10, 600, 20, ray.GREEN);
-    // } else |err| {
-    //     std.debug.print("error printing score: {}\n", .{err});
-    // }
-
-    // debug status
-    // if (std.fmt.bufPrintZ(&textbuf, "{} {} {} {d:.2} {d:.2}", .{ game.state.piecex, game.state.piecey, game.state.piecer, game.state.dropinterval, game.state.lastmove })) |status| {
-    //     ray.DrawText(status, 10, 620, 12, ray.GRAY);
-    // } else |err| {
-    //     std.debug.print("error printing score: {}\n", .{err});
-    // }
 
     ray.DrawTextEx(sys.spacefont, "next", ray.Vector2{ .x = 460, .y = 30 }, 22, // font size
         2, // spacing

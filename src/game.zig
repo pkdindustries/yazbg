@@ -2,11 +2,11 @@ const std = @import("std");
 const pieces = @import("pieces.zig");
 const sys = @import("system.zig");
 
-const cell_height = 20;
-const cell_width = 10;
+pub const grid_rows = 20;
+pub const grid_cols = 10;
 
 pub const YAZBG = struct {
-    cells: [cell_height][cell_width][4]u8 = undefined,
+    cells: [grid_rows][grid_cols][4]u8 = undefined,
     score: i32 = 0,
     level: i32 = 0,
     lines: i32 = 0,
@@ -30,7 +30,7 @@ pub const YAZBG = struct {
         active: bool = false,
         start_time: i64 = 0,
         duration: i64 = 500,
-        lines: [cell_height]bool = undefined,
+        lines: [grid_rows]bool = undefined,
     } = .{},
     pieceslider: struct {
         active: bool = false,
@@ -168,7 +168,7 @@ pub fn checkmove(x: i32, y: i32) bool {
                     const gx = x + @as(i32, @intCast(j));
                     const gy = y + @as(i32, @intCast(i));
                     // cell is out of bounds
-                    if (gx < 0 or gx >= cell_width or gy < 0 or gy >= cell_height) {
+                    if (gx < 0 or gx >= grid_cols or gy < 0 or gy >= grid_rows) {
                         return false;
                     }
                     //  cell is already occupied
@@ -195,7 +195,7 @@ pub fn harddrop() i32 {
                 if (cell) {
                     const gx = state.piecex + @as(i32, @intCast(i));
                     const gy = state.piecey + @as(i32, @intCast(j));
-                    if (gx >= 0 and gx < cell_width and gy >= 0 and gy < cell_height) {
+                    if (gx >= 0 and gx < grid_cols and gy >= 0 and gy < grid_rows) {
                         state.cells[@as(usize, @intCast(gy))][@as(usize, @intCast(gx))] = piece.color;
                     }
                 }
@@ -216,12 +216,6 @@ pub fn clearlines() i32 {
             state.lineclearer.lines[r] = true;
             state.lineclearer.active = true;
             state.lineclearer.start_time = std.time.milliTimestamp();
-            std.debug.print("duration {d}\n", .{state.pieceslider.duration});
-            // jank.. avoid pilups. need better.
-            if (state.dropinterval <= 0.5) {
-                state.lineclearer.duration = 100;
-            }
-
             lines += 1;
         }
     }

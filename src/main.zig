@@ -18,7 +18,6 @@ pub fn main() !void {
 
     sys.playmusic();
     game.reset();
-
     while (!ray.WindowShouldClose()) {
         // fill music buffer
         sys.updatemusic(game.state.paused);
@@ -36,6 +35,7 @@ pub fn main() !void {
             ray.KEY_DOWN => move(game.down, sys.playclick, drop),
             ray.KEY_UP => move(game.rotate, sys.playclick, sys.playerror),
             ray.KEY_C => move(game.swappiece, sys.playwoosh, sys.playerror),
+            ray.KEY_B => gfx.randombackground(),
             else => {},
         }
     }
@@ -54,29 +54,31 @@ fn drop() void {
     sys.playclack();
 
     const lines: i32 = game.harddrop();
-    if (lines > 0) sys.playclear();
-    if (lines > 3) sys.playwin();
     progression(lines);
-
     game.nextpiece();
 }
 
 fn progression(lines: i32) void {
     if (lines < 1) return;
     game.state.score += 1000 * lines * lines;
+    if (lines >= 1) sys.playclear();
+    if (lines > 3) sys.playwin();
     if (@rem(game.state.lines, 3) == 0) {
         std.debug.print("level up\n", .{});
+        gfx.randombackground();
         sys.playlevel();
         sys.nextmusic();
         game.state.level += 1;
         game.state.score += 1000 * game.state.level;
         game.state.dropinterval -= 0.15;
-        if (game.state.dropinterval < 0.15) {
-            game.state.dropinterval = 0.15;
+        if (game.state.dropinterval <= 0.2) {
+            game.state.dropinterval = 0.2;
         }
         // fixme: controllability at high levels
-        if (game.state.dropinterval <= 0.20) {
-            game.state.pieceslider.duration = 20;
+        // feels much better with no animation
+        if (game.state.dropinterval <= 0.4) {
+            game.state.pieceslider.duration = 10;
+            game.state.lineclearer.duration = 100;
         }
     }
 }

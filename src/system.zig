@@ -95,10 +95,6 @@ pub fn playmusic() void {
     ray.PlayMusicStream(songs.items[songindex]);
 }
 
-pub fn mute() void {
-    ray.SetMusicVolume(songs.items[songindex], 0.00);
-}
-
 pub fn nextmusic() void {
     ray.StopMusicStream(songs.items[songindex]);
     songindex += 1;
@@ -114,8 +110,8 @@ pub fn randommusic() void {
     ray.PlayMusicStream(songs.items[songindex]);
 }
 
-pub fn updatemusic(paused: bool) void {
-    if (paused) {
+pub fn updatemusic(mute: bool) void {
+    if (mute) {
         ray.SetMusicVolume(songs.items[songindex], 0.00);
     } else {
         ray.SetMusicVolume(songs.items[songindex], 0.05);
