@@ -41,7 +41,8 @@ pub fn init() !void {
 
     // font
     std.debug.print("init font\n", .{});
-    spacefont = ray.LoadFont("resources/fonts/spaceage.ttf");
+    spacefont = ray.LoadFont("resources/fonts/nasa.otf");
+    ray.SetTextureFilter(spacefont.texture, ray.TEXTURE_FILTER_TRILINEAR);
 }
 
 pub fn deinit() void {
@@ -107,6 +108,17 @@ pub fn nextmusic() void {
     ray.PlayMusicStream(songs.items[songindex]);
 }
 
-pub fn updatemusic() void {
+pub fn randommusic() void {
+    ray.StopMusicStream(songs.items[songindex]);
+    songindex = rng.random().intRangeAtMost(usize, 0, songs.items.len - 1);
+    ray.PlayMusicStream(songs.items[songindex]);
+}
+
+pub fn updatemusic(paused: bool) void {
+    if (paused) {
+        ray.SetMusicVolume(songs.items[songindex], 0.00);
+    } else {
+        ray.SetMusicVolume(songs.items[songindex], 0.05);
+    }
     ray.UpdateMusicStream(songs.items[songindex]);
 }

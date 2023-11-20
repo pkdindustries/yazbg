@@ -8,7 +8,7 @@ pub fn main() !void {
     ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_VSYNC_HINT | ray.FLAG_WINDOW_ALWAYS_RUN);
     ray.InitWindow(gfx.windowwidth, gfx.windowheight, "yazbg");
     ray.SetTraceLogLevel(ray.LOG_WARNING);
-    //ray.SetTargetFPS(120);
+    ray.SetTargetFPS(120);
 
     try sys.init();
     defer sys.deinit();
@@ -21,14 +21,14 @@ pub fn main() !void {
 
     while (!ray.WindowShouldClose()) {
         // fill music buffer
-        sys.updatemusic();
+        sys.updatemusic(game.state.paused);
         // tick
         tick();
         // draw the frame
         gfx.frame();
         // handle input
         switch (ray.GetKeyPressed()) {
-            ray.KEY_P => _ = game.pause(),
+            ray.KEY_P => game.pause(),
             ray.KEY_R => game.reset(),
             ray.KEY_SPACE => drop(),
             ray.KEY_LEFT => move(game.left, sys.playclick, sys.playerror),
@@ -67,11 +67,16 @@ fn progression(lines: i32) void {
     if (@rem(game.state.lines, 3) == 0) {
         std.debug.print("level up\n", .{});
         sys.playlevel();
+        sys.nextmusic();
         game.state.level += 1;
         game.state.score += 1000 * game.state.level;
         game.state.dropinterval -= 0.15;
         if (game.state.dropinterval < 0.15) {
             game.state.dropinterval = 0.15;
+        }
+        // fixme: controllability at high levels
+        if (game.state.dropinterval <= 0.20) {
+            game.state.pieceslider.duration = 20;
         }
     }
 }

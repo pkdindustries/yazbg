@@ -50,10 +50,10 @@ pub fn init() !void {
     speedXLoc = ray.GetShaderLocation(bgshader, "speedX");
     speedYLoc = ray.GetShaderLocation(bgshader, "speedY");
 
-    var screenSize: [2]f32 = undefined;
-    screenSize[0] = @as(f32, @floatFromInt(ray.GetScreenWidth()));
-    screenSize[1] = @as(f32, @floatFromInt(ray.GetScreenHeight()));
-    ray.SetShaderValue(bgshader, ray.GetShaderLocation(bgshader, "size"), &screenSize, ray.SHADER_UNIFORM_VEC2);
+    var size: [2]f32 = undefined;
+    size[0] = @as(f32, @floatFromInt(ray.GetScreenWidth()));
+    size[1] = @as(f32, @floatFromInt(ray.GetScreenHeight()));
+    ray.SetShaderValue(bgshader, ray.GetShaderLocation(bgshader, "size"), &size, ray.SHADER_UNIFORM_VEC2);
 }
 
 pub fn deinit() void {
@@ -79,8 +79,8 @@ fn predraw() void {
         freqY = 10.0;
         ampX = 2.0;
         ampY = 2.0;
-        speedX = 0.25 * (@as(f32, @floatFromInt(game.state.level)) + 1);
-        speedY = 0.25 * (@as(f32, @floatFromInt(game.state.level)) + 1);
+        speedX = 0.1 * (@as(f32, @floatFromInt(game.state.level)) + 1);
+        speedY = 0.1 * (@as(f32, @floatFromInt(game.state.level)) + 1);
     }
 
     ray.SetShaderValue(bgshader, freqXLoc, &freqX, ray.SHADER_UNIFORM_FLOAT);
@@ -89,10 +89,6 @@ fn predraw() void {
     ray.SetShaderValue(bgshader, ampYLoc, &ampY, ray.SHADER_UNIFORM_FLOAT);
     ray.SetShaderValue(bgshader, speedXLoc, &speedX, ray.SHADER_UNIFORM_FLOAT);
     ray.SetShaderValue(bgshader, speedYLoc, &speedY, ray.SHADER_UNIFORM_FLOAT);
-
-    if (game.state.dropinterval <= 0.20) {
-        game.state.pieceslider.duration = 20;
-    }
 }
 
 fn background() void {
@@ -114,11 +110,14 @@ fn lineclears() void {
                     var e = @as(f32, @floatFromInt(elapsed_time));
                     var d = @as(f32, @floatFromInt(game.state.lineclearer.duration));
                     // clamp between 0 and 255
-                    const computed = e / d * 250.0;
+                    const computed = e / d * 255.0;
                     const clamped = std.math.clamp(computed, 0.0, 255.0);
                     var ratio: u8 = @intFromFloat(clamped);
-                    // layer black over the cells with decreasing opacity
-                    const color = .{ 0, 0, 0, ratio };
+
+                    // find underlying cell
+                    var cell = game.state.cells[rowIndex][colIndex];
+
+                    const color = .{ cell[0], cell[1], cell[2], 255 - ratio };
                     roundedfillbox(x, y, color);
                 }
             }
@@ -166,7 +165,7 @@ fn player() void {
         piece(xdx, ydx, p.shape[game.state.piecer], p.color);
 
         // draw ghost
-        const color = .{ p.color[0], p.color[1], p.color[2], 30 };
+        const color = .{ p.color[0], p.color[1], p.color[2], 100 };
         piece(xdx, game.ghosty() * cellsize, p.shape[game.state.piecer], color);
     }
 }
@@ -225,6 +224,9 @@ fn roundedfillbox(x: i32, y: i32, color: [4]u8) void {
 fn grid() void {
     ray.DrawRectangleLines(140, 15, 310, 622, ray.WHITE);
     for (game.state.cells, 0..) |row, y| {
+        if (game.state.lineclearer.active and game.state.lineclearer.lines[y]) {
+            continue;
+        }
         for (row, 0..) |color, x| {
             if (color[3] != 0) {
                 roundedfillbox(@as(i32, @intCast(x * cellsize)), @as(i32, @intCast(y * cellsize)), color);
@@ -235,39 +237,42 @@ fn grid() void {
 
 var textbuf: [1000]u8 = undefined;
 fn ui() void {
-    if (std.fmt.bufPrintZ(&textbuf, "score\n{}", .{game.state.score})) |score| {
+    ray.SetTextLineSpacing(22);
+
+    if (std.fmt.bufPrintZ(&textbuf, "score\n{}\nlines\n{}\nlevel\n{}", .{ game.state.score, game.state.lines, game.state.level })) |score| {
         var color = ray.GREEN;
         var size: f32 = 23;
         if (game.state.lineclearer.active) {
             scramblefx(score);
             color = ray.RED;
-            size = 25;
+            size = 30;
         }
-        ray.DrawTextEx(sys.spacefont, score, ray.Vector2{ .x = 10, .y = 540 }, size, 3, color);
+
+        ray.DrawTextEx(sys.spacefont, score, ray.Vector2{ .x = 10, .y = 510 }, size, 3, color);
     } else |err| {
         std.debug.print("error printing score: {}\n", .{err});
     }
 
-    if (std.fmt.bufPrintZ(&textbuf, "lines {}", .{game.state.lines})) |lines| {
-        //scramblefx(lines);
-        ray.DrawText(lines, 10, 580, 20, ray.GREEN);
-    } else |err| {
-        std.debug.print("error printing score: {}\n", .{err});
-    }
+    // if (std.fmt.bufPrintZ(&textbuf, "lines {}", .{game.state.lines})) |lines| {
+    //     //scramblefx(lines);
+    //     ray.DrawText(lines, 10, 580, 20, ray.GREEN);
+    // } else |err| {
+    //     std.debug.print("error printing score: {}\n", .{err});
+    // }
 
-    if (std.fmt.bufPrintZ(&textbuf, "level {}", .{game.state.level})) |level| {
-        //scramblefx(level);
-        ray.DrawText(level, 10, 600, 20, ray.GREEN);
-    } else |err| {
-        std.debug.print("error printing score: {}\n", .{err});
-    }
+    // if (std.fmt.bufPrintZ(&textbuf, "level {}", .{game.state.level})) |level| {
+    //     //scramblefx(level);
+    //     ray.DrawText(level, 10, 600, 20, ray.GREEN);
+    // } else |err| {
+    //     std.debug.print("error printing score: {}\n", .{err});
+    // }
 
     // debug status
-    if (std.fmt.bufPrintZ(&textbuf, "{} {} {} {d:.2} {d:.2}", .{ game.state.piecex, game.state.piecey, game.state.piecer, game.state.dropinterval, game.state.lastmove })) |status| {
-        ray.DrawText(status, 10, 620, 12, ray.GRAY);
-    } else |err| {
-        std.debug.print("error printing score: {}\n", .{err});
-    }
+    // if (std.fmt.bufPrintZ(&textbuf, "{} {} {} {d:.2} {d:.2}", .{ game.state.piecex, game.state.piecey, game.state.piecer, game.state.dropinterval, game.state.lastmove })) |status| {
+    //     ray.DrawText(status, 10, 620, 12, ray.GRAY);
+    // } else |err| {
+    //     std.debug.print("error printing score: {}\n", .{err});
+    // }
 
     ray.DrawTextEx(sys.spacefont, "next", ray.Vector2{ .x = 460, .y = 30 }, 22, // font size
         2, // spacing
@@ -293,9 +298,7 @@ fn ui() void {
             .a = 210,
         });
 
-        ray.DrawTextEx(sys.spacefont, "PAUSED", ray.Vector2{ .x = 200, .y = 300 }, 30, 3, ray.WHITE);
-
-        //ray.DrawText("PAUSED", 190, 300, 50, ray.WHITE);
+        ray.DrawTextEx(sys.spacefont, "PAUSED", ray.Vector2{ .x = 180, .y = 300 }, 60, 3, ray.ORANGE);
         ray.DrawText("press p to unpause", 190, 350, 20, ray.RED);
     }
 
@@ -304,10 +307,10 @@ fn ui() void {
             .r = 10,
             .g = 0,
             .b = 0,
-            .a = 100,
+            .a = 200,
         });
 
-        ray.DrawTextEx(sys.spacefont, "GAME OVER", ray.Vector2{ .x = 160, .y = 300 }, 30, 5, ray.ORANGE);
+        ray.DrawTextEx(sys.spacefont, "GAME OVER", ray.Vector2{ .x = 110, .y = 290 }, 60, 3, ray.RED);
         ray.DrawText("r to restart", 225, 350, 20, ray.WHITE);
         ray.DrawText("esc to exit", 225, 375, 20, ray.WHITE);
     }
@@ -321,7 +324,7 @@ fn scramblefx(s: []u8) void {
             continue;
         }
 
-        if (sys.rng.random().intRangeAtMost(u32, 0, 100) > 94) {
+        if (sys.rng.random().intRangeAtMost(u32, 0, 100) > 90) {
             c.* = n;
         }
     }
