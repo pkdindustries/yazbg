@@ -43,6 +43,8 @@ pub fn main() !void {
 
         // draw the frame
         gfx.frame();
+
+        // performance stats
         var frametime_elapsed = timer.lap();
         var total_elapsed = gamelogic_elapsed + frametime_elapsed;
         if (gamelogic_elapsed > 1 * MS or frametime_elapsed > 5 * MS) {
@@ -73,7 +75,7 @@ fn progression(lines: i32) void {
     game.state.score += 1000 * lines * lines;
     sfx.playclear();
     if (lines > 3) sfx.playwin();
-    if (@rem(game.state.lines, 3) == 0) {
+    if (@rem(game.state.lineslevelup, 3) == 0) {
         std.debug.print("level up\n", .{});
         gfx.randombackground();
         sfx.playlevel();
@@ -90,6 +92,7 @@ fn progression(lines: i32) void {
             game.state.pieceslider.duration = 10;
             game.state.lineclearer.duration = 100;
         }
+        game.state.lineslevelup = 0;
     }
 }
 

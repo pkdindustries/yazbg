@@ -11,6 +11,8 @@ pub const YAZBG = struct {
     score: i32 = 0,
     level: i32 = 0,
     lines: i32 = 0,
+    lineslevelup: i32 = 0,
+
     swapped: bool = false,
     // time between drops
     dropinterval: f64 = 2.0,
@@ -206,6 +208,7 @@ pub fn harddrop() i32 {
 
     state.lastmove = sfx.ray.GetTime();
     var cleared = clearlines();
+    state.lineslevelup += cleared;
     return cleared;
 }
 
