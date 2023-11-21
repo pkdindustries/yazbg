@@ -14,10 +14,10 @@ pub const cellwidth: i32 = cellsize - 2 * cellpadding;
 pub const totalgridwidth: i32 = game.grid_cols * cellsize + 2 * gridoffsetx;
 pub var scalefactor: f32 = 1.0; // Default scale factor
 
-pub const backgrounds: [5][*:0]const u8 = .{
+pub const backgrounds: [4][*:0]const u8 = .{
     "resources/texture/bluestars.png",
     "resources/texture/nebula.png",
-    "resources/texture/starfall.png",
+    // "resources/texture/starfall.png",
     "resources/texture/starfield.png",
     "resources/texture/bokefall.png",
 };
@@ -293,27 +293,15 @@ fn grid() void {
 var textbuf: [1000]u8 = undefined;
 fn ui() void {
     ray.SetTextLineSpacing(22);
-    //ray.DrawRectangleLines(gridoffsetx - 10, gridoffsety - 10, 320, 622, ray.WHITE);
-    ray.DrawRectangle(0, 0, 140, windowheight, ray.Color{
+
+    var bordercolor = ray.Color{
         .r = 0,
         .g = 0,
-        .b = 0,
-        .a = 40,
-    });
-
-    ray.DrawRectangle(windowwidth - 135, 0, 135, windowheight, ray.Color{
-        .r = 0,
-        .g = 0,
-        .b = 0,
-        .a = 40,
-    });
-
-    // ray.DrawRectangle(140, windowheight - 60, windowwidth - 135 - 135, 60, ray.Color{
-    //     .r = 0,
-    //     .g = 0,
-    //     .b = 0,
-    //     .a = 100,
-    // });
+        .b = 255,
+        .a = 20,
+    };
+    ray.DrawRectangle(0, 0, 140, windowheight, bordercolor);
+    ray.DrawRectangle(windowwidth - 135, 0, 135, windowheight, bordercolor);
 
     if (std.fmt.bufPrintZ(&textbuf, "score\n{}\nlines\n{}\nlevel\n{}", .{ game.state.score, game.state.lines, game.state.level })) |score| {
         var color = ray.GREEN;
