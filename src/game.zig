@@ -40,8 +40,6 @@ pub const YAZBG = struct {
         start_time: i64 = 0,
         duration: i64 = 50,
         targetx: i32 = 0,
-        sourcex: i32 = 0,
-        sourcey: i32 = 0,
         targety: i32 = 0,
         targetr: u32 = 0,
     } = .{},
@@ -61,6 +59,7 @@ pub fn reset() void {
     state.score = 0;
     state.level = 0;
     state.lines = 0;
+    state.lineslevelup = 0;
     state.lastmove = 0;
     state.dropinterval = 2.0;
     state.nextpiece = pieces.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
@@ -76,8 +75,7 @@ pub fn reset() void {
         .active = false,
         .start_time = 0,
         .duration = 50,
-        .sourcex = 0,
-        .sourcey = 0,
+
         .targetx = 0,
         .targety = 0,
         .targetr = 0,
@@ -309,8 +307,6 @@ fn finddirection(oldr: u32, newr: u32) u32 {
 }
 
 fn slidepiece(x: i32, y: i32) void {
-    state.pieceslider.sourcex = state.piecex;
-    state.pieceslider.sourcey = state.piecey;
     state.pieceslider.targetx = x;
     state.pieceslider.targety = y;
     state.pieceslider.targetr = state.piecer;
