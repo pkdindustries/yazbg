@@ -4,25 +4,25 @@ const sfx = @import("sfx.zig");
 const game = @import("game.zig");
 const rnd = @import("random.zig");
 
-pub var windowwidth: i32 = 640;
-pub var windowheight: i32 = 760;
-pub var gridoffsetx: i32 = 150;
-pub var gridoffsety: i32 = 50;
-pub const cellsize: i32 = 35;
-pub const cellpadding: i32 = 1;
-pub const cellwidth: i32 = cellsize - 2 * cellpadding;
-pub const totalgridwidth: i32 = game.grid_cols * cellsize + 2 * gridoffsetx;
-pub var scalefactor: f32 = 1.0; // Default scale factor
+const ogwindowwidth: i32 = 640;
+const ogwindowheight: i32 = 760;
+var windowwidth: i32 = 640;
+var windowheight: i32 = 760;
+var gridoffsetx: i32 = 150;
+var gridoffsety: i32 = 50;
+var cellsize: i32 = 35;
+var cellpadding: i32 = 2;
+var scalefactor: f32 = 1.0;
 
-pub const backgrounds: [4][*:0]const u8 = .{
+const images: [4][*:0]const u8 = .{
     "resources/texture/bluestars.png",
     "resources/texture/nebula.png",
-    // "resources/texture/starfall.png",
     "resources/texture/starfield.png",
     "resources/texture/bokefall.png",
 };
 
 var spacefont = ray.Font{};
+// shader stuff
 var bgshader: ray.Shader = undefined;
 var bgtexture: ray.Texture2D = undefined;
 var secondsloc: i32 = 0;
@@ -40,25 +40,39 @@ var ampY: f32 = 2.0;
 var speedX: f32 = 0.25;
 var speedY: f32 = 0.25;
 
+var texture = ray.RenderTexture2D{};
 pub fn frame() void {
     updatescale();
     preshade();
+
     ray.BeginDrawing();
+    // draw to texture first
+    ray.BeginTextureMode(texture);
+
     background();
     player();
     grid();
     lineclears();
     ui();
+
+    ray.EndTextureMode();
+    // scale texture to window size
+    var src = ray.Rectangle{ .x = 0, .y = 0, .width = ogwindowwidth, .height = -ogwindowheight };
+    var tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(windowwidth), .height = @floatFromInt(windowheight) };
+    ray.DrawTexturePro(texture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
+
     ray.EndDrawing();
 }
 
 pub fn init() !void {
     std.debug.print("init gfx\n", .{});
+    // ignore me
 
     // window init
     ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
     ray.InitWindow(windowwidth, windowheight, "yazbg");
-    //ray.SetTargetFPS(120);
+    texture = ray.LoadRenderTexture(windowwidth, windowheight);
+    ray.SetTextureFilter(texture.texture, ray.TEXTURE_FILTER_TRILINEAR);
 
     // shader init
     bgshader = ray.LoadShader(null, "resources/shader/warp.fs");
@@ -88,20 +102,32 @@ pub fn deinit() void {
 // set random background
 pub fn randombackground() void {
     ray.UnloadTexture(bgtexture);
-    var i: u32 = rnd.ng.random().intRangeAtMost(u32, 0, backgrounds.len - 1);
-    var f = backgrounds[i];
+    var i: u32 = rnd.ng.random().intRangeAtMost(u32, 0, images.len - 1);
+    var f = images[i];
     bgtexture = ray.LoadTexture(f);
     ray.SetTextureFilter(bgtexture, ray.TEXTURE_FILTER_TRILINEAR);
+    ray.SetTextureWrap(bgtexture, ray.TEXTURE_WRAP_REPEAT);
 }
 
 pub fn updatescale() void {
     if (ray.IsWindowResized()) {
-        std.debug.print("window resized\n", .{});
-        var newWidth = ray.GetScreenWidth();
-        var newHeight = ray.GetScreenHeight();
-        scalefactor = @min(@as(f32, @floatFromInt(newWidth)) / @as(f32, @floatFromInt(windowwidth)), @as(f32, @floatFromInt(newHeight)) / @as(f32, @floatFromInt(windowheight)));
-        std.debug.print("scalefactor: {d} {} {}\n", .{ scalefactor, newWidth, newHeight });
+        var width = ray.GetScreenWidth();
+        var height = @divTrunc(width * ogwindowheight, ogwindowwidth);
+        const maxheight = ray.GetMonitorHeight(0) - 100; // Assuming the primary monitor
+        if (height > maxheight) {
+            height = maxheight;
+            width = @divTrunc(height * ogwindowwidth, ogwindowheight);
+        }
+        windowwidth = width;
+        windowheight = height;
+        ray.SetWindowSize(width, height);
     }
+}
+
+fn scaleInt(value: i32, factor: f32) i32 {
+    var v: f32 = @floatFromInt(value);
+    var s: f32 = v * factor;
+    return @as(i32, @intFromFloat(s));
 }
 
 // update shader stuff before draw call
@@ -140,17 +166,21 @@ fn preshade() void {
 fn background() void {
     ray.ClearBackground(ray.BLACK);
     ray.BeginShaderMode(bgshader);
-    ray.DrawTexturePro(bgtexture, ray.Rectangle{
+    var src = ray.Rectangle{
         .x = 0,
         .y = 0,
         .width = @as(f32, @floatFromInt(bgtexture.width)),
         .height = @as(f32, @floatFromInt(bgtexture.height)),
-    }, ray.Rectangle{
+    };
+
+    var tgt = ray.Rectangle{
         .x = 0,
         .y = 0,
-        .width = @as(f32, @floatFromInt(ray.GetScreenWidth())),
-        .height = @as(f32, @floatFromInt(ray.GetScreenHeight())),
-    }, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
+        .width = @as(f32, @floatFromInt(ogwindowwidth)),
+        .height = @as(f32, @floatFromInt(ogwindowheight)),
+    };
+
+    ray.DrawTexturePro(bgtexture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
     ray.EndShaderMode();
 }
 
@@ -221,7 +251,7 @@ fn player() void {
         piece(xdx, ydx, p.shape[game.state.piecer], p.color);
 
         // draw ghost
-        const color = .{ p.color[0], p.color[1], p.color[2], 50 };
+        const color = .{ p.color[0], p.color[1], p.color[2], 60 };
         piece(xdx, game.ghosty() * cellsize, p.shape[game.state.piecer], color);
     }
 }
@@ -242,8 +272,8 @@ fn box(x: i32, y: i32, color: [4]u8) void {
     ray.DrawRectangleLinesEx(ray.Rectangle{
         .x = @as(f32, @floatFromInt(gridoffsetx + x)),
         .y = @as(f32, @floatFromInt(gridoffsety + y)),
-        .width = @as(f32, @floatFromInt(cellwidth)),
-        .height = @as(f32, @floatFromInt(cellwidth)),
+        .width = @as(f32, @floatFromInt(getcellwidth())),
+        .height = @as(f32, @floatFromInt(getcellwidth())),
     }, 2, ray.Color{
         .r = color[0],
         .g = color[1],
@@ -254,7 +284,7 @@ fn box(x: i32, y: i32, color: [4]u8) void {
 
 // draw a filled box
 fn fillbox(x: i32, y: i32, color: [4]u8) void {
-    ray.DrawRectangle(gridoffsetx + x, gridoffsety + y, cellwidth, cellwidth, ray.Color{
+    ray.DrawRectangle(gridoffsetx + x, gridoffsety + y, getcellwidth(), getcellwidth(), ray.Color{
         .r = color[0],
         .g = color[1],
         .b = color[2],
@@ -267,9 +297,9 @@ fn roundedfillbox(x: i32, y: i32, color: [4]u8) void {
     ray.DrawRectangleRounded(ray.Rectangle{
         .x = @as(f32, @floatFromInt(gridoffsetx + x)),
         .y = @as(f32, @floatFromInt(gridoffsety + y)),
-        .width = @as(f32, @floatFromInt(cellwidth)),
-        .height = @as(f32, @floatFromInt(cellwidth)),
-    }, 0.5, 5, ray.Color{
+        .width = @as(f32, @floatFromInt(getcellwidth())),
+        .height = @as(f32, @floatFromInt(getcellwidth())),
+    }, 0.5, 50, ray.Color{
         .r = color[0],
         .g = color[1],
         .b = color[2],
@@ -284,10 +314,16 @@ fn grid() void {
         }
         for (row, 0..) |color, x| {
             if (color[3] != 0) {
-                roundedfillbox(@as(i32, @intCast(x * cellsize)), @as(i32, @intCast(y * cellsize)), color);
+                var xx = @as(i32, @intCast(x)) * cellsize;
+                var yy = @as(i32, @intCast(y)) * cellsize;
+                roundedfillbox(xx, yy, color);
             }
         }
     }
+}
+
+fn getcellwidth() i32 {
+    return cellsize - 2 * cellpadding;
 }
 
 var textbuf: [1000]u8 = undefined;
@@ -300,16 +336,18 @@ fn ui() void {
         .b = 255,
         .a = 20,
     };
-    ray.DrawRectangle(0, 0, 140, windowheight, bordercolor);
-    ray.DrawRectangle(windowwidth - 135, 0, 135, windowheight, bordercolor);
+    ray.DrawRectangle(0, 0, 140, ogwindowheight, bordercolor);
+    ray.DrawRectangle(ogwindowwidth - 135, 0, 135, ogwindowheight, bordercolor);
 
+    ray.DrawLine(140, 0, 140, ogwindowheight, ray.RED);
+    ray.DrawLine(ogwindowwidth - 135, 0, ogwindowwidth - 135, ogwindowheight, ray.RED);
     if (std.fmt.bufPrintZ(&textbuf, "score\n{}\nlines\n{}\nlevel\n{}", .{ game.state.score, game.state.lines, game.state.level })) |score| {
         var color = ray.GREEN;
-        var size: f32 = 23;
+        var size: f32 = 22 * scalefactor;
         if (game.state.lineclearer.active) {
             scramblefx(score);
             color = ray.RED;
-            size = 30;
+            size = 30 * scalefactor;
         }
         // var scoreheight = ray.MeasureTextEx(sys.spacefont, score, size, 3).y;
         // var scorey = @as(f32, @floatFromInt(windowheight)) - scoreheight * 2;
@@ -323,7 +361,7 @@ fn ui() void {
         ray.GRAY // color
     );
     if (game.state.nextpiece) |nextpiece| {
-        piece(windowwidth - 240, 35, nextpiece.shape[0], nextpiece.color);
+        piece(ogwindowwidth - 240, 35, nextpiece.shape[0], nextpiece.color);
     }
 
     ray.DrawTextEx(spacefont, "held", ray.Vector2{ .x = 5, .y = 30 }, 22, // font size
@@ -335,28 +373,28 @@ fn ui() void {
     }
 
     if (game.state.paused) {
-        ray.DrawRectangle(0, 0, windowwidth, windowheight, ray.Color{
+        ray.DrawRectangle(0, 0, ogwindowwidth, ogwindowheight, ray.Color{
             .r = 0,
             .g = 0,
             .b = 0,
             .a = 210,
         });
 
-        ray.DrawTextEx(spacefont, "PAUSED", ray.Vector2{ .x = 180, .y = 300 }, 60, 3, ray.ORANGE);
-        ray.DrawText("press p to unpause", 190, 350, 20, ray.RED);
+        ray.DrawTextEx(spacefont, "PAUSED", ray.Vector2{ .x = 200, .y = 300 }, 60, 3, ray.ORANGE);
+        ray.DrawText("press p to unpause", 210, 350, 20, ray.RED);
     }
 
     if (game.state.gameover) {
-        ray.DrawRectangle(0, 0, windowwidth, windowheight, ray.Color{
+        ray.DrawRectangle(0, 0, ogwindowwidth, ogwindowheight, ray.Color{
             .r = 10,
             .g = 0,
             .b = 0,
             .a = 200,
         });
 
-        ray.DrawTextEx(spacefont, "GAME OVER", ray.Vector2{ .x = 110, .y = 290 }, 60, 3, ray.RED);
-        ray.DrawText("r to restart", 225, 350, 20, ray.WHITE);
-        ray.DrawText("esc to exit", 225, 375, 20, ray.WHITE);
+        ray.DrawTextEx(spacefont, "GAME OVER", ray.Vector2{ .x = 145, .y = 290 }, 60, 3, ray.RED);
+        ray.DrawText("r to restart", 255, 350, 20, ray.WHITE);
+        ray.DrawText("esc to exit", 255, 375, 20, ray.WHITE);
     }
 }
 
