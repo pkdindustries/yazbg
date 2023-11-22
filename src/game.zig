@@ -32,7 +32,7 @@ pub const YAZBG = struct {
     lineclearer: struct {
         active: bool = false,
         start_time: i64 = 0,
-        duration: i64 = 500,
+        duration: i64 = 250,
         lines: [grid_rows]bool = undefined,
     } = .{},
     pieceslider: struct {
@@ -42,6 +42,9 @@ pub const YAZBG = struct {
         targetx: i32 = 0,
         targety: i32 = 0,
         targetr: u32 = 0,
+        sourcex: i32 = 0,
+        sourcey: i32 = 0,
+        sourcer: u32 = 0,
     } = .{},
 };
 
@@ -68,14 +71,13 @@ pub fn reset() void {
     state.lineclearer = .{
         .active = false,
         .start_time = 0,
-        .duration = 500,
+        .duration = 250,
         .lines = undefined,
     };
     state.pieceslider = .{
         .active = false,
         .start_time = 0,
         .duration = 50,
-
         .targetx = 0,
         .targety = 0,
         .targetr = 0,
@@ -205,7 +207,7 @@ pub fn harddrop() i32 {
     }
 
     state.lastmove = sfx.ray.GetTime();
-    var cleared = clearlines();
+    const cleared = clearlines();
     state.lineslevelup += cleared;
     return cleared;
 }
@@ -227,9 +229,8 @@ pub fn clearlines() i32 {
 
 // move piece right
 pub fn right() bool {
-    var x: i32 = state.piecex + 1;
-    var y = state.piecey;
-
+    const x: i32 = state.piecex + 1;
+    const y = state.piecey;
     if (!checkmove(x, y)) {
         return false;
     }
@@ -240,8 +241,8 @@ pub fn right() bool {
 
 // move piece left
 pub fn left() bool {
-    var x: i32 = state.piecex - 1;
-    var y = state.piecey;
+    const x: i32 = state.piecex - 1;
+    const y = state.piecey;
     if (!checkmove(x, y)) {
         return false;
     }
@@ -253,8 +254,8 @@ pub fn left() bool {
 
 // move piece down
 pub fn down() bool {
-    var x: i32 = state.piecex;
-    var y: i32 = state.piecey + 1;
+    const x: i32 = state.piecex;
+    const y: i32 = state.piecey + 1;
     if (!checkmove(x, y)) {
         return false;
     }
@@ -265,7 +266,7 @@ pub fn down() bool {
 
 // rotate piece clockwise
 pub fn rotate() bool {
-    var oldr: u32 = state.piecer;
+    const oldr: u32 = state.piecer;
     state.piecer = (state.piecer + 1) % 4; // increment and wrap around the rotation
     std.debug.print("rotation {} -> {}\n", .{ oldr, state.piecer });
 
@@ -286,6 +287,7 @@ pub fn rotate() bool {
 
             if (checkmove(state.piecex, state.piecey)) {
                 std.debug.print("kick\n", .{});
+                state.lastmove = sfx.ray.GetTime();
                 return true;
             }
             // revert the kick
@@ -310,6 +312,11 @@ fn slidepiece(x: i32, y: i32) void {
     state.pieceslider.targetx = x;
     state.pieceslider.targety = y;
     state.pieceslider.targetr = state.piecer;
+    state.pieceslider.sourcex = state.piecex;
+    state.pieceslider.sourcey = state.piecey;
+    state.piecex = state.pieceslider.targetx;
+    state.piecey = state.pieceslider.targety;
+    state.piecey = state.pieceslider.targety;
     state.pieceslider.start_time = std.time.milliTimestamp();
     state.pieceslider.active = true;
 }

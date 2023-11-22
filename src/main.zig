@@ -39,15 +39,14 @@ pub fn main() !void {
             else => {},
         }
 
-        var gamelogic_elapsed = timer.lap();
+        const gamelogic_elapsed = timer.lap();
 
         // draw the frame
         gfx.frame();
-
         // performance stats
-        var frametime_elapsed = timer.lap();
-        var total_elapsed = gamelogic_elapsed + frametime_elapsed;
-        if (gamelogic_elapsed > 1 * MS or frametime_elapsed > 5 * MS) {
+        const frametime_elapsed = timer.lap();
+        const total_elapsed = gamelogic_elapsed + frametime_elapsed;
+        if (gamelogic_elapsed > 10 * MS or frametime_elapsed > 5 * MS) {
             std.debug.print("frame {}ms, game {}ms, total {}ms, raytime {d:.2}\n", .{ frametime_elapsed / MS, gamelogic_elapsed / MS, total_elapsed / MS, ray.GetFrameTime() * MS / 1000 });
         }
     }

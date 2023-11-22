@@ -1,7 +1,7 @@
 # yazbg
 yet another zig block game! 
 
-![Screenshot of yazbg](screenshot.png)
+![Screenshot of yazbg](screenshot.jpg)
 
 
 
@@ -37,4 +37,4 @@ p: pause
 r: restart
 ```
 
-tested with zig version: `0.12.0-dev.1606+569182dbb`
+tested with zig version: `0.12.0-dev.1669+c25f2fa56`

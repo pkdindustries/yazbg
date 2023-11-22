@@ -62,8 +62,8 @@ pub fn frame() void {
     ui();
     ray.EndTextureMode();
     // scale texture to window size
-    var src = ray.Rectangle{ .x = 0, .y = 0, .width = ogwindowwidth, .height = -ogwindowheight };
-    var tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(windowwidth), .height = @floatFromInt(windowheight) };
+    const src = ray.Rectangle{ .x = 0, .y = 0, .width = ogwindowwidth, .height = -ogwindowheight };
+    const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(windowwidth), .height = @floatFromInt(windowheight) };
     ray.DrawTexturePro(texture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
     ray.EndDrawing();
 }
@@ -75,7 +75,7 @@ pub fn init() !void {
     ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
     ray.InitWindow(windowwidth, windowheight, "yazbg");
     texture = ray.LoadRenderTexture(windowwidth, windowheight);
-    ray.SetTextureFilter(texture.texture, ray.TEXTURE_FILTER_TRILINEAR);
+    //ray.SetTextureFilter(texture.texture, ray.TEXTURE_FILTER_TRILINEAR);
 
     // shader init
     bgshader = ray.LoadShader(null, "resources/shader/warp.fs");
@@ -88,8 +88,9 @@ pub fn init() !void {
     speedYLoc = ray.GetShaderLocation(bgshader, "speedY");
     sizeLoc = ray.GetShaderLocation(bgshader, "size");
 
+    std.debug.print("shader locations: {} {} {} {} {} {} {} {}\n", .{ secondsloc, freqXLoc, freqYLoc, ampXLoc, ampYLoc, speedXLoc, speedYLoc, sizeLoc });
     // font init
-    spacefont = ray.LoadFont("resources/fonts/nasa.otf");
+    spacefont = ray.LoadFont("resources/font/nasa.otf");
     ray.SetTextureFilter(spacefont.texture, ray.TEXTURE_FILTER_TRILINEAR);
     randombackground();
 }
@@ -105,11 +106,10 @@ pub fn deinit() void {
 // set random background
 pub fn randombackground() void {
     ray.UnloadTexture(bgtexture);
-    var i: u32 = rnd.ng.random().intRangeAtMost(u32, 0, images.len - 1);
-    var f = images[i];
+    const i: u32 = rnd.ng.random().intRangeAtMost(u32, 0, images.len - 1);
+    const f = images[i];
     bgtexture = ray.LoadTexture(f);
     ray.SetTextureFilter(bgtexture, ray.TEXTURE_FILTER_TRILINEAR);
-    ray.SetTextureWrap(bgtexture, ray.TEXTURE_WRAP_REPEAT);
 }
 
 pub fn updatescale() void {
@@ -128,8 +128,8 @@ pub fn updatescale() void {
 }
 
 fn scaleInt(value: i32, factor: f32) i32 {
-    var v: f32 = @floatFromInt(value);
-    var s: f32 = v * factor;
+    const v: f32 = @floatFromInt(value);
+    const s: f32 = v * factor;
     return @as(i32, @intFromFloat(s));
 }
 
@@ -171,14 +171,14 @@ fn background() void {
     ray.ClearBackground(ray.BLACK);
     ray.BeginShaderMode(bgshader);
 
-    var src = ray.Rectangle{
+    const src = ray.Rectangle{
         .x = 0,
         .y = 0,
         .width = @floatFromInt(bgtexture.width),
         .height = @floatFromInt(bgtexture.height),
     };
 
-    var tgt = ray.Rectangle{
+    const tgt = ray.Rectangle{
         .x = 0,
         .y = 0,
         .width = @floatFromInt(ogwindowwidth),
@@ -195,19 +195,19 @@ fn lineclears() void {
         for (game.state.lineclearer.lines, 0..) |clearing, rowIndex| {
             if (clearing) {
                 for (0..10) |colIndex| {
-                    var x = @as(i32, @intCast(colIndex)) * cellsize;
-                    var y = @as(i32, @intCast(rowIndex)) * cellsize;
-                    var e: f32 = @floatFromInt(elapsed_time);
-                    var d: f32 = @floatFromInt(game.state.lineclearer.duration);
+                    const x = @as(i32, @intCast(colIndex)) * cellsize;
+                    const y = @as(i32, @intCast(rowIndex)) * cellsize;
+                    const e: f32 = @floatFromInt(elapsed_time);
+                    const d: f32 = @floatFromInt(game.state.lineclearer.duration);
                     // clamp between 0 and 255
                     const computed = e / d * 255.0;
                     const clamped = std.math.clamp(computed, 0.0, 255.0);
-                    var ratio: u8 = @intFromFloat(clamped);
+                    const ratio: u8 = @intFromFloat(clamped);
 
                     // find underlying cell
-                    var cell = game.state.cells[rowIndex][colIndex];
-                    const color = .{ cell[0], cell[1], cell[2], 255 - ratio };
-                    roundedfillbox(x, y, color);
+                    const cell = game.state.cells[rowIndex][colIndex];
+                    //const color = .{ cell[0], cell[1], cell[2], 255 - ratio };
+                    roundedfillbox(x, y + ratio, cell);
                 }
             }
         }
@@ -223,33 +223,35 @@ fn lineclears() void {
 
 fn player() void {
     if (game.state.piece) |p| {
-        var drawX = game.state.piecex * cellsize;
-        var drawY = game.state.piecey * cellsize;
+        var drawX: i32 = game.state.piecex * cellsize;
+        var drawY: i32 = game.state.piecey * cellsize;
         var fdrawx: f32 = @floatFromInt(drawX);
         var fdrawy: f32 = @floatFromInt(drawY);
 
         const elapsed_time = std.time.milliTimestamp() - game.state.pieceslider.start_time;
         // animate the piece if the slider is active
         if (game.state.pieceslider.active) {
-            var duration: f32 = @floatFromInt(game.state.pieceslider.duration);
+            drawX = game.state.pieceslider.sourcex * cellsize;
+            drawY = game.state.pieceslider.sourcey * cellsize;
+            fdrawx = @floatFromInt(drawX);
+            fdrawy = @floatFromInt(drawY);
+            const duration: f32 = @floatFromInt(game.state.pieceslider.duration);
             const ratio: f32 = std.math.clamp(@as(f32, @floatFromInt(elapsed_time)) / duration, 0.0, 1.0);
-            var targetx: f32 = @floatFromInt(game.state.pieceslider.targetx * cellsize);
-            var targety: f32 = @floatFromInt(game.state.pieceslider.targety * cellsize);
+            const targetx: f32 = @floatFromInt(game.state.pieceslider.targetx * cellsize);
+            const targety: f32 = @floatFromInt(game.state.pieceslider.targety * cellsize);
             // lerp between the current position and the target position
             fdrawx = std.math.lerp(fdrawx, targetx, ratio);
             fdrawy = std.math.lerp(fdrawy, targety, ratio);
             // deactivate slider, set position if animation is complete
             if (elapsed_time >= game.state.pieceslider.duration) {
                 game.state.pieceslider.active = false;
-                game.state.piecex = game.state.pieceslider.targetx;
-                game.state.piecey = game.state.pieceslider.targety;
                 if (elapsed_time > game.state.pieceslider.duration)
                     std.debug.print("slide {}ms\n", .{elapsed_time});
             }
         }
 
-        var xdx: i32 = @intFromFloat(fdrawx);
-        var ydx: i32 = @intFromFloat(fdrawy);
+        const xdx: i32 = @intFromFloat(fdrawx);
+        const ydx: i32 = @intFromFloat(fdrawy);
 
         // draw the piece at the interpolated position
         piece(xdx, ydx, p.shape[game.state.piecer], p.color);
@@ -265,8 +267,8 @@ fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
     for (shape, 0..) |row, i| {
         for (row, 0..) |cell, j| {
             if (cell) {
-                var xs: i32 = @as(i32, @intCast(i)) * cellsize;
-                var ys: i32 = @as(i32, @intCast(j)) * cellsize;
+                const xs: i32 = @as(i32, @intCast(i)) * cellsize;
+                const ys: i32 = @as(i32, @intCast(j)) * cellsize;
                 roundedfillbox(x + xs, y + ys, color);
             }
         }
@@ -320,8 +322,8 @@ fn grid() void {
         }
         for (row, 0..) |color, x| {
             if (color[3] != 0) {
-                var xx = @as(i32, @intCast(x)) * cellsize;
-                var yy = @as(i32, @intCast(y)) * cellsize;
+                const xx = @as(i32, @intCast(x)) * cellsize;
+                const yy = @as(i32, @intCast(y)) * cellsize;
                 roundedfillbox(xx, yy, color);
             }
         }
@@ -335,7 +337,7 @@ fn getcellwidth() i32 {
 var textbuf: [1000]u8 = undefined;
 fn ui() void {
     ray.SetTextLineSpacing(22);
-    var bordercolor = ray.Color{
+    const bordercolor = ray.Color{
         .r = 0,
         .g = 0,
         .b = 255,
@@ -361,15 +363,15 @@ fn ui() void {
         std.debug.print("error printing score: {}\n", .{err});
     }
 
-    ray.DrawTextEx(spacefont, "next", ray.Vector2{ .x = 520, .y = 30 }, 22, // font size
+    ray.DrawTextEx(spacefont, "next", ray.Vector2{ .x = 520, .y = 30 }, 40, // font size
         2, // spacing
         ray.GRAY // color
     );
     if (game.state.nextpiece) |nextpiece| {
-        piece(ogwindowwidth - 240, 35, nextpiece.shape[0], nextpiece.color);
+        piece(ogwindowwidth - 250, 35, nextpiece.shape[0], nextpiece.color);
     }
 
-    ray.DrawTextEx(spacefont, "held", ray.Vector2{ .x = 5, .y = 30 }, 22, // font size
+    ray.DrawTextEx(spacefont, "held", ray.Vector2{ .x = 23, .y = 30 }, 40, // font size
         2, // spacing
         ray.GRAY // color
     );
@@ -416,7 +418,7 @@ fn ui() void {
 const scrambles = "!@#$%^&*+-=<>?/\\|~`";
 fn scramblefx(s: []u8, intensity: i32) void {
     for (s) |*c| {
-        var n = scrambles[rnd.ng.random().intRangeAtMost(u32, 0, scrambles.len)];
+        const n = scrambles[rnd.ng.random().intRangeAtMost(u32, 0, scrambles.len)];
         if (c.* == '\n' or c.* == ' ') {
             continue;
         }
