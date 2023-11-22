@@ -37,7 +37,7 @@ pub const tetraminos = [_]tetramino{
                 .{ o, X, o, o },
             },
         },
-        .color = .{ 102, 191, 255, 255 },
+        .color = .{ 102, 191, 235, 255 },
         .kicks = .{
             // CW kicks
             .{
@@ -86,7 +86,7 @@ pub const tetraminos = [_]tetramino{
                 .{ o, o, o, o },
             },
         },
-        .color = .{ 253, 249, 0, 255 },
+        .color = .{ 233, 229, 0, 255 },
         .kicks = .{
             // CW kicks
             .{
@@ -135,7 +135,7 @@ pub const tetraminos = [_]tetramino{
                 .{ o, o, o, o },
             },
         },
-        .color = .{ 0, 117, 44, 255 },
+        .color = .{ 0, 100, 44, 255 },
         .kicks = .{
             // CW kicks
             .{
@@ -184,7 +184,7 @@ pub const tetraminos = [_]tetramino{
                 .{ o, o, o, o },
             },
         },
-        .color = .{ 230, 41, 55, 255 },
+        .color = .{ 220, 41, 55, 255 },
         .kicks = .{
             // CW kicks
             .{
