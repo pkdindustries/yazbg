@@ -64,6 +64,7 @@ pub fn frame() void {
     // scale texture to window size
     const src = ray.Rectangle{ .x = 0, .y = 0, .width = ogwindowwidth, .height = -ogwindowheight };
     const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(windowwidth), .height = @floatFromInt(windowheight) };
+
     ray.DrawTexturePro(texture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
     ray.EndDrawing();
 }
@@ -76,7 +77,7 @@ pub fn init() !void {
     ray.InitWindow(ogwindowwidth, ogwindowheight, "yazbg");
     texture = ray.LoadRenderTexture(ogwindowwidth, ogwindowheight);
     //ray.GenTextureMipmaps(&texture.texture);
-    ray.SetTextureFilter(texture.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);
+    ray.SetTextureFilter(texture.texture, ray.TEXTURE_FILTER_TRILINEAR);
 
     // shader init
     bgshader = ray.LoadShader(null, "resources/shader/warp.fs");
@@ -126,6 +127,7 @@ pub fn updatescale() void {
         windowwidth = width;
         windowheight = height;
         std.debug.print("window resized to {}x{}\n", .{ windowwidth, windowheight });
+        ray.GenTextureMipmaps(&texture.texture);
         ray.SetWindowSize(width, height);
     }
 }
@@ -159,8 +161,8 @@ fn preshade() void {
     ray.SetShaderValue(bgshader, speedYLoc, &speedY, ray.SHADER_UNIFORM_FLOAT);
 
     var size: [2]f32 = undefined;
-    size[0] = @as(f32, @floatFromInt(ray.GetScreenWidth()));
-    size[1] = @as(f32, @floatFromInt(ray.GetScreenHeight()));
+    size[0] = @as(f32, @floatFromInt(ogwindowwidth));
+    size[1] = @as(f32, @floatFromInt(ogwindowheight));
     ray.SetShaderValue(bgshader, sizeLoc, &size, ray.SHADER_UNIFORM_VEC2);
 }
 
@@ -308,7 +310,7 @@ fn roundedfillbox(x: i32, y: i32, color: [4]u8) void {
         .y = @floatFromInt(gridoffsety + y),
         .width = @floatFromInt(getcellwidth()),
         .height = @floatFromInt(getcellwidth()),
-    }, 0.4, 10, ray.Color{
+    }, 0.4, 20, ray.Color{
         .r = color[0],
         .g = color[1],
         .b = color[2],
