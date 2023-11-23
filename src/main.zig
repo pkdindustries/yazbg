@@ -16,13 +16,13 @@ pub fn main() !void {
     try gfx.init();
     defer gfx.deinit();
 
-    sfx.playmusic();
+    sfx.randommusic();
     game.reset();
 
     while (!ray.WindowShouldClose()) {
         var timer = try std.time.Timer.start();
         // fill music buffer
-        sfx.updatemusic(game.state.paused);
+        sfx.updatemusic();
         // tick
         tick();
         // handle input
@@ -36,6 +36,8 @@ pub fn main() !void {
             ray.KEY_UP => move(game.rotate, sfx.playclick, sfx.playerror),
             ray.KEY_C => move(game.swappiece, sfx.playwoosh, sfx.playerror),
             ray.KEY_B => gfx.randombackground(),
+            ray.KEY_M => sfx.mute(),
+            ray.KEY_N => sfx.nextmusic(),
             else => {},
         }
 
@@ -46,7 +48,7 @@ pub fn main() !void {
         // performance stats
         const frametime_elapsed = timer.lap();
         const total_elapsed = gamelogic_elapsed + frametime_elapsed;
-        if (gamelogic_elapsed > 10 * MS or frametime_elapsed > 5 * MS) {
+        if (gamelogic_elapsed > 5 * MS or frametime_elapsed > 10 * MS) {
             std.debug.print("frame {}ms, game {}ms, total {}ms, raytime {d:.2}\n", .{ frametime_elapsed / MS, gamelogic_elapsed / MS, total_elapsed / MS, ray.GetFrameTime() * MS / 1000 });
         }
     }
@@ -77,8 +79,8 @@ fn progression(lines: i32) void {
     if (@rem(game.state.lineslevelup, 3) == 0) {
         std.debug.print("level up\n", .{});
         gfx.randombackground();
-        sfx.playlevel();
         sfx.nextmusic();
+        sfx.playlevel();
         game.state.level += 1;
         game.state.score += 1000 * game.state.level;
         game.state.dropinterval -= 0.15;

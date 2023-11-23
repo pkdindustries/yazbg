@@ -75,7 +75,6 @@ pub fn init() !void {
     ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
     ray.InitWindow(windowwidth, windowheight, "yazbg");
     texture = ray.LoadRenderTexture(windowwidth, windowheight);
-    //ray.SetTextureFilter(texture.texture, ray.TEXTURE_FILTER_TRILINEAR);
 
     // shader init
     bgshader = ray.LoadShader(null, "resources/shader/warp.fs");
@@ -125,12 +124,6 @@ pub fn updatescale() void {
         windowheight = height;
         ray.SetWindowSize(width, height);
     }
-}
-
-fn scaleInt(value: i32, factor: f32) i32 {
-    const v: f32 = @floatFromInt(value);
-    const s: f32 = v * factor;
-    return @as(i32, @intFromFloat(s));
 }
 
 // update shader stuff before draw call
@@ -195,19 +188,23 @@ fn lineclears() void {
         for (game.state.lineclearer.lines, 0..) |clearing, rowIndex| {
             if (clearing) {
                 for (0..10) |colIndex| {
+                    // find underlying cell
+                    const cell = game.state.cells[rowIndex][colIndex];
+                    // skip if cell is empty (game over effect)
+                    if (cell[3] == 0) {
+                        continue;
+                    }
                     const x = @as(i32, @intCast(colIndex)) * cellsize;
                     const y = @as(i32, @intCast(rowIndex)) * cellsize;
                     const e: f32 = @floatFromInt(elapsed_time);
                     const d: f32 = @floatFromInt(game.state.lineclearer.duration);
                     // clamp between 0 and 255
-                    const computed = e / d * 255.0;
+                    const computed = e / d * 200;
                     const clamped = std.math.clamp(computed, 0.0, 255.0);
                     const ratio: u8 = @intFromFloat(clamped);
 
-                    // find underlying cell
-                    const cell = game.state.cells[rowIndex][colIndex];
-                    //const color = .{ cell[0], cell[1], cell[2], 255 - ratio };
-                    roundedfillbox(x, y + ratio, cell);
+                    const color = .{ cell[0], cell[1], cell[2], 255 - ratio };
+                    roundedfillbox(x, y + ratio, color);
                 }
             }
         }
@@ -307,7 +304,7 @@ fn roundedfillbox(x: i32, y: i32, color: [4]u8) void {
         .y = @floatFromInt(gridoffsety + y),
         .width = @floatFromInt(getcellwidth()),
         .height = @floatFromInt(getcellwidth()),
-    }, 0.5, 50, ray.Color{
+    }, 0.5, 5, ray.Color{
         .r = color[0],
         .g = color[1],
         .b = color[2],
@@ -396,7 +393,7 @@ fn ui() void {
         }
     }
 
-    if (game.state.gameover) {
+    if (game.state.gameover and !game.state.lineclearer.active) {
         ray.DrawRectangle(0, 0, ogwindowwidth, ogwindowheight, ray.Color{
             .r = 10,
             .g = 0,

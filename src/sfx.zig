@@ -11,11 +11,15 @@ var levelupsound = ray.Sound{};
 var wooshsound = ray.Sound{};
 var winsound = ray.Sound{};
 
+var soundvolume: f32 = 0.5;
+var musicvolume: f32 = 0.15;
+
 const target = builtin.target;
 
-pub const music: [2][*:0]const u8 = .{
+pub const music: [3][*:0]const u8 = .{
     "resources/music/level0.mp3",
     "resources/music/level1.mp3",
+    "resources/music/newbit.mp3",
 };
 var songindex: usize = 0;
 var song = ray.Music{};
@@ -78,7 +82,7 @@ pub fn playclear() void {
 
 pub fn playmusic() void {
     song = ray.LoadMusicStream(music[songindex]);
-    ray.SetMusicVolume(song, 0.05);
+    ray.SetMusicVolume(song, musicvolume);
     ray.PlayMusicStream(song);
 }
 
@@ -91,17 +95,22 @@ pub fn nextmusic() void {
     playmusic();
 }
 
+// toggle mute
+pub fn mute() void {
+    if (musicvolume > 0.0) {
+        musicvolume = 0.0;
+    } else {
+        musicvolume = 0.15;
+    }
+    updatemusic();
+}
 pub fn randommusic() void {
     ray.StopMusicStream(song);
-    songindex = rnd.ng.intRangeAtMost(usize, 0, music.len - 1);
+    songindex = rnd.ng.random().intRangeAtMost(usize, 0, music.len - 1);
     playmusic();
 }
 
-pub fn updatemusic(mute: bool) void {
-    if (mute) {
-        ray.SetMusicVolume(song, 0.00);
-    } else {
-        ray.SetMusicVolume(song, 0.05);
-    }
+pub fn updatemusic() void {
+    ray.SetMusicVolume(song, musicvolume);
     ray.UpdateMusicStream(song);
 }

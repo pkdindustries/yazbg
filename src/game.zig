@@ -102,6 +102,12 @@ pub fn nextpiece() void {
     state.swapped = false;
 
     if (!checkmove(state.piecex, state.piecey)) {
+        for (0..grid_rows) |r| {
+            state.lineclearer.lines[r] = true;
+        }
+        state.lineclearer.start_time = std.time.milliTimestamp();
+        state.lineclearer.active = true;
+        state.piece = null;
         state.gameover = true;
     }
 }
