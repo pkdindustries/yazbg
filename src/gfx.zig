@@ -73,8 +73,10 @@ pub fn init() !void {
 
     // window init
     ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
-    ray.InitWindow(windowwidth, windowheight, "yazbg");
-    texture = ray.LoadRenderTexture(windowwidth, windowheight);
+    ray.InitWindow(ogwindowwidth, ogwindowheight, "yazbg");
+    texture = ray.LoadRenderTexture(ogwindowwidth, ogwindowheight);
+    //ray.GenTextureMipmaps(&texture.texture);
+    ray.SetTextureFilter(texture.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);
 
     // shader init
     bgshader = ray.LoadShader(null, "resources/shader/warp.fs");
@@ -87,9 +89,9 @@ pub fn init() !void {
     speedYLoc = ray.GetShaderLocation(bgshader, "speedY");
     sizeLoc = ray.GetShaderLocation(bgshader, "size");
 
-    std.debug.print("shader locations: {} {} {} {} {} {} {} {}\n", .{ secondsloc, freqXLoc, freqYLoc, ampXLoc, ampYLoc, speedXLoc, speedYLoc, sizeLoc });
     // font init
     spacefont = ray.LoadFont("resources/font/nasa.otf");
+    ray.GenTextureMipmaps(&spacefont.texture);
     ray.SetTextureFilter(spacefont.texture, ray.TEXTURE_FILTER_TRILINEAR);
     randombackground();
 }
@@ -108,6 +110,7 @@ pub fn randombackground() void {
     const i: u32 = rnd.ng.random().intRangeAtMost(u32, 0, images.len - 1);
     const f = images[i];
     bgtexture = ray.LoadTexture(f);
+    ray.GenTextureMipmaps(&bgtexture);
     ray.SetTextureFilter(bgtexture, ray.TEXTURE_FILTER_TRILINEAR);
 }
 
@@ -122,6 +125,7 @@ pub fn updatescale() void {
         }
         windowwidth = width;
         windowheight = height;
+        std.debug.print("window resized to {}x{}\n", .{ windowwidth, windowheight });
         ray.SetWindowSize(width, height);
     }
 }
@@ -304,7 +308,7 @@ fn roundedfillbox(x: i32, y: i32, color: [4]u8) void {
         .y = @floatFromInt(gridoffsety + y),
         .width = @floatFromInt(getcellwidth()),
         .height = @floatFromInt(getcellwidth()),
-    }, 0.5, 5, ray.Color{
+    }, 0.4, 10, ray.Color{
         .r = color[0],
         .g = color[1],
         .b = color[2],
