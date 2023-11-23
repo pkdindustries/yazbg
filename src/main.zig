@@ -76,7 +76,7 @@ fn progression(lines: i32) void {
     game.state.score += 1000 * lines * lines;
     sfx.playclear();
     if (lines > 3) sfx.playwin();
-    if (@rem(game.state.lineslevelup, 3) == 0) {
+    if (game.state.lineslevelup > 3) {
         std.debug.print("level up\n", .{});
         gfx.randombackground();
         sfx.nextmusic();
