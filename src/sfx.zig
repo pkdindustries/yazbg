@@ -10,17 +10,18 @@ var clearsound = ray.Sound{};
 var levelupsound = ray.Sound{};
 var wooshsound = ray.Sound{};
 var winsound = ray.Sound{};
-
+var gameover = ray.Sound{};
 var soundvolume: f32 = 0.5;
 var musicvolume: f32 = 0.15;
 
 const target = builtin.target;
 
-pub const music: [3][*:0]const u8 = .{
+var music: [3][*:0]const u8 = .{
     "resources/music/level0.mp3",
     "resources/music/level1.mp3",
     "resources/music/newbit.mp3",
 };
+
 var songindex: usize = 0;
 var song = ray.Music{};
 
@@ -36,6 +37,7 @@ pub fn init() !void {
         levelupsound = ray.LoadSound("resources/sfx/level.mp3");
         wooshsound = ray.LoadSound("resources/sfx/woosh.mp3");
         winsound = ray.LoadSound("resources/sfx/win.mp3");
+        gameover = ray.LoadSound("resources/sfx/gameover.mp3");
     }
 }
 
@@ -78,6 +80,10 @@ pub fn playclick() void {
 
 pub fn playclear() void {
     ray.PlaySound(clearsound);
+}
+
+pub fn playgameover() void {
+    ray.PlaySound(gameover);
 }
 
 pub fn playmusic() void {
