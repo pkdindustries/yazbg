@@ -12,19 +12,23 @@ var gridoffsetx: i32 = 150;
 var gridoffsety: i32 = 50;
 var cellsize: i32 = 35;
 var cellpadding: i32 = 2;
-var scalefactor: f32 = 1.0;
 
-const images: [4][*:0]const u8 = .{
+const images: [6][*:0]const u8 = .{
     "resources/texture/bluestars.png",
     "resources/texture/nebula.png",
     "resources/texture/starfield.png",
     "resources/texture/bokefall.png",
+    "resources/texture/nebula2.png",
+    "resources/texture/starfield2.png",
 };
 
-var texture = ray.RenderTexture2D{};
+var imageindex: u32 = 0;
+var fulltexture = ray.RenderTexture2D{};
 var spacefont = ray.Font{};
 
 // shader stuff
+var fgshader: ray.Shader = undefined;
+var fgtime: i32 = 0;
 var bgshader: ray.Shader = undefined;
 var bgtexture: ray.Texture2D = undefined;
 var secondsloc: i32 = 0;
@@ -49,7 +53,7 @@ pub fn frame() void {
     preshade();
     ray.BeginDrawing();
     // draw to texture first
-    ray.BeginTextureMode(texture);
+    ray.BeginTextureMode(fulltexture);
     // background and shader
     background();
     // player piece and ghost
@@ -58,14 +62,15 @@ pub fn frame() void {
     grid();
     // animation for line clears
     lineclears();
+
     // ux
     ui();
     ray.EndTextureMode();
     // scale texture to window size
+
     const src = ray.Rectangle{ .x = 0, .y = 0, .width = ogwindowwidth, .height = -ogwindowheight };
     const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(windowwidth), .height = @floatFromInt(windowheight) };
-
-    ray.DrawTexturePro(texture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
+    ray.DrawTexturePro(fulltexture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
     ray.EndDrawing();
 }
 
@@ -75,9 +80,9 @@ pub fn init() !void {
     // window init
     ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
     ray.InitWindow(ogwindowwidth, ogwindowheight, "yazbg");
-    texture = ray.LoadRenderTexture(ogwindowwidth, ogwindowheight);
+    fulltexture = ray.LoadRenderTexture(ogwindowwidth, ogwindowheight);
     //ray.GenTextureMipmaps(&texture.texture);
-    ray.SetTextureFilter(texture.texture, ray.TEXTURE_FILTER_TRILINEAR);
+    ray.SetTextureFilter(fulltexture.texture, ray.TEXTURE_FILTER_TRILINEAR);
 
     // shader init
     bgshader = ray.LoadShader(null, "resources/shader/warp.fs");
@@ -90,29 +95,44 @@ pub fn init() !void {
     speedYLoc = ray.GetShaderLocation(bgshader, "speedY");
     sizeLoc = ray.GetShaderLocation(bgshader, "size");
 
+    fgshader = ray.LoadShader(null, "resources/shader/static.fs");
+    fgtime = ray.GetShaderLocation(fgshader, "time");
     // font init
     spacefont = ray.LoadFont("resources/font/nasa.otf");
     ray.GenTextureMipmaps(&spacefont.texture);
     ray.SetTextureFilter(spacefont.texture, ray.TEXTURE_FILTER_TRILINEAR);
-    randombackground();
+
+    loadbackground();
 }
 
 pub fn deinit() void {
     std.debug.print("deinit gfx\n", .{});
     ray.UnloadShader(bgshader);
     ray.UnloadTexture(bgtexture);
-    ray.UnloadTexture(texture.texture);
+    ray.UnloadTexture(fulltexture.texture);
     ray.UnloadFont(spacefont);
 }
 
 // set random background
 pub fn randombackground() void {
+    imageindex = rnd.ng.random().intRangeAtMost(u32, 0, images.len - 1);
+    loadbackground();
+}
+
+pub fn loadbackground() void {
     ray.UnloadTexture(bgtexture);
-    const i: u32 = rnd.ng.random().intRangeAtMost(u32, 0, images.len - 1);
-    const f = images[i];
+    const f = images[imageindex];
     bgtexture = ray.LoadTexture(f);
     ray.GenTextureMipmaps(&bgtexture);
     ray.SetTextureFilter(bgtexture, ray.TEXTURE_FILTER_TRILINEAR);
+}
+
+pub fn nextbackground() void {
+    imageindex += 1;
+    if (imageindex >= images.len) {
+        imageindex = 0;
+    }
+    loadbackground();
 }
 
 pub fn updatescale() void {
@@ -127,7 +147,7 @@ pub fn updatescale() void {
         windowwidth = width;
         windowheight = height;
         std.debug.print("window resized to {}x{}\n", .{ windowwidth, windowheight });
-        ray.GenTextureMipmaps(&texture.texture);
+        ray.GenTextureMipmaps(&fulltexture.texture);
         ray.SetWindowSize(width, height);
     }
 }
@@ -135,6 +155,7 @@ pub fn updatescale() void {
 // update shader stuff before draw call
 fn preshade() void {
     ray.SetShaderValue(bgshader, secondsloc, &@as(f32, @floatCast(ray.GetTime())), ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(fgshader, fgtime, &@as(f32, @floatCast(ray.GetTime())), ray.SHADER_UNIFORM_FLOAT);
 
     // go wild during a clear
     if (game.state.lineclearer.active) {
@@ -142,15 +163,15 @@ fn preshade() void {
         freqY = 50.0;
         ampX = 10.0;
         ampY = 10.0;
-        speedX = 200.5;
-        speedY = 200.5;
+        speedX = 100;
+        speedY = 100;
     } else {
         freqX = 10.0;
         freqY = 10.0;
         ampX = 2.0;
         ampY = 2.0;
-        speedX = 0.1 * (@as(f32, @floatFromInt(game.state.level)) + 1);
-        speedY = 0.1 * (@as(f32, @floatFromInt(game.state.level)) + 1);
+        speedX = 0.15 * (@as(f32, @floatFromInt(game.state.level)) + 3);
+        speedY = 0.15 * (@as(f32, @floatFromInt(game.state.level)) + 3);
     }
 
     ray.SetShaderValue(bgshader, freqXLoc, &freqX, ray.SHADER_UNIFORM_FLOAT);
@@ -210,7 +231,7 @@ fn lineclears() void {
                     const ratio: u8 = @intFromFloat(clamped);
 
                     const color = .{ cell[0], cell[1], cell[2], 255 - ratio };
-                    roundedfillbox(x, y + ratio, color);
+                    styledbox(x, y + ratio, color);
                 }
             }
         }
@@ -240,8 +261,8 @@ fn player() void {
             fdrawy = @floatFromInt(drawY);
             const duration: f32 = @floatFromInt(game.state.pieceslider.duration);
             const ratio: f32 = std.math.clamp(@as(f32, @floatFromInt(elapsed_time)) / duration, 0.0, 1.0);
-            const targetx: f32 = @floatFromInt(game.state.pieceslider.targetx * cellsize);
-            const targety: f32 = @floatFromInt(game.state.pieceslider.targety * cellsize);
+            const targetx: f32 = @floatFromInt(game.state.piecex * cellsize);
+            const targety: f32 = @floatFromInt(game.state.piecey * cellsize);
             // lerp between the current position and the target position
             fdrawx = std.math.lerp(fdrawx, targetx, ratio);
             fdrawy = std.math.lerp(fdrawy, targety, ratio);
@@ -256,12 +277,14 @@ fn player() void {
         const xdx: i32 = @intFromFloat(fdrawx);
         const ydx: i32 = @intFromFloat(fdrawy);
 
+        ray.BeginShaderMode(fgshader);
         // draw the piece at the interpolated position
         piece(xdx, ydx, p.shape[game.state.piecer], p.color);
 
         // draw ghost
         const color = .{ p.color[0], p.color[1], p.color[2], 60 };
         piece(xdx, game.ghosty() * cellsize, p.shape[game.state.piecer], color);
+        ray.EndShaderMode();
     }
 }
 
@@ -272,9 +295,24 @@ fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
             if (cell) {
                 const xs: i32 = @as(i32, @intCast(i)) * cellsize;
                 const ys: i32 = @as(i32, @intCast(j)) * cellsize;
-                roundedfillbox(x + xs, y + ys, color);
+                styledbox(x + xs, y + ys, color);
             }
         }
+    }
+}
+
+const cellstyle = enum {
+    box,
+    fillbox,
+    rounded,
+};
+
+var style: cellstyle = cellstyle.rounded;
+fn styledbox(x: i32, y: i32, color: [4]u8) void {
+    switch (style) {
+        cellstyle.box => box(x, y, color),
+        cellstyle.fillbox => fillbox(x, y, color),
+        cellstyle.rounded => roundedfillbox(x, y, color),
     }
 }
 
@@ -327,7 +365,9 @@ fn grid() void {
             if (color[3] != 0) {
                 const xx = @as(i32, @intCast(x)) * cellsize;
                 const yy = @as(i32, @intCast(y)) * cellsize;
-                roundedfillbox(xx, yy, color);
+                ray.BeginShaderMode(fgshader);
+                styledbox(xx, yy, color);
+                ray.EndShaderMode();
             }
         }
     }
@@ -340,6 +380,7 @@ fn getcellwidth() i32 {
 var textbuf: [1000]u8 = undefined;
 fn ui() void {
     ray.SetTextLineSpacing(22);
+
     const bordercolor = ray.Color{
         .r = 0,
         .g = 0,
@@ -349,8 +390,9 @@ fn ui() void {
     ray.DrawRectangle(0, 0, 140, ogwindowheight, bordercolor);
     ray.DrawRectangle(ogwindowwidth - 135, 0, 135, ogwindowheight, bordercolor);
 
-    ray.DrawLine(140, 0, 140, ogwindowheight, ray.RED);
-    ray.DrawLine(ogwindowwidth - 135, 0, ogwindowwidth - 135, ogwindowheight, ray.RED);
+    ray.DrawLineEx(ray.Vector2{ .x = 140, .y = 0 }, ray.Vector2{ .x = 140, .y = @floatFromInt(ogwindowheight) }, 3, ray.RED);
+    ray.DrawLineEx(ray.Vector2{ .x = ogwindowwidth - 135, .y = 0 }, ray.Vector2{ .x = ogwindowwidth - 135, .y = @floatFromInt(ogwindowheight) }, 3, ray.RED);
+
     if (std.fmt.bufPrintZ(&textbuf, "score\n{}\nlines\n{}\nlevel\n{}", .{ game.state.score, game.state.lines, game.state.level })) |score| {
         var color = ray.GREEN;
         var size: f32 = 22;
@@ -365,7 +407,6 @@ fn ui() void {
     } else |err| {
         std.debug.print("error printing score: {}\n", .{err});
     }
-
     ray.DrawTextEx(spacefont, "next", ray.Vector2{ .x = 520, .y = 30 }, 40, // font size
         2, // spacing
         ray.GRAY // color
@@ -383,6 +424,7 @@ fn ui() void {
     }
 
     if (game.state.paused) {
+        ray.BeginShaderMode(fgshader);
         ray.DrawRectangle(0, 0, ogwindowwidth, ogwindowheight, ray.Color{
             .r = 0,
             .g = 0,
@@ -397,9 +439,10 @@ fn ui() void {
         } else |err| {
             std.debug.print("error printing paused: {}\n", .{err});
         }
+        ray.EndShaderMode();
     }
 
-    if (game.state.gameover and !game.state.lineclearer.active) {
+    if (game.state.gameover) {
         ray.DrawRectangle(0, 0, ogwindowwidth, ogwindowheight, ray.Color{
             .r = 10,
             .g = 0,
