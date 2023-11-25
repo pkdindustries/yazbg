@@ -322,7 +322,6 @@ fn slidepiece(x: i32, y: i32) void {
     state.pieceslider.sourcey = state.piecey;
     state.piecex = state.pieceslider.targetx;
     state.piecey = state.pieceslider.targety;
-    state.piecey = state.pieceslider.targety;
     state.pieceslider.start_time = std.time.milliTimestamp();
     state.pieceslider.active = true;
 }

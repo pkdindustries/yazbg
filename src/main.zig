@@ -19,6 +19,8 @@ pub fn main() !void {
     sfx.randommusic();
     game.reset();
 
+    printkeys();
+
     while (!ray.WindowShouldClose()) {
         var timer = try std.time.Timer.start();
         // fill music buffer
@@ -35,7 +37,7 @@ pub fn main() !void {
             ray.KEY_DOWN => move(game.down, sfx.playclick, drop),
             ray.KEY_UP => move(game.rotate, sfx.playclick, sfx.playerror),
             ray.KEY_C => move(game.swappiece, sfx.playwoosh, sfx.playerror),
-            ray.KEY_B => gfx.randombackground(),
+            ray.KEY_B => gfx.nextbackground(),
             ray.KEY_M => sfx.mute(),
             ray.KEY_N => sfx.nextmusic(),
             else => {},
@@ -78,7 +80,7 @@ fn progression(lines: i32) void {
     if (lines > 3) sfx.playwin();
     if (game.state.lineslevelup > 3) {
         std.debug.print("level up\n", .{});
-        gfx.randombackground();
+        gfx.nextbackground();
         sfx.nextmusic();
         sfx.playlevel();
         game.state.level += 1;
@@ -106,4 +108,18 @@ fn move(comptime movefn: fn () bool, comptime ok: fn () void, comptime fail: fn 
     } else {
         fail();
     }
+}
+
+fn printkeys() void {
+    std.debug.print("keys:\n", .{});
+    std.debug.print("  left/right: move\n", .{});
+    std.debug.print("  up: rotate\n", .{});
+    std.debug.print("  down: drop\n", .{});
+    std.debug.print("  space: hard drop\n", .{});
+    std.debug.print("  c: swap piece\n", .{});
+    std.debug.print("  b: next background\n", .{});
+    std.debug.print("  m: mute\n", .{});
+    std.debug.print("  n: next music\n", .{});
+    std.debug.print("  p: pause\n", .{});
+    std.debug.print("  r: reset\n", .{});
 }

@@ -232,7 +232,7 @@ pub const tetraminos = [_]tetramino{
                 .{ o, o, o, o },
             },
         },
-        .color = .{ 200, 122, 255, 255 },
+        .color = .{ 220, 90, 220, 255 },
         .kicks = .{
             // CW kicks
             .{
