@@ -41,10 +41,8 @@ pub const YAZBG = struct {
         duration: i64 = 50,
         targetx: i32 = 0,
         targety: i32 = 0,
-        targetr: u32 = 0,
         sourcex: i32 = 0,
         sourcey: i32 = 0,
-        sourcer: u32 = 0,
     } = .{},
 };
 
@@ -80,7 +78,6 @@ pub fn reset() void {
         .duration = 50,
         .targetx = 0,
         .targety = 0,
-        .targetr = 0,
     };
 
     for (state.cells, 0..) |row, r| {
@@ -211,7 +208,6 @@ pub fn harddrop() i32 {
             }
         }
     }
-
     state.lastmove = sfx.ray.GetTime();
     const cleared = clearlines();
     state.lineslevelup += cleared;
@@ -317,7 +313,6 @@ fn finddirection(oldr: u32, newr: u32) u32 {
 fn slidepiece(x: i32, y: i32) void {
     state.pieceslider.targetx = x;
     state.pieceslider.targety = y;
-    state.pieceslider.targetr = state.piecer;
     state.pieceslider.sourcex = state.piecex;
     state.pieceslider.sourcey = state.piecey;
     state.piecex = state.pieceslider.targetx;

@@ -13,13 +13,15 @@ var gridoffsety: i32 = 50;
 var cellsize: i32 = 35;
 var cellpadding: i32 = 2;
 
-const images: [6][*:0]const u8 = .{
+const images: [8][*:0]const u8 = .{
     "resources/texture/bluestars.png",
     "resources/texture/nebula.png",
     "resources/texture/starfield.png",
+    "resources/texture/console.png",
     "resources/texture/bokefall.png",
     "resources/texture/nebula2.png",
     "resources/texture/starfield2.png",
+    "resources/texture/starmap.png",
 };
 
 var imageindex: u32 = 0;
@@ -52,25 +54,32 @@ pub fn frame() void {
     // shader uniforms
     preshade();
     ray.BeginDrawing();
-    // draw to texture first
-    ray.BeginTextureMode(fulltexture);
-    // background and shader
-    background();
-    // player piece and ghost
-    player();
-    // grid of cemented cells
-    grid();
-    // animation for line clears
-    lineclears();
-
-    // ux
-    ui();
-    ray.EndTextureMode();
-    // scale texture to window size
-
-    const src = ray.Rectangle{ .x = 0, .y = 0, .width = ogwindowwidth, .height = -ogwindowheight };
-    const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(windowwidth), .height = @floatFromInt(windowheight) };
-    ray.DrawTexturePro(fulltexture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
+    {
+        // draw to texture first
+        ray.BeginTextureMode(fulltexture);
+        {
+            // background and shader
+            background();
+            // static shader
+            ray.BeginShaderMode(fgshader);
+            {
+                // player piece and ghost
+                player();
+                // grid of cemented cells
+                grid();
+                // animation for line clears
+                lineclears();
+            }
+            ray.EndShaderMode();
+            // ux
+            ui();
+        }
+        ray.EndTextureMode();
+        // scale texture to window size
+        const src = ray.Rectangle{ .x = 0, .y = 0, .width = ogwindowwidth, .height = -ogwindowheight };
+        const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(windowwidth), .height = @floatFromInt(windowheight) };
+        ray.DrawTexturePro(fulltexture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
+    }
     ray.EndDrawing();
 }
 
@@ -276,15 +285,12 @@ fn player() void {
 
         const xdx: i32 = @intFromFloat(fdrawx);
         const ydx: i32 = @intFromFloat(fdrawy);
-
-        ray.BeginShaderMode(fgshader);
         // draw the piece at the interpolated position
         piece(xdx, ydx, p.shape[game.state.piecer], p.color);
 
         // draw ghost
         const color = .{ p.color[0], p.color[1], p.color[2], 60 };
         piece(xdx, game.ghosty() * cellsize, p.shape[game.state.piecer], color);
-        ray.EndShaderMode();
     }
 }
 
@@ -365,9 +371,7 @@ fn grid() void {
             if (color[3] != 0) {
                 const xx = @as(i32, @intCast(x)) * cellsize;
                 const yy = @as(i32, @intCast(y)) * cellsize;
-                ray.BeginShaderMode(fgshader);
                 styledbox(xx, yy, color);
-                ray.EndShaderMode();
             }
         }
     }
@@ -387,6 +391,7 @@ fn ui() void {
         .b = 255,
         .a = 20,
     };
+
     ray.DrawRectangle(0, 0, 140, ogwindowheight, bordercolor);
     ray.DrawRectangle(ogwindowwidth - 135, 0, 135, ogwindowheight, bordercolor);
 
@@ -431,6 +436,7 @@ fn ui() void {
             .b = 0,
             .a = 210,
         });
+        ray.EndShaderMode();
 
         if (std.fmt.bufPrintZ(&textbuf, "PAUSED", .{})) |paused| {
             scramblefx(paused, 10);
@@ -439,7 +445,6 @@ fn ui() void {
         } else |err| {
             std.debug.print("error printing paused: {}\n", .{err});
         }
-        ray.EndShaderMode();
     }
 
     if (game.state.gameover) {
