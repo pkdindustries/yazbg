@@ -20,7 +20,6 @@ pub fn main() !void {
     game.reset();
 
     printkeys();
-
     while (!ray.WindowShouldClose()) {
         var timer = try std.time.Timer.start();
         // fill music buffer
@@ -40,6 +39,7 @@ pub fn main() !void {
             ray.KEY_B => gfx.nextbackground(),
             ray.KEY_M => sfx.mute(),
             ray.KEY_N => sfx.nextmusic(),
+            ray.KEY_L => checkleak(),
             else => {},
         }
 
@@ -78,7 +78,7 @@ fn progression(lines: i32) void {
     game.state.score += 1000 * lines * lines;
     sfx.playclear();
     if (lines > 3) sfx.playwin();
-    if (game.state.lineslevelup > 3) {
+    if (game.state.lineslevelup > 6) {
         std.debug.print("level up\n", .{});
         gfx.nextbackground();
         sfx.nextmusic();
@@ -93,7 +93,7 @@ fn progression(lines: i32) void {
         // feels much better with no animation
         if (game.state.dropinterval <= 0.4) {
             game.state.pieceslider.duration = 10;
-            game.state.lineclearer.duration = 100;
+            //game.state.lineclearer.duration = 100;
         }
         game.state.lineslevelup = 0;
     }
@@ -110,6 +110,14 @@ fn move(comptime movefn: fn () bool, comptime ok: fn () void, comptime fail: fn 
     }
 }
 
+fn checkleak() void {
+    const ok = game.gpa.detectLeaks();
+    if (ok) {
+        std.debug.print("no leaks\n", .{});
+    } else {
+        std.debug.print("leaks\n", .{});
+    }
+}
 fn printkeys() void {
     std.debug.print("keys:\n", .{});
     std.debug.print("  left/right: move\n", .{});

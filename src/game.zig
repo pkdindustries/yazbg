@@ -2,12 +2,16 @@ const std = @import("std");
 const pieces = @import("pieces.zig");
 const sfx = @import("sfx.zig");
 const rnd = @import("random.zig");
-
+const anim = @import("animation.zig");
+const grid = @import("grid.zig");
 pub const grid_rows = 20;
 pub const grid_cols = 10;
 
+const GPA = std.heap.GeneralPurposeAllocator(.{});
+pub var gpa = GPA{};
+
 pub const YAZBG = struct {
-    cells: [grid_rows][grid_cols][4]u8 = undefined,
+    grid: *grid.Grid = undefined,
     score: i32 = 0,
     level: i32 = 0,
     lines: i32 = 0,
@@ -29,12 +33,6 @@ pub const YAZBG = struct {
     piecey: i32 = 0,
     piecer: u32 = 0,
     // state for various animations
-    lineclearer: struct {
-        active: bool = false,
-        start_time: i64 = 0,
-        duration: i64 = 250,
-        lines: [grid_rows]bool = undefined,
-    } = .{},
     pieceslider: struct {
         active: bool = false,
         start_time: i64 = 0,
@@ -53,7 +51,7 @@ pub fn frozen() bool {
 }
 
 pub fn tickable() bool {
-    return !state.lineclearer.active and !frozen() and sfx.ray.GetTime() - state.lastmove >= state.dropinterval;
+    return !false and !state.pieceslider.active and !frozen() and sfx.ray.GetTime() - state.lastmove >= state.dropinterval;
 }
 
 pub fn reset() void {
@@ -64,14 +62,8 @@ pub fn reset() void {
     state.lastmove = 0;
     state.dropinterval = 2.0;
     state.nextpiece = pieces.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
-    nextpiece();
     state.heldpiece = null;
-    state.lineclearer = .{
-        .active = false,
-        .start_time = 0,
-        .duration = 250,
-        .lines = undefined,
-    };
+
     state.pieceslider = .{
         .active = false,
         .start_time = 0,
@@ -80,11 +72,12 @@ pub fn reset() void {
         .targety = 0,
     };
 
-    for (state.cells, 0..) |row, r| {
-        for (row, 0..) |_, c| {
-            state.cells[r][c] = .{ 0, 0, 0, 0 };
-        }
-    }
+    state.grid = grid.Grid.init(gpa.allocator()) catch |err| {
+        std.debug.print("failed to allocate grid: {}\n", .{err});
+        return;
+    };
+    nextpiece();
+
     state.gameover = false;
     state.paused = false;
     std.debug.print("init game\n", .{});
@@ -100,10 +93,9 @@ pub fn nextpiece() void {
 
     if (!checkmove(state.piecex, state.piecey)) {
         for (0..grid_rows) |r| {
-            state.lineclearer.lines[r] = true;
+            anim.linesplat(r);
         }
-        state.lineclearer.start_time = std.time.milliTimestamp();
-        state.lineclearer.active = true;
+
         state.piece = null;
         state.gameover = true;
     }
@@ -124,33 +116,6 @@ pub fn swappiece() bool {
     state.swapped = true;
     state.lastmove = sfx.ray.GetTime();
     return state.swapped;
-}
-
-// check if a row is completed
-fn iscompleted(row: [10][4]u8) bool {
-    for (row) |cell| {
-        if (cell[3] == 0) return false;
-    }
-    return true;
-}
-
-// removes a line from the game board at the specified row.
-pub fn removeline(row: usize) void {
-    var r = row;
-    while (r > 0) : (r -= 1) {
-        state.cells[r] = state.cells[r - 1];
-    }
-    @memset(&state.cells[0], .{ 0, 0, 0, 0 });
-    state.lineclearer.lines[row] = false;
-}
-
-// removes all lines specified in lineclearer.lines
-pub fn removelines() void {
-    for (state.lineclearer.lines, 0..) |line, r| {
-        if (line) {
-            removeline(r);
-        }
-    }
 }
 
 pub fn pause() void {
@@ -177,8 +142,9 @@ pub fn checkmove(x: i32, y: i32) bool {
                     if (gx < 0 or gx >= grid_cols or gy < 0 or gy >= grid_rows) {
                         return false;
                     }
-                    //  cell is already occupied
-                    if (state.cells[@as(usize, @intCast(gy))][@as(usize, @intCast(gx))][3] != 0) {
+
+                    // cell is already occupied via newcells
+                    if (state.grid.cells[@as(usize, @intCast(gy))][@as(usize, @intCast(gx))]) |_| {
                         return false;
                     }
                 }
@@ -202,31 +168,24 @@ pub fn harddrop() i32 {
                     const gx = state.piecex + @as(i32, @intCast(i));
                     const gy = state.piecey + @as(i32, @intCast(j));
                     if (gx >= 0 and gx < grid_cols and gy >= 0 and gy < grid_rows) {
-                        state.cells[@as(usize, @intCast(gy))][@as(usize, @intCast(gx))] = piece.color;
+                        const ix = @as(usize, @intCast(gx));
+                        const iy = @as(usize, @intCast(gy));
+                        const ac = anim.AnimatedCell.init(&gpa.allocator(), ix, iy, piece.color) catch |err| {
+                            std.debug.print("failed to allocate cell: {}\n", .{err});
+                            return 0;
+                        };
+                        state.grid.cells[iy][ix] = ac;
                     }
                 }
             }
         }
     }
+
     state.lastmove = sfx.ray.GetTime();
-    const cleared = clearlines();
+    const cleared = state.grid.clear();
+    std.debug.print("game.drop done {}\n", .{cleared});
     state.lineslevelup += cleared;
     return cleared;
-}
-
-// clear completed lines and return the number of cleared lines
-pub fn clearlines() i32 {
-    var lines: i32 = 0;
-    for (state.cells, 0..) |row, r| {
-        if (iscompleted(row)) {
-            state.lineclearer.lines[r] = true;
-            state.lineclearer.active = true;
-            state.lineclearer.start_time = std.time.milliTimestamp();
-            lines += 1;
-        }
-    }
-    state.lines += lines;
-    return lines;
 }
 
 // move piece right

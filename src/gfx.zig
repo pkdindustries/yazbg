@@ -3,7 +3,6 @@ const ray = @import("raylib.zig");
 const sfx = @import("sfx.zig");
 const game = @import("game.zig");
 const rnd = @import("random.zig");
-
 const ogwindowwidth: i32 = 640;
 const ogwindowheight: i32 = 760;
 var windowwidth: i32 = ogwindowwidth;
@@ -65,15 +64,14 @@ pub fn frame() void {
             {
                 // player piece and ghost
                 player();
-                // grid of cemented cells
-                grid();
-                // animation for line clears
-                lineclears();
+                // grid of cemented cells, and unnaffiliated cells
+                drawcells();
             }
             ray.EndShaderMode();
             // ux
             ui();
         }
+
         ray.EndTextureMode();
         // scale texture to window size
         const src = ray.Rectangle{ .x = 0, .y = 0, .width = ogwindowwidth, .height = -ogwindowheight };
@@ -167,7 +165,7 @@ fn preshade() void {
     ray.SetShaderValue(fgshader, fgtime, &@as(f32, @floatCast(ray.GetTime())), ray.SHADER_UNIFORM_FLOAT);
 
     // go wild during a clear
-    if (game.state.lineclearer.active) {
+    if (false) {
         freqX = 50.0;
         freqY = 50.0;
         ampX = 10.0;
@@ -218,42 +216,6 @@ fn background() void {
     ray.EndShaderMode();
 }
 
-fn lineclears() void {
-    const elapsed_time = std.time.milliTimestamp() - game.state.lineclearer.start_time;
-    if (game.state.lineclearer.active) {
-        for (game.state.lineclearer.lines, 0..) |clearing, rowIndex| {
-            if (clearing) {
-                for (0..10) |colIndex| {
-                    // find underlying cell
-                    const cell = game.state.cells[rowIndex][colIndex];
-                    // skip if cell is empty (game over effect)
-                    if (cell[3] == 0) {
-                        continue;
-                    }
-                    const x = @as(i32, @intCast(colIndex)) * cellsize;
-                    const y = @as(i32, @intCast(rowIndex)) * cellsize;
-                    const e: f32 = @floatFromInt(elapsed_time);
-                    const d: f32 = @floatFromInt(game.state.lineclearer.duration);
-                    // clamp between 0 and 255
-                    const computed = e / d * 200;
-                    const clamped = std.math.clamp(computed, 0.0, 255.0);
-                    const ratio: u8 = @intFromFloat(clamped);
-
-                    const color = .{ cell[0], cell[1], cell[2], 255 - ratio };
-                    styledbox(x, y + ratio, color);
-                }
-            }
-        }
-        if (elapsed_time >= game.state.lineclearer.duration) {
-            game.removelines();
-            game.state.lineclearer.active = false;
-            game.state.lineclearer.lines = undefined;
-            if (elapsed_time > game.state.lineclearer.duration)
-                std.debug.print("lineclear animation {}ms\n", .{elapsed_time});
-        }
-    }
-}
-
 fn player() void {
     if (game.state.piece) |p| {
         var drawX: i32 = game.state.piecex * cellsize;
@@ -294,6 +256,29 @@ fn player() void {
     }
 }
 
+fn drawcells() void {
+    // find the active animatedcells
+    for (game.state.grid.cells) |row| {
+        for (row) |cell| {
+            if (cell) |cptr| {
+                cptr.lerp(std.time.milliTimestamp());
+                const drawX: i32 = @as(i32, @intFromFloat(cptr.position[0]));
+                const drawY: i32 = @as(i32, @intFromFloat(cptr.position[1]));
+                roundedfillbox(drawX, drawY, cptr.color);
+            } else {}
+        }
+    }
+
+    game.state.grid.animated.lerpall();
+    for (game.state.grid.animated.cells) |a| {
+        if (a) |cptr| {
+            const drawX: i32 = @as(i32, @intFromFloat(cptr.position[0]));
+            const drawY: i32 = @as(i32, @intFromFloat(cptr.position[1]));
+            roundedfillbox(drawX, drawY, cptr.color);
+        }
+    }
+}
+
 // draw a piece
 fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
     for (shape, 0..) |row, i| {
@@ -301,50 +286,10 @@ fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
             if (cell) {
                 const xs: i32 = @as(i32, @intCast(i)) * cellsize;
                 const ys: i32 = @as(i32, @intCast(j)) * cellsize;
-                styledbox(x + xs, y + ys, color);
+                roundedfillbox(x + xs, y + ys, color);
             }
         }
     }
-}
-
-const cellstyle = enum {
-    box,
-    fillbox,
-    rounded,
-};
-
-var style: cellstyle = cellstyle.rounded;
-fn styledbox(x: i32, y: i32, color: [4]u8) void {
-    switch (style) {
-        cellstyle.box => box(x, y, color),
-        cellstyle.fillbox => fillbox(x, y, color),
-        cellstyle.rounded => roundedfillbox(x, y, color),
-    }
-}
-
-// draw a box
-fn box(x: i32, y: i32, color: [4]u8) void {
-    ray.DrawRectangleLinesEx(ray.Rectangle{
-        .x = @floatFromInt(gridoffsetx + x),
-        .y = @floatFromInt(gridoffsety + y),
-        .width = @floatFromInt(getcellwidth()),
-        .height = @floatFromInt(getcellwidth()),
-    }, 2, ray.Color{
-        .r = color[0],
-        .g = color[1],
-        .b = color[2],
-        .a = color[3],
-    });
-}
-
-// draw a filled box
-fn fillbox(x: i32, y: i32, color: [4]u8) void {
-    ray.DrawRectangle(gridoffsetx + x, gridoffsety + y, getcellwidth(), getcellwidth(), ray.Color{
-        .r = color[0],
-        .g = color[1],
-        .b = color[2],
-        .a = color[3],
-    });
 }
 
 // draw a rounded box
@@ -352,33 +297,14 @@ fn roundedfillbox(x: i32, y: i32, color: [4]u8) void {
     ray.DrawRectangleRounded(ray.Rectangle{
         .x = @floatFromInt(gridoffsetx + x),
         .y = @floatFromInt(gridoffsety + y),
-        .width = @floatFromInt(getcellwidth()),
-        .height = @floatFromInt(getcellwidth()),
+        .width = @floatFromInt(cellsize - 2 * cellpadding),
+        .height = @floatFromInt(cellsize - 2 * cellpadding),
     }, 0.4, 20, ray.Color{
         .r = color[0],
         .g = color[1],
         .b = color[2],
         .a = color[3],
     });
-}
-// draw the cemented cells and border
-fn grid() void {
-    for (game.state.cells, 0..) |row, y| {
-        if (game.state.lineclearer.active and game.state.lineclearer.lines[y]) {
-            continue;
-        }
-        for (row, 0..) |color, x| {
-            if (color[3] != 0) {
-                const xx = @as(i32, @intCast(x)) * cellsize;
-                const yy = @as(i32, @intCast(y)) * cellsize;
-                styledbox(xx, yy, color);
-            }
-        }
-    }
-}
-
-fn getcellwidth() i32 {
-    return cellsize - 2 * cellpadding;
 }
 
 var textbuf: [1000]u8 = undefined;
@@ -401,7 +327,7 @@ fn ui() void {
     if (std.fmt.bufPrintZ(&textbuf, "score\n{}\nlines\n{}\nlevel\n{}", .{ game.state.score, game.state.lines, game.state.level })) |score| {
         var color = ray.GREEN;
         var size: f32 = 22;
-        if (game.state.lineclearer.active) {
+        if (false) {
             scramblefx(score, 10);
             color = ray.RED;
             size = 30;

@@ -1,0 +1,191 @@
+const std = @import("std");
+const game = @import("game.zig");
+const testing = std.testing;
+const rnd = @import("random.zig");
+
+pub const Animating = struct {
+    const Self = @This();
+    allocator: std.mem.Allocator = undefined,
+    cells: [100]?*AnimatedCell = undefined,
+
+    pub fn init(allocator: std.mem.Allocator) !*Self {
+        const c = try allocator.create(Self);
+
+        c.* = Self{
+            .allocator = allocator,
+        };
+        return c;
+    }
+
+    pub fn deinit(self: *Self) void {
+        for (self.cells.items) |cell| {
+            self.allocator.destroy(cell);
+        }
+        self.cells.deinit();
+    }
+
+    pub fn add(self: *Self, cell: *AnimatedCell) void {
+        std.debug.print("adding cell {}\n", .{cell.id});
+        cell.start();
+
+        // find a free slot
+        for (self.cells, 0..) |c, i| {
+            if (c) |_| {
+                continue;
+            } else {
+                self.cells[i] = cell;
+                return;
+            }
+        }
+    }
+
+    pub fn lerpall(self: *Self) void {
+        for (self.cells, 0..) |cell, i| {
+            if (cell) |cptr| {
+                if (cptr.animating) {
+                    cptr.lerp(std.time.milliTimestamp());
+                } else {
+                    std.debug.print("destroying finished animated {}\n", .{cptr.id});
+                    self.cells[i] = null;
+                    self.allocator.destroy(cptr);
+                }
+            }
+        }
+    }
+};
+
+pub const AnimatedCell = struct {
+    const Self = @This();
+    id: i128 = 0,
+    color: [4]u8 = undefined,
+    colorposition: [4]u8 = undefined,
+    colortarget: [4]u8 = undefined,
+    source: [2]f32 = undefined,
+    target: [2]f32 = undefined,
+    position: [2]f32 = undefined,
+    startedat: i64 = 0,
+    startnotbefore: i64 = 0,
+    duration: i64 = 200,
+    animating: bool = false,
+
+    pub fn init(allocator: *const std.mem.Allocator, gridx: usize, gridy: usize, color: [4]u8) !*Self {
+        const p: [2]f32 = .{
+            @as(f32, @floatFromInt(gridx * 35)),
+            @as(f32, @floatFromInt(gridy * 35)),
+        };
+
+        const cell = try allocator.create(Self);
+        cell.* = Self{
+            .source = p,
+            .position = p,
+            .target = p,
+            .color = color,
+            .id = rnd.ng.random().intRangeAtMost(u32, 0, 6000000),
+        };
+
+        return cell;
+    }
+
+    pub fn setcoords(self: *Self, x: usize, y: usize) void {
+        const drawx: f32 = @floatFromInt(x * 35);
+        const drawy: f32 = @floatFromInt(y * 35);
+        self.target[0] = drawx;
+        self.target[1] = drawy;
+        self.start();
+    }
+
+    pub fn setcolor(self: *Self, color: [4]u8) void {
+        self.color = color;
+        self.colorposition = color;
+        self.colortarget = color;
+    }
+
+    pub fn stop(self: *Self) void {
+        self.source = self.target;
+        self.position = self.target;
+        self.animating = false;
+    }
+
+    pub fn start(self: *Self) void {
+        self.startedat = std.time.milliTimestamp();
+        self.animating = true;
+    }
+
+    pub fn lerp(self: *Self, timestamp: i64) void {
+        if (!self.animating) {
+            return;
+        }
+
+        if (std.time.milliTimestamp() < self.startnotbefore) {
+            std.debug.print("skipping differed animation\n", .{});
+            return;
+        }
+
+        const elapsed_time = timestamp - self.startedat;
+        if (elapsed_time >= self.duration) {
+            if (elapsed_time > self.duration)
+                std.debug.print("elapsed:{} > duration:{}\n", .{ elapsed_time, self.duration });
+            self.position = self.target;
+            self.stop();
+            return;
+        }
+
+        const e = @as(f32, @floatFromInt(elapsed_time));
+        const d = @as(f32, @floatFromInt(self.duration));
+        const t = std.math.clamp(e / d, 0.0, 1.0);
+
+        var loc: [2]f32 = undefined;
+        loc[0] = std.math.lerp(self.source[0], self.target[0], t);
+        loc[1] = std.math.lerp(self.source[1], self.target[1], t);
+        self.position = loc;
+
+        // var col: [4]u8 = undefined;
+        // col[0] = std.math.lerp(self.color[0], self.color[0], t);
+        // col[1] = std.math.lerp(self.color[1], self.color[1], t);
+        // col[2] = std.math.lerp(self.color[2], self.color[2], t);
+        // col[3] = std.math.lerp(self.color[3], self.color[3], t);
+        // self.color = col;
+    }
+};
+
+// set a row to random x,y
+pub fn linesplat(row: usize) void {
+    for (game.state.grid.cells[row]) |ac| {
+        if (ac) |cptr| {
+            const xr: i32 = rnd.ng.random().intRangeAtMost(i32, -2000, 2000);
+            const yr: i32 = rnd.ng.random().intRangeAtMost(i32, -2000, 2000);
+            cptr.target[0] = @as(f32, @floatFromInt(xr));
+            cptr.target[1] = @as(f32, @floatFromInt(yr));
+            cptr.duration = 1000;
+            cptr.start();
+        }
+    }
+}
+
+// test init
+test "lerp function" {
+    var anim: AnimatedCell = undefined;
+    anim.animating = true;
+    anim.startedat = 0;
+    anim.duration = 1000;
+    anim.source[0] = 0.0;
+    anim.source[1] = 0.0;
+
+    anim.target[0] = 10.0;
+    anim.target[1] = 10.0;
+
+    // Call the lerp function with a timestamp of 500
+    anim.lerp(500);
+
+    // Assert that the position has been updated correctly
+    try testing.expect(anim.position[0] == 5.0);
+
+    // Call the lerp function with a timestamp of 1500
+    anim.lerp(1500);
+
+    // Assert that the position has been updated to the target value
+    try testing.expect(anim.position[0] == 10.0);
+
+    // Assert that the animation has stopped
+    try testing.expect(!anim.animating);
+}
