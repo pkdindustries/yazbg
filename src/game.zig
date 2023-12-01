@@ -63,7 +63,6 @@ pub fn reset() void {
     state.dropinterval = 2.0;
     state.nextpiece = pieces.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
     state.heldpiece = null;
-
     state.pieceslider = .{
         .active = false,
         .start_time = 0,
@@ -145,12 +144,15 @@ pub fn checkmove(x: i32, y: i32) bool {
                     const gx = x + @as(i32, @intCast(j));
                     const gy = y + @as(i32, @intCast(i));
                     // cell is out of bounds
+
                     if (gx < 0 or gx >= grid_cols or gy < 0 or gy >= grid_rows) {
                         return false;
                     }
 
+                    const ix = @as(usize, @intCast(gx));
+                    const iy = @as(usize, @intCast(gy));
                     // cell is already occupied via newcells
-                    if (state.grid.cells[@as(usize, @intCast(gy))][@as(usize, @intCast(gx))]) |_| {
+                    if (state.grid.cells[iy][ix]) |_| {
                         return false;
                     }
                 }
