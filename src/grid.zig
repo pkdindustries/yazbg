@@ -1,7 +1,7 @@
 const std = @import("std");
 const anim = @import("animation.zig");
-const WIDTH = 10;
-const HEIGHT = 20;
+pub const WIDTH = 10;
+pub const HEIGHT = 20;
 
 pub const Grid = struct {
     const Self = @This();
@@ -26,7 +26,9 @@ pub const Grid = struct {
         std.debug.print("removeline {d}\n", .{line});
         for (self.cells[line], 0..) |cell, i| {
             if (cell) |cptr| {
-                cptr.target[1] = 1000;
+                cptr.target[1] = 800;
+                cptr.mode = .easeout;
+                cptr.duration = 200;
                 self.animated.add(cptr);
                 self.cells[line][i] = null;
             }
