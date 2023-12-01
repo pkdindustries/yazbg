@@ -27,8 +27,8 @@ pub const Grid = struct {
         for (self.cells[line], 0..) |cell, i| {
             if (cell) |cptr| {
                 cptr.target[1] = 800;
-                cptr.mode = .easeout;
-                cptr.duration = 200;
+                cptr.mode = .easein;
+                cptr.duration = 300;
                 self.animated.add(cptr);
                 self.cells[line][i] = null;
             }
@@ -48,7 +48,8 @@ pub const Grid = struct {
             self.cells[line][i] = null; // Clear the original cell
             // coords
             if (cell) |cptr| {
-                cptr.duration = 100;
+                cptr.duration = 200;
+                cptr.mode = .easeinout;
                 cptr.setcoords(i, line + 1);
             }
         }
