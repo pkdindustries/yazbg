@@ -1,13 +1,13 @@
 const std = @import("std");
 const anim = @import("animation.zig");
-const width = 10;
-const height = 20;
+const WIDTH = 10;
+const HEIGHT = 20;
 
 pub const Grid = struct {
     const Self = @This();
     allocator: std.mem.Allocator = undefined,
     animated: *anim.Animating = undefined,
-    cells: [height][width]?*anim.AnimatedCell = undefined,
+    cells: [HEIGHT][WIDTH]?*anim.AnimatedCell = undefined,
 
     pub fn init(allocator: std.mem.Allocator) !*Self {
         const gc = try allocator.create(Self);
@@ -36,7 +36,7 @@ pub const Grid = struct {
     // shift a single line down
     fn shiftrow(self: *Self, line: usize) void {
         // Check if the line is within bounds
-        if (line >= height - 1) {
+        if (line >= HEIGHT - 1) {
             return; // Cannot shift the last row down
         }
 
@@ -73,7 +73,7 @@ pub const Grid = struct {
     }
 
     pub fn clear(self: *Self) u8 {
-        var line: u8 = height - 1;
+        var line: u8 = HEIGHT - 1;
         var count: u8 = 0;
         while (line > 0) {
             if (self.checkline(line)) {

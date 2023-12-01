@@ -76,6 +76,7 @@ fn drop() void {
 fn progression(lines: i32) void {
     if (lines < 1) return;
     game.state.score += 1000 * lines * lines;
+    game.state.lines += lines;
     sfx.playclear();
     if (lines > 3) sfx.playwin();
     if (game.state.lineslevelup > 6) {

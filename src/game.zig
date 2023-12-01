@@ -16,7 +16,7 @@ pub const YAZBG = struct {
     level: i32 = 0,
     lines: i32 = 0,
     lineslevelup: i32 = 0,
-
+    init: bool = true,
     swapped: bool = false,
     // time between drops
     dropinterval: f64 = 2.0,
@@ -72,10 +72,15 @@ pub fn reset() void {
         .targety = 0,
     };
 
-    state.grid = grid.Grid.init(gpa.allocator()) catch |err| {
-        std.debug.print("failed to allocate grid: {}\n", .{err});
-        return;
-    };
+    if (state.init == true) {
+        state.grid = grid.Grid.init(gpa.allocator()) catch |err| {
+            std.debug.print("failed to allocate grid: {}\n", .{err});
+            return;
+        };
+        state.init = false;
+    } else {
+        state.grid.destroy();
+    }
     nextpiece();
 
     state.gameover = false;
@@ -94,6 +99,7 @@ pub fn nextpiece() void {
     if (!checkmove(state.piecex, state.piecey)) {
         for (0..grid_rows) |r| {
             anim.linesplat(r);
+            sfx.playgameover();
         }
 
         state.piece = null;

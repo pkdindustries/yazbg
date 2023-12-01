@@ -240,7 +240,7 @@ fn player() void {
             // deactivate slider, set position if animation is complete
             if (elapsed_time >= game.state.pieceslider.duration) {
                 game.state.pieceslider.active = false;
-                if (elapsed_time > game.state.pieceslider.duration)
+                if (elapsed_time > game.state.pieceslider.duration + 5)
                     std.debug.print("slide {}ms\n", .{elapsed_time});
             }
         }

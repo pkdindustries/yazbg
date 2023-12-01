@@ -43,7 +43,6 @@ pub fn init() !void {
 
 pub fn deinit() void {
     std.debug.print("deinit audio\n", .{});
-
     ray.UnloadSound(errsound);
     ray.UnloadSound(clacksound);
     ray.UnloadSound(clicksound);

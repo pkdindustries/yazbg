@@ -6,7 +6,7 @@ const rnd = @import("random.zig");
 pub const Animating = struct {
     const Self = @This();
     allocator: std.mem.Allocator = undefined,
-    cells: [100]?*AnimatedCell = undefined,
+    cells: [500]?*AnimatedCell = undefined,
 
     pub fn init(allocator: std.mem.Allocator) !*Self {
         const c = try allocator.create(Self);
@@ -25,9 +25,7 @@ pub const Animating = struct {
     }
 
     pub fn add(self: *Self, cell: *AnimatedCell) void {
-        std.debug.print("adding cell {}\n", .{cell.id});
         cell.start();
-
         // find a free slot
         for (self.cells, 0..) |c, i| {
             if (c) |_| {
@@ -45,7 +43,6 @@ pub const Animating = struct {
                 if (cptr.animating) {
                     cptr.lerp(std.time.milliTimestamp());
                 } else {
-                    std.debug.print("destroying finished animated {}\n", .{cptr.id});
                     self.cells[i] = null;
                     self.allocator.destroy(cptr);
                 }
@@ -123,7 +120,7 @@ pub const AnimatedCell = struct {
 
         const elapsed_time = timestamp - self.startedat;
         if (elapsed_time >= self.duration) {
-            if (elapsed_time > self.duration)
+            if (elapsed_time > self.duration + 20)
                 std.debug.print("elapsed:{} > duration:{}\n", .{ elapsed_time, self.duration });
             self.position = self.target;
             self.stop();
