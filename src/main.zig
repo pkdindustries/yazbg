@@ -87,14 +87,13 @@ fn progression(lines: i32) void {
         game.state.level += 1;
         game.state.score += 1000 * game.state.level;
         game.state.dropinterval -= 0.15;
-        if (game.state.dropinterval <= 0.2) {
-            game.state.dropinterval = 0.2;
+        if (game.state.dropinterval <= 0.1) {
+            game.state.dropinterval = 0.1;
         }
         // fixme: controllability at high levels
         // feels much better with no animation
-        if (game.state.dropinterval <= 0.4) {
-            game.state.pieceslider.duration = 10;
-            //game.state.lineclearer.duration = 100;
+        if (game.state.dropinterval <= 0.3) {
+            game.state.pieceslider.duration = 50;
         }
         game.state.lineslevelup = 0;
     }
@@ -112,11 +111,9 @@ fn move(comptime movefn: fn () bool, comptime ok: fn () void, comptime fail: fn 
 }
 
 fn checkleak() void {
-    const ok = game.gpa.detectLeaks();
-    if (ok) {
+    const leaks = game.gpa.detectLeaks();
+    if (!leaks) {
         std.debug.print("no leaks\n", .{});
-    } else {
-        std.debug.print("leaks\n", .{});
     }
 }
 fn printkeys() void {
