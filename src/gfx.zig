@@ -3,6 +3,8 @@ const ray = @import("raylib.zig");
 const sfx = @import("sfx.zig");
 const game = @import("game.zig");
 const rnd = @import("random.zig");
+const anim = @import("animation.zig");
+
 const ogwindowwidth: i32 = 640;
 const ogwindowheight: i32 = 760;
 var windowwidth: i32 = ogwindowwidth;
@@ -12,7 +14,7 @@ var gridoffsety: i32 = 50;
 var cellsize: i32 = 35;
 var cellpadding: i32 = 2;
 
-const images: [8][*:0]const u8 = .{
+const bgimages: [8][*:0]const u8 = .{
     "resources/texture/bluestars.png",
     "resources/texture/nebula.png",
     "resources/texture/starfield.png",
@@ -22,16 +24,16 @@ const images: [8][*:0]const u8 = .{
     "resources/texture/starfield2.png",
     "resources/texture/starmap.png",
 };
+var bgtextures: [8]ray.Texture2D = undefined;
+var bgimageindex: u32 = 0;
 
-var imageindex: u32 = 0;
-var fulltexture = ray.RenderTexture2D{};
+var windowtexture = ray.RenderTexture2D{};
 var spacefont = ray.Font{};
 
 // shader stuff
 var fgshader: ray.Shader = undefined;
 var fgtime: i32 = 0;
 var bgshader: ray.Shader = undefined;
-var bgtexture: ray.Texture2D = undefined;
 var secondsloc: i32 = 0;
 var freqXLoc: i32 = 0;
 var freqYLoc: i32 = 0;
@@ -55,7 +57,7 @@ pub fn frame() void {
     ray.BeginDrawing();
     {
         // draw to texture first
-        ray.BeginTextureMode(fulltexture);
+        ray.BeginTextureMode(windowtexture);
         {
             // background and shader
             background();
@@ -64,7 +66,7 @@ pub fn frame() void {
             {
                 // player piece and ghost
                 player();
-                // grid of cemented cells, and unnaffiliated cells
+                // grid
                 drawcells();
             }
             ray.EndShaderMode();
@@ -76,7 +78,7 @@ pub fn frame() void {
         // scale texture to window size
         const src = ray.Rectangle{ .x = 0, .y = 0, .width = ogwindowwidth, .height = -ogwindowheight };
         const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(windowwidth), .height = @floatFromInt(windowheight) };
-        ray.DrawTexturePro(fulltexture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
+        ray.DrawTexturePro(windowtexture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
     }
     ray.EndDrawing();
 }
@@ -87,9 +89,9 @@ pub fn init() !void {
     // window init
     ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
     ray.InitWindow(ogwindowwidth, ogwindowheight, "yazbg");
-    fulltexture = ray.LoadRenderTexture(ogwindowwidth, ogwindowheight);
+    windowtexture = ray.LoadRenderTexture(ogwindowwidth, ogwindowheight);
     //ray.GenTextureMipmaps(&texture.texture);
-    ray.SetTextureFilter(fulltexture.texture, ray.TEXTURE_FILTER_TRILINEAR);
+    ray.SetTextureFilter(windowtexture.texture, ray.TEXTURE_FILTER_TRILINEAR);
 
     // shader init
     bgshader = ray.LoadShader(null, "resources/shader/warp.fs");
@@ -104,40 +106,39 @@ pub fn init() !void {
 
     fgshader = ray.LoadShader(null, "resources/shader/static.fs");
     fgtime = ray.GetShaderLocation(fgshader, "time");
+
     // font init
     spacefont = ray.LoadFont("resources/font/nasa.otf");
     ray.GenTextureMipmaps(&spacefont.texture);
     ray.SetTextureFilter(spacefont.texture, ray.TEXTURE_FILTER_TRILINEAR);
 
+    // load each of the images into bgtextures
+    for (bgimages, 0..) |f, i| {
+        var t = ray.LoadTexture(f);
+        ray.GenTextureMipmaps(&t);
+        ray.SetTextureFilter(t, ray.TEXTURE_FILTER_TRILINEAR);
+        bgtextures[i] = t;
+    }
     loadbackground();
 }
 
 pub fn deinit() void {
     std.debug.print("deinit gfx\n", .{});
     ray.UnloadShader(bgshader);
-    ray.UnloadTexture(bgtexture);
-    ray.UnloadTexture(fulltexture.texture);
+    //ray.UnloadTexture(bgtexture);
+    ray.UnloadTexture(windowtexture.texture);
     ray.UnloadFont(spacefont);
 }
 
-// set random background
-pub fn randombackground() void {
-    imageindex = rnd.ng.random().intRangeAtMost(u32, 0, images.len - 1);
-    loadbackground();
-}
-
 pub fn loadbackground() void {
-    ray.UnloadTexture(bgtexture);
-    const f = images[imageindex];
-    bgtexture = ray.LoadTexture(f);
-    ray.GenTextureMipmaps(&bgtexture);
-    ray.SetTextureFilter(bgtexture, ray.TEXTURE_FILTER_TRILINEAR);
+    ray.GenTextureMipmaps(&bgtextures[bgimageindex]);
+    ray.SetTextureFilter(bgtextures[bgimageindex], ray.TEXTURE_FILTER_TRILINEAR);
 }
 
 pub fn nextbackground() void {
-    imageindex += 1;
-    if (imageindex >= images.len) {
-        imageindex = 0;
+    bgimageindex += 1;
+    if (bgimageindex >= bgimages.len) {
+        bgimageindex = 0;
     }
     loadbackground();
 }
@@ -154,7 +155,7 @@ pub fn updatescale() void {
         windowwidth = width;
         windowheight = height;
         std.debug.print("window resized to {}x{}\n", .{ windowwidth, windowheight });
-        ray.GenTextureMipmaps(&fulltexture.texture);
+        ray.GenTextureMipmaps(&windowtexture.texture);
         ray.SetWindowSize(width, height);
     }
 }
@@ -201,8 +202,8 @@ fn background() void {
     const src = ray.Rectangle{
         .x = 0,
         .y = 0,
-        .width = @floatFromInt(bgtexture.width),
-        .height = @floatFromInt(bgtexture.height),
+        .width = @floatFromInt(bgtextures[bgimageindex].width),
+        .height = @floatFromInt(bgtextures[bgimageindex].height),
     };
 
     const tgt = ray.Rectangle{
@@ -212,7 +213,7 @@ fn background() void {
         .height = @floatFromInt(ogwindowheight),
     };
 
-    ray.DrawTexturePro(bgtexture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
+    ray.DrawTexturePro(bgtextures[bgimageindex], src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
     ray.EndShaderMode();
 }
 

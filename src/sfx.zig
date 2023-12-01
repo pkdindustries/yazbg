@@ -2,6 +2,7 @@ pub const ray = @import("raylib.zig");
 const std = @import("std");
 const builtin = @import("builtin");
 const rnd = @import("random.zig");
+const target = builtin.target;
 
 var errsound = ray.Sound{};
 var clacksound = ray.Sound{};
@@ -14,16 +15,13 @@ var gameover = ray.Sound{};
 var soundvolume: f32 = 0.5;
 var musicvolume: f32 = 0.15;
 
-const target = builtin.target;
-
 var music: [3][*:0]const u8 = .{
     "resources/music/level0.mp3",
     "resources/music/level1.mp3",
     "resources/music/newbit.mp3",
 };
-
+var songs: [3]ray.Music = undefined;
 var songindex: usize = 0;
-var song = ray.Music{};
 
 pub fn init() !void {
     // audio
@@ -38,6 +36,11 @@ pub fn init() !void {
         wooshsound = ray.LoadSound("resources/sfx/woosh.mp3");
         winsound = ray.LoadSound("resources/sfx/win.mp3");
         gameover = ray.LoadSound("resources/sfx/gameover.mp3");
+
+        // load musc into songs
+        for (music, 0..) |m, i| {
+            songs[i] = ray.LoadMusicStream(m);
+        }
     }
 }
 
@@ -50,7 +53,7 @@ pub fn deinit() void {
     ray.UnloadSound(levelupsound);
     ray.UnloadSound(wooshsound);
     ray.UnloadSound(winsound);
-    ray.UnloadMusicStream(song);
+    //ray.UnloadMusicStream(song);
     ray.CloseAudioDevice();
 }
 
@@ -86,13 +89,12 @@ pub fn playgameover() void {
 }
 
 pub fn playmusic() void {
-    song = ray.LoadMusicStream(music[songindex]);
-    ray.SetMusicVolume(song, musicvolume);
-    ray.PlayMusicStream(song);
+    ray.SetMusicVolume(songs[songindex], musicvolume);
+    ray.PlayMusicStream(songs[songindex]);
 }
 
 pub fn nextmusic() void {
-    ray.StopMusicStream(song);
+    ray.StopMusicStream(songs[songindex]);
     songindex = songindex + 1;
     if (songindex >= music.len) {
         songindex = 0;
@@ -110,12 +112,12 @@ pub fn mute() void {
     updatemusic();
 }
 pub fn randommusic() void {
-    ray.StopMusicStream(song);
+    ray.StopMusicStream(songs[songindex]);
     songindex = rnd.ng.random().intRangeAtMost(usize, 0, music.len - 1);
     playmusic();
 }
 
 pub fn updatemusic() void {
-    ray.SetMusicVolume(song, musicvolume);
-    ray.UpdateMusicStream(song);
+    ray.SetMusicVolume(songs[songindex], musicvolume);
+    ray.UpdateMusicStream(songs[songindex]);
 }
