@@ -3,10 +3,11 @@ const game = @import("game.zig");
 const testing = std.testing;
 const rnd = @import("random.zig");
 
+const MAX_CELLS = 500;
 pub const Animating = struct {
     const Self = @This();
     allocator: std.mem.Allocator = undefined,
-    cells: [500]?*AnimatedCell = undefined,
+    cells: [MAX_CELLS]?*AnimatedCell = undefined,
 
     pub fn init(allocator: std.mem.Allocator) !*Self {
         const c = try allocator.create(Self);
@@ -64,6 +65,12 @@ pub const AnimatedCell = struct {
     startnotbefore: i64 = 0,
     duration: i64 = 200,
     animating: bool = false,
+    mode: enum {
+        easeinout,
+        linear,
+        easein,
+        easeout,
+    } = .easeinout,
 
     pub fn init(allocator: *const std.mem.Allocator, gridx: usize, gridy: usize, color: [4]u8) !*Self {
         const p: [2]f32 = .{
@@ -108,6 +115,20 @@ pub const AnimatedCell = struct {
         self.animating = true;
     }
 
+    pub fn easeinout(self: *Self, t: f32) f32 {
+        _ = self;
+        return t * t * t * (t * (t * 6 - 15) + 10);
+    }
+    pub fn easein(self: *Self, t: f32) f32 {
+        _ = self;
+        return t * t;
+    }
+
+    pub fn easeout(self: *Self, t: f32) f32 {
+        _ = self;
+        return t * (2 - t);
+    }
+
     pub fn lerp(self: *Self, timestamp: i64) void {
         if (!self.animating) {
             return;
@@ -129,7 +150,19 @@ pub const AnimatedCell = struct {
 
         const e = @as(f32, @floatFromInt(elapsed_time));
         const d = @as(f32, @floatFromInt(self.duration));
-        const t = std.math.clamp(e / d, 0.0, 1.0);
+        var t = std.math.clamp(e / d, 0.0, 1.0);
+        switch (self.mode) {
+            .easeinout => {
+                t = self.easeinout(t);
+            },
+            .linear => {},
+            .easein => {
+                t = self.easein(t);
+            },
+            .easeout => {
+                t = self.easeout(t);
+            },
+        }
 
         var loc: [2]f32 = undefined;
         loc[0] = std.math.lerp(self.source[0], self.target[0], t);
@@ -147,13 +180,28 @@ pub const AnimatedCell = struct {
 
 // set a row to random x,y
 pub fn linesplat(row: usize) void {
-    for (game.state.grid.cells[row]) |ac| {
+    for (game.state.grid.cells[row], 0..) |ac, i| {
         if (ac) |cptr| {
             const xr: i32 = rnd.ng.random().intRangeAtMost(i32, -2000, 2000);
             const yr: i32 = rnd.ng.random().intRangeAtMost(i32, -2000, 2000);
             cptr.target[0] = @as(f32, @floatFromInt(xr));
             cptr.target[1] = @as(f32, @floatFromInt(yr));
             cptr.duration = 1000;
+            cptr.mode = .easeinout;
+            game.state.grid.animated.add(cptr);
+            game.state.grid.cells[row][i] = null;
+            cptr.start();
+        }
+    }
+}
+
+pub fn linecleardown(row: usize) void {
+    for (game.state.grid.cells[row], 0..) |ac, i| {
+        if (ac) |cptr| {
+            cptr.target[1] = 800;
+            game.state.grid.animated.add(cptr);
+            game.state.grid.cells[row][i] = null;
+            game.state.grid.cells[row][i] = null;
             cptr.start();
         }
     }
@@ -170,7 +218,7 @@ test "lerp function" {
 
     anim.target[0] = 10.0;
     anim.target[1] = 10.0;
-
+    anim.mode = .linear;
     // Call the lerp function with a timestamp of 500
     anim.lerp(500);
 
