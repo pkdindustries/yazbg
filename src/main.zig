@@ -18,12 +18,13 @@ pub fn main() !void {
     try gfx.init();
     defer gfx.deinit();
 
+    game.init();
+    defer game.deinit();
+
     std.debug.print("system init {}ms\n", .{timer.lap() / MS});
 
-    sfx.randommusic();
-    game.init();
-
     printkeys();
+
     while (!ray.WindowShouldClose()) {
         // fill music buffer
         sfx.updatemusic();

@@ -15,6 +15,12 @@ pub const Grid = struct {
             .allocator = allocator,
             .unattached = try anim.UnattachedAnimating.init(allocator),
         };
+
+        for (gc.cells, 0..) |line, i| {
+            for (line, 0..) |_, j| {
+                gc.cells[i][j] = null;
+            }
+        }
         return gc;
     }
 
@@ -52,7 +58,7 @@ pub const Grid = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        inline for (self.cells, 0..) |line, i| {
+        for (self.cells, 0..) |line, i| {
             for (line, 0..) |cell, j| {
                 if (cell) |cptr| {
                     self.allocator.destroy(cptr);
@@ -65,7 +71,7 @@ pub const Grid = struct {
     }
 
     pub fn checkline(self: *Self, line: usize) bool {
-        inline for (self.cells[line]) |cell| {
+        for (self.cells[line]) |cell| {
             if (cell == null) {
                 return false;
             }
@@ -114,8 +120,7 @@ test "init" {
     var gpa = GPA{};
     const g = try Grid.init(gpa.allocator());
     defer g.deinit();
-    defer gpa.allocator().destroy(g);
-    g.cells[0][0] = try anim.Animated.init(&gpa.allocator(), 0, 0, .{ 255, 255, 255, 255 });
+    g.cells[0][0] = try anim.Animated.init(gpa.allocator(), 0, 0, .{ 255, 255, 255, 255 });
 
     if (g.cells[0][0]) |cptr| {
         std.debug.print("0 0 {any}\n", .{cptr.*});
@@ -134,11 +139,10 @@ test "rm" {
     var gpa = GPA{};
     const g = try Grid.init(gpa.allocator());
     defer g.deinit();
-    defer gpa.allocator().destroy(g);
 
     // fill line 0
     for (g.cells[0], 0..) |_, i| {
-        g.cells[0][i] = try anim.Animated.init(&gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
+        g.cells[0][i] = try anim.Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
     }
 
     g.print();
@@ -156,16 +160,15 @@ test "shift" {
     var gpa = GPA{};
     const g = try Grid.init(gpa.allocator());
     defer g.deinit();
-    defer gpa.allocator().destroy(g);
 
     // fill line 0
     for (g.cells[0], 0..) |_, i| {
-        g.cells[0][i] = try anim.Animated.init(&gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
+        g.cells[0][i] = try anim.Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
     }
 
     // fill line 1
     for (g.cells[1], 0..) |_, i| {
-        g.cells[1][i] = try anim.Animated.init(&gpa.allocator(), i, 1, .{ 255, 255, 255, 255 });
+        g.cells[1][i] = try anim.Animated.init(gpa.allocator(), i, 1, .{ 255, 255, 255, 255 });
     }
 
     g.print();
@@ -183,7 +186,6 @@ test "shift" {
     try std.testing.expect(g.checkline(2) == true);
 
     g.print();
-    g.deinit();
 }
 
 test "clear" {
@@ -192,25 +194,22 @@ test "clear" {
     var gpa = GPA{};
     const g = try Grid.init(gpa.allocator());
     defer g.deinit();
-    defer gpa.allocator().destroy(g);
 
     // fill line 0
     for (g.cells[19], 0..) |_, i| {
-        g.cells[19][i] = try anim.Animated.init(&gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
+        g.cells[19][i] = try anim.Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
     }
 
-    g.cells[18][0] = try anim.Animated.init(&gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
-    g.cells[17][0] = try anim.Animated.init(&gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
-    g.cells[17][1] = try anim.Animated.init(&gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
+    g.cells[18][0] = try anim.Animated.init(gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
+    g.cells[17][0] = try anim.Animated.init(gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
+    g.cells[17][1] = try anim.Animated.init(gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
 
     for (g.cells[16], 0..) |_, i| {
-        g.cells[16][i] = try anim.Animated.init(&gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
+        g.cells[16][i] = try anim.Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
     }
     g.print();
     _ = g.clear();
     g.print();
     try std.testing.expect(g.checkline(19) == false);
     try std.testing.expect(g.checkline(16) == false);
-
-    g.deinit();
 }

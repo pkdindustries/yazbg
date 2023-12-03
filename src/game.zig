@@ -52,6 +52,15 @@ pub fn init() void {
     };
     state.nextpiece = pieces.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
     nextpiece();
+    sfx.playmusic();
+}
+
+pub fn deinit() void {
+    std.debug.print("deinit game\n", .{});
+    state.grid.deinit();
+    if (state.gpallocator.deinit() == .leak) {
+        std.debug.print("leaked memory\n", .{});
+    }
 }
 
 pub fn reset() void {
