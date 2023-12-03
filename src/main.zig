@@ -5,24 +5,33 @@ const sfx = @import("sfx.zig");
 const gfx = @import("gfx.zig");
 const rnd = @import("random.zig");
 
+const GPA = std.heap.GeneralPurposeAllocator(.{});
 const MS = 1_000_000;
-pub fn main() !void {
-    var timer = try std.time.Timer.start();
 
+pub fn main() !void {
+    // timer for performance stats
+    var timer = try std.time.Timer.start();
+    // allocator of the general purpose variety
+    var gpa = GPA{};
+
+    // rng
     try rnd.init();
     defer rnd.deinit();
 
+    // sound handling
     try sfx.init();
     defer sfx.deinit();
 
+    // draws stuff, mostly
     try gfx.init();
     defer gfx.deinit();
 
+    // game logic
+    game.init(gpa.allocator());
+    defer game.deinit();
+
     std.debug.print("system init {}ms\n", .{timer.lap() / MS});
-
     sfx.randommusic();
-    game.init();
-
     printkeys();
     while (!ray.WindowShouldClose()) {
         // fill music buffer
@@ -42,7 +51,7 @@ pub fn main() !void {
             ray.KEY_B => gfx.nextbackground(),
             ray.KEY_M => sfx.mute(),
             ray.KEY_N => sfx.nextmusic(),
-            ray.KEY_L => checkleak(),
+            ray.KEY_L => _ = gpa.detectLeaks(),
             else => {},
         }
 
@@ -113,12 +122,6 @@ fn move(comptime movefn: fn () bool, comptime ok: fn () void, comptime fail: fn 
     }
 }
 
-fn checkleak() void {
-    const leaks = game.gpa.detectLeaks();
-    if (!leaks) {
-        std.debug.print("no leaks\n", .{});
-    }
-}
 fn printkeys() void {
     std.debug.print("keys:\n", .{});
     std.debug.print("  left/right: move\n", .{});
