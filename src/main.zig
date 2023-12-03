@@ -7,6 +7,8 @@ const rnd = @import("random.zig");
 
 const MS = 1_000_000;
 pub fn main() !void {
+    var timer = try std.time.Timer.start();
+
     try rnd.init();
     defer rnd.deinit();
 
@@ -16,12 +18,13 @@ pub fn main() !void {
     try gfx.init();
     defer gfx.deinit();
 
+    std.debug.print("system init {}ms\n", .{timer.lap() / MS});
+
     sfx.randommusic();
-    game.reset();
+    game.init();
 
     printkeys();
     while (!ray.WindowShouldClose()) {
-        var timer = try std.time.Timer.start();
         // fill music buffer
         sfx.updatemusic();
         // tick

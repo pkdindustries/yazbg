@@ -12,6 +12,7 @@ pub var gpa = GPA{};
 
 pub const YAZBG = struct {
     grid: *grid.Grid = undefined,
+
     score: i32 = 0,
     level: i32 = 0,
     lines: i32 = 0,
@@ -46,15 +47,18 @@ pub const YAZBG = struct {
 
 pub var state = YAZBG{};
 
-pub fn frozen() bool {
-    return state.gameover or state.paused;
-}
-
-pub fn tickable() bool {
-    return !false and !state.pieceslider.active and !frozen() and sfx.ray.GetTime() - state.lastmove >= state.dropinterval;
+pub fn init() void {
+    std.debug.print("init game\n", .{});
+    state.grid = grid.Grid.init(gpa.allocator()) catch |err| {
+        std.debug.print("failed to allocate grid: {}\n", .{err});
+        return;
+    };
+    state.nextpiece = pieces.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
+    nextpiece();
 }
 
 pub fn reset() void {
+    std.debug.print("reset game\n", .{});
     state.score = 0;
     state.level = 0;
     state.lines = 0;
@@ -71,15 +75,11 @@ pub fn reset() void {
         .targety = 0,
     };
 
-    if (state.init == true) {
-        state.grid = grid.Grid.init(gpa.allocator()) catch |err| {
-            std.debug.print("failed to allocate grid: {}\n", .{err});
-            return;
-        };
-        state.init = false;
-    } else {
-        state.grid.destroy();
-    }
+    state.grid.deinit();
+    state.grid = grid.Grid.init(gpa.allocator()) catch |err| {
+        std.debug.print("failed to allocate grid: {}\n", .{err});
+        return;
+    };
     nextpiece();
 
     state.gameover = false;
@@ -97,7 +97,7 @@ pub fn nextpiece() void {
 
     if (!checkmove(state.piecex, state.piecey)) {
         for (0..grid_rows) |r| {
-            anim.linesplat(r);
+            anim.linecleardown(r);
             sfx.playgameover();
         }
 
@@ -178,7 +178,7 @@ pub fn harddrop() i32 {
                     if (gx >= 0 and gx < grid_cols and gy >= 0 and gy < grid_rows) {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
-                        const ac = anim.AnimatedCell.init(&gpa.allocator(), ix, iy, piece.color) catch |err| {
+                        const ac = anim.Animated.init(&gpa.allocator(), ix, iy, piece.color) catch |err| {
                             std.debug.print("failed to allocate cell: {}\n", .{err});
                             return 0;
                         };
@@ -269,6 +269,14 @@ pub fn rotate() bool {
     // unkickable, revert the rotation and return false
     state.piecer = oldr;
     return false;
+}
+
+pub fn frozen() bool {
+    return state.gameover or state.paused;
+}
+
+pub fn tickable() bool {
+    return !false and !state.pieceslider.active and !frozen() and sfx.ray.GetTime() - state.lastmove >= state.dropinterval;
 }
 
 // (0 for CW, 1 for CCW)

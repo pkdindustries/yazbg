@@ -1,13 +1,12 @@
 const std = @import("std");
 const game = @import("game.zig");
-const testing = std.testing;
 const rnd = @import("random.zig");
 
-const MAX_CELLS = 500;
-pub const Animating = struct {
+const MAX_ANIMATED = 500;
+pub const UnattachedAnimating = struct {
     const Self = @This();
     allocator: std.mem.Allocator = undefined,
-    cells: [MAX_CELLS]?*AnimatedCell = undefined,
+    cells: [MAX_ANIMATED]?*Animated = undefined,
 
     pub fn init(allocator: std.mem.Allocator) !*Self {
         const c = try allocator.create(Self);
@@ -19,13 +18,17 @@ pub const Animating = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        for (self.cells.items) |cell| {
-            self.allocator.destroy(cell);
+        std.debug.print("deinit unattachedanimating\n", .{});
+        inline for (self.cells, 0..) |cell, i| {
+            if (cell) |cptr| {
+                self.cells[i] = null;
+                self.allocator.destroy(cptr);
+            }
         }
-        self.cells.deinit();
+        self.allocator.destroy(self);
     }
 
-    pub fn add(self: *Self, cell: *AnimatedCell) void {
+    pub fn add(self: *Self, cell: *Animated) void {
         cell.start();
         // find a free slot
         for (self.cells, 0..) |c, i| {
@@ -39,7 +42,7 @@ pub const Animating = struct {
     }
 
     pub fn lerpall(self: *Self) void {
-        for (self.cells, 0..) |cell, i| {
+        inline for (self.cells, 0..) |cell, i| {
             if (cell) |cptr| {
                 if (cptr.animating) {
                     cptr.lerp(std.time.milliTimestamp());
@@ -52,12 +55,10 @@ pub const Animating = struct {
     }
 };
 
-pub const AnimatedCell = struct {
+pub const Animated = struct {
     const Self = @This();
     id: i128 = 0,
     color: [4]u8 = undefined,
-    colorposition: [4]u8 = undefined,
-    colortarget: [4]u8 = undefined,
     source: [2]f32 = undefined,
     target: [2]f32 = undefined,
     position: [2]f32 = undefined,
@@ -65,6 +66,7 @@ pub const AnimatedCell = struct {
     startnotbefore: i64 = 0,
     duration: i64 = 200,
     animating: bool = false,
+
     mode: enum {
         easeinout,
         linear,
@@ -152,43 +154,30 @@ pub const AnimatedCell = struct {
         const d = @as(f32, @floatFromInt(self.duration));
         var t = std.math.clamp(e / d, 0.0, 1.0);
         switch (self.mode) {
-            .easeinout => {
-                t = self.easeinout(t);
-            },
+            .easeinout => t = self.easeinout(t),
             .linear => {},
-            .easein => {
-                t = self.easein(t);
-            },
-            .easeout => {
-                t = self.easeout(t);
-            },
+            .easein => t = self.easein(t),
+            .easeout => t = self.easeout(t),
         }
 
-        var loc: [2]f32 = undefined;
-        loc[0] = std.math.lerp(self.source[0], self.target[0], t);
-        loc[1] = std.math.lerp(self.source[1], self.target[1], t);
-        self.position = loc;
-
-        // var col: [4]u8 = undefined;
-        // col[0] = std.math.lerp(self.color[0], self.color[0], t);
-        // col[1] = std.math.lerp(self.color[1], self.color[1], t);
-        // col[2] = std.math.lerp(self.color[2], self.color[2], t);
-        // col[3] = std.math.lerp(self.color[3], self.color[3], t);
-        // self.color = col;
+        self.position = .{
+            std.math.lerp(self.source[0], self.target[0], t),
+            std.math.lerp(self.source[1], self.target[1], t),
+        };
     }
 };
 
 // set a row to random x,y
 pub fn linesplat(row: usize) void {
-    for (game.state.grid.cells[row], 0..) |ac, i| {
+    inline for (game.state.grid.cells[row], 0..) |ac, i| {
         if (ac) |cptr| {
             const xr: i32 = rnd.ng.random().intRangeAtMost(i32, -2000, 2000);
             const yr: i32 = rnd.ng.random().intRangeAtMost(i32, -2000, 2000);
             cptr.target[0] = @as(f32, @floatFromInt(xr));
             cptr.target[1] = @as(f32, @floatFromInt(yr));
             cptr.duration = 1000;
-            cptr.mode = .easeinout;
-            game.state.grid.animated.add(cptr);
+            cptr.mode = .easein;
+            game.state.grid.unattached.add(cptr);
             game.state.grid.cells[row][i] = null;
             cptr.start();
         }
@@ -196,20 +185,21 @@ pub fn linesplat(row: usize) void {
 }
 
 pub fn linecleardown(row: usize) void {
-    for (game.state.grid.cells[row], 0..) |ac, i| {
+    inline for (game.state.grid.cells[row], 0..) |ac, i| {
         if (ac) |cptr| {
             cptr.target[1] = 800;
-            game.state.grid.animated.add(cptr);
-            game.state.grid.cells[row][i] = null;
+            cptr.duration = 500;
+            game.state.grid.unattached.add(cptr);
             game.state.grid.cells[row][i] = null;
             cptr.start();
         }
     }
 }
 
+const testing = std.testing;
 // test init
 test "lerp function" {
-    var anim: AnimatedCell = undefined;
+    var anim: Animated = undefined;
     anim.animating = true;
     anim.startedat = 0;
     anim.duration = 1000;
