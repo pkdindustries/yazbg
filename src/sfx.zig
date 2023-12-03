@@ -45,7 +45,7 @@ pub fn init() !void {
 }
 
 pub fn deinit() void {
-    std.debug.print("deinit audio\n", .{});
+    std.debug.print("deinit sfx\n", .{});
     ray.UnloadSound(errsound);
     ray.UnloadSound(clacksound);
     ray.UnloadSound(clicksound);
@@ -53,7 +53,9 @@ pub fn deinit() void {
     ray.UnloadSound(levelupsound);
     ray.UnloadSound(wooshsound);
     ray.UnloadSound(winsound);
-    //ray.UnloadMusicStream(song);
+    for (songs) |s| {
+        ray.UnloadMusicStream(s);
+    }
     ray.CloseAudioDevice();
 }
 
