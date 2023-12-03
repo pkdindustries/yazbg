@@ -173,7 +173,7 @@ pub const Animated = struct {
 
 // set a row to random x,y
 pub fn linesplat(row: usize) void {
-    for (game.state.grid.cells[row], 0..) |ac, i| {
+    inline for (game.state.grid.cells[row], 0..) |ac, i| {
         if (ac) |cptr| {
             const xr: i32 = rnd.ng.random().intRangeAtMost(i32, -2000, 2000);
             const yr: i32 = rnd.ng.random().intRangeAtMost(i32, -2000, 2000);
@@ -189,7 +189,7 @@ pub fn linesplat(row: usize) void {
 }
 
 pub fn linecleardown(row: usize) void {
-    for (game.state.grid.cells[row], 0..) |ac, i| {
+    inline for (game.state.grid.cells[row], 0..) |ac, i| {
         if (ac) |cptr| {
             cptr.target[1] = 800;
             cptr.duration = 500;
