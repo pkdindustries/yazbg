@@ -7,32 +7,35 @@ const anim = @import("animation.zig");
 
 const ogwindowwidth: i32 = 640;
 const ogwindowheight: i32 = 760;
+
 var windowwidth: i32 = ogwindowwidth;
 var windowheight: i32 = ogwindowheight;
+var windowtexture = ray.RenderTexture2D{};
+var spacefont = ray.Font{};
+// grid location and size
 var gridoffsetx: i32 = 150;
 var gridoffsety: i32 = 50;
 var cellsize: i32 = 35;
 var cellpadding: i32 = 2;
-
-const bgimages: [8][*:0]const u8 = .{
+// background stuff
+const bgimagefiles: [9][*:0]const u8 = .{
     "resources/texture/bluestars.png",
     "resources/texture/nebula.png",
     "resources/texture/starfield.png",
     "resources/texture/console.png",
     "resources/texture/bokefall.png",
     "resources/texture/nebula2.png",
+    "resources/texture/warpgate.png",
     "resources/texture/starfield2.png",
     "resources/texture/starmap.png",
 };
-var bgtextures: [8]ray.Texture2D = undefined;
+var bgimagetextures: [9]ray.Texture2D = undefined;
 var bgimageindex: u32 = 0;
-
-var windowtexture = ray.RenderTexture2D{};
-var spacefont = ray.Font{};
-
 // shader stuff
+// static shader
 var fgshader: ray.Shader = undefined;
 var fgtime: i32 = 0;
+// warp shader
 var bgshader: ray.Shader = undefined;
 var secondsloc: i32 = 0;
 var freqXLoc: i32 = 0;
@@ -48,6 +51,9 @@ var ampX: f32 = 2.0;
 var ampY: f32 = 2.0;
 var speedX: f32 = 0.25;
 var speedY: f32 = 0.25;
+
+var freakoutstart: u64 = 0;
+var freakoutduration: u64 = 200;
 
 pub fn frame() void {
     // resize
@@ -93,7 +99,7 @@ pub fn init() !void {
     //ray.GenTextureMipmaps(&texture.texture);
     ray.SetTextureFilter(windowtexture.texture, ray.TEXTURE_FILTER_TRILINEAR);
 
-    // shader init
+    // background warp shader
     bgshader = ray.LoadShader(null, "resources/shader/warp.fs");
     secondsloc = ray.GetShaderLocation(bgshader, "seconds");
     freqXLoc = ray.GetShaderLocation(bgshader, "freqX");
@@ -104,6 +110,7 @@ pub fn init() !void {
     speedYLoc = ray.GetShaderLocation(bgshader, "speedY");
     sizeLoc = ray.GetShaderLocation(bgshader, "size");
 
+    // block static shader
     fgshader = ray.LoadShader(null, "resources/shader/static.fs");
     fgtime = ray.GetShaderLocation(fgshader, "time");
 
@@ -113,11 +120,11 @@ pub fn init() !void {
     ray.SetTextureFilter(spacefont.texture, ray.TEXTURE_FILTER_TRILINEAR);
 
     // load each of the images into bgtextures
-    for (bgimages, 0..) |f, i| {
+    for (bgimagefiles, 0..) |f, i| {
         var t = ray.LoadTexture(f);
         ray.GenTextureMipmaps(&t);
         ray.SetTextureFilter(t, ray.TEXTURE_FILTER_TRILINEAR);
-        bgtextures[i] = t;
+        bgimagetextures[i] = t;
     }
     loadbackground();
 }
@@ -125,19 +132,22 @@ pub fn init() !void {
 pub fn deinit() void {
     std.debug.print("deinit gfx\n", .{});
     ray.UnloadShader(bgshader);
-    //ray.UnloadTexture(bgtexture);
+    ray.UnloadShader(fgshader);
+    for (bgimagetextures) |t| {
+        ray.UnloadTexture(t);
+    }
     ray.UnloadTexture(windowtexture.texture);
     ray.UnloadFont(spacefont);
 }
 
 pub fn loadbackground() void {
-    ray.GenTextureMipmaps(&bgtextures[bgimageindex]);
-    ray.SetTextureFilter(bgtextures[bgimageindex], ray.TEXTURE_FILTER_TRILINEAR);
+    ray.GenTextureMipmaps(&bgimagetextures[bgimageindex]);
+    ray.SetTextureFilter(bgimagetextures[bgimageindex], ray.TEXTURE_FILTER_TRILINEAR);
 }
 
 pub fn nextbackground() void {
     bgimageindex += 1;
-    if (bgimageindex >= bgimages.len) {
+    if (bgimageindex >= bgimagefiles.len) {
         bgimageindex = 0;
     }
     loadbackground();
@@ -178,8 +188,8 @@ fn preshade() void {
         freqY = 10.0;
         ampX = 2.0;
         ampY = 2.0;
-        speedX = 0.15 * (@as(f32, @floatFromInt(game.state.level)) + 3);
-        speedY = 0.15 * (@as(f32, @floatFromInt(game.state.level)) + 3);
+        speedX = 0.15 * (@as(f32, @floatFromInt(game.state.level)) + 2);
+        speedY = 0.15 * (@as(f32, @floatFromInt(game.state.level)) + 2);
     }
 
     ray.SetShaderValue(bgshader, freqXLoc, &freqX, ray.SHADER_UNIFORM_FLOAT);
@@ -202,8 +212,8 @@ fn background() void {
     const src = ray.Rectangle{
         .x = 0,
         .y = 0,
-        .width = @floatFromInt(bgtextures[bgimageindex].width),
-        .height = @floatFromInt(bgtextures[bgimageindex].height),
+        .width = @floatFromInt(bgimagetextures[bgimageindex].width),
+        .height = @floatFromInt(bgimagetextures[bgimageindex].height),
     };
 
     const tgt = ray.Rectangle{
@@ -213,7 +223,7 @@ fn background() void {
         .height = @floatFromInt(ogwindowheight),
     };
 
-    ray.DrawTexturePro(bgtextures[bgimageindex], src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
+    ray.DrawTexturePro(bgimagetextures[bgimageindex], src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
     ray.EndShaderMode();
 }
 
@@ -259,7 +269,7 @@ fn player() void {
 
 fn drawcells() void {
     // find the active animatedcells
-    for (game.state.grid.cells) |row| {
+    inline for (game.state.grid.cells) |row| {
         for (row) |cell| {
             if (cell) |cptr| {
                 cptr.lerp(std.time.milliTimestamp());
@@ -270,8 +280,8 @@ fn drawcells() void {
         }
     }
 
-    game.state.grid.animated.lerpall();
-    for (game.state.grid.animated.cells) |a| {
+    game.state.grid.unattached.lerpall();
+    inline for (game.state.grid.unattached.cells) |a| {
         if (a) |cptr| {
             const drawX: i32 = @as(i32, @intFromFloat(cptr.position[0]));
             const drawY: i32 = @as(i32, @intFromFloat(cptr.position[1]));
