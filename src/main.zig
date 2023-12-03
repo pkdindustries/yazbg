@@ -114,7 +114,7 @@ fn move(comptime movefn: fn () bool, comptime ok: fn () void, comptime fail: fn 
 }
 
 fn checkleak() void {
-    const leaks = game.gpa.detectLeaks();
+    const leaks = game.state.gpallocator.detectLeaks();
     if (!leaks) {
         std.debug.print("no leaks\n", .{});
     }

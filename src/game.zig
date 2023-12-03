@@ -3,16 +3,12 @@ const pieces = @import("pieces.zig");
 const sfx = @import("sfx.zig");
 const rnd = @import("random.zig");
 const anim = @import("animation.zig");
-const grid = @import("grid.zig");
-pub const grid_rows = 20;
-pub const grid_cols = 10;
-
+const Grid = @import("grid.zig").Grid;
 const GPA = std.heap.GeneralPurposeAllocator(.{});
-pub var gpa = GPA{};
 
 pub const YAZBG = struct {
-    grid: *grid.Grid = undefined,
-
+    gpallocator: GPA = undefined,
+    grid: *Grid = undefined,
     score: i32 = 0,
     level: i32 = 0,
     lines: i32 = 0,
@@ -49,7 +45,8 @@ pub var state = YAZBG{};
 
 pub fn init() void {
     std.debug.print("init game\n", .{});
-    state.grid = grid.Grid.init(gpa.allocator()) catch |err| {
+    state.gpallocator = GPA{};
+    state.grid = Grid.init(state.gpallocator.allocator()) catch |err| {
         std.debug.print("failed to allocate grid: {}\n", .{err});
         return;
     };
@@ -76,7 +73,7 @@ pub fn reset() void {
     };
 
     state.grid.deinit();
-    state.grid = grid.Grid.init(gpa.allocator()) catch |err| {
+    state.grid = Grid.init(state.gpallocator.allocator()) catch |err| {
         std.debug.print("failed to allocate grid: {}\n", .{err});
         return;
     };
@@ -96,7 +93,7 @@ pub fn nextpiece() void {
     state.swapped = false;
 
     if (!checkmove(state.piecex, state.piecey)) {
-        for (0..grid_rows) |r| {
+        for (0..Grid.HEIGHT) |r| {
             anim.linecleardown(r);
             sfx.playgameover();
         }
@@ -145,7 +142,7 @@ pub fn checkmove(x: i32, y: i32) bool {
                     const gy = y + @as(i32, @intCast(i));
                     // cell is out of bounds
 
-                    if (gx < 0 or gx >= grid_cols or gy < 0 or gy >= grid_rows) {
+                    if (gx < 0 or gx >= Grid.WIDTH or gy < 0 or gy >= Grid.HEIGHT) {
                         return false;
                     }
 
@@ -175,10 +172,10 @@ pub fn harddrop() i32 {
                 if (cell) {
                     const gx = state.piecex + @as(i32, @intCast(i));
                     const gy = state.piecey + @as(i32, @intCast(j));
-                    if (gx >= 0 and gx < grid_cols and gy >= 0 and gy < grid_rows) {
+                    if (gx >= 0 and gx < Grid.WIDTH and gy >= 0 and gy < Grid.HEIGHT) {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
-                        const ac = anim.Animated.init(&gpa.allocator(), ix, iy, piece.color) catch |err| {
+                        const ac = anim.Animated.init(state.gpallocator.allocator(), ix, iy, piece.color) catch |err| {
                             std.debug.print("failed to allocate cell: {}\n", .{err});
                             return 0;
                         };

@@ -18,7 +18,7 @@ pub const UnattachedAnimating = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        std.debug.print("deinit unattachedanimating\n", .{});
+        std.debug.print("deinit unattached\n", .{});
         inline for (self.cells, 0..) |cell, i| {
             if (cell) |cptr| {
                 self.cells[i] = null;
@@ -74,7 +74,7 @@ pub const Animated = struct {
         easeout,
     } = .easeinout,
 
-    pub fn init(allocator: *const std.mem.Allocator, gridx: usize, gridy: usize, color: [4]u8) !*Self {
+    pub fn init(allocator: std.mem.Allocator, gridx: usize, gridy: usize, color: [4]u8) !*Self {
         const p: [2]f32 = .{
             @as(f32, @floatFromInt(gridx * 35)),
             @as(f32, @floatFromInt(gridy * 35)),
