@@ -1,56 +1,57 @@
 const std = @import("std");
-const pieces = @import("pieces.zig");
 const sfx = @import("sfx.zig");
 const rnd = @import("random.zig");
 const anim = @import("animation.zig");
+const Animated = anim.Animated;
 const Grid = @import("grid.zig").Grid;
+const PIECES = @import("pieces.zig");
 const GPA = std.heap.GeneralPurposeAllocator(.{});
 
 pub const YAZBG = struct {
     gpallocator: GPA = undefined,
     grid: *Grid = undefined,
-    score: i32 = 0,
-    level: i32 = 0,
-    lines: i32 = 0,
-    lineslevelup: i32 = 0,
-    init: bool = true,
-    swapped: bool = false,
-    // time between drops
-    dropinterval: f64 = 2.0,
     gameover: bool = false,
     paused: bool = false,
     // time of last move
     lastmove: f64 = 0,
+    progression: struct {
+        score: i32 = 0,
+        level: i32 = 0,
+        // total lines cleared
+        cleared: i32 = 0,
+        // lines cleared since last level up
+        clearedperlevel: i32 = 0,
+        // time between drops
+        dropinterval: f64 = 2.0,
+    } = .{},
     // current, next and held piece shapes
-    piece: ?pieces.tetramino = null,
-    nextpiece: ?pieces.tetramino = null,
-    heldpiece: ?pieces.tetramino = null,
-    // player piece position,rotation
-    piecex: i32 = 0,
-    piecey: i32 = 0,
-    piecer: u32 = 0,
-    // state for various animations
-    pieceslider: struct {
-        active: bool = false,
-        start_time: i64 = 0,
-        duration: i64 = 50,
-        targetx: i32 = 0,
-        targety: i32 = 0,
-        sourcex: i32 = 0,
-        sourcey: i32 = 0,
+    piece: struct {
+        current: ?PIECES.tetramino = null,
+        next: ?PIECES.tetramino = null,
+        held: ?PIECES.tetramino = null,
+        swapped: bool = false,
+        x: i32 = 0,
+        y: i32 = 0,
+        r: u32 = 0,
+        slider: struct {
+            active: bool = false,
+            start_time: i64 = 0,
+            duration: i64 = 50,
+            targetx: i32 = 0,
+            targety: i32 = 0,
+            sourcex: i32 = 0,
+            sourcey: i32 = 0,
+        } = .{},
     } = .{},
 };
 
 pub var state = YAZBG{};
 
-pub fn init() void {
+pub fn init() !void {
     std.debug.print("init game\n", .{});
     state.gpallocator = GPA{};
-    state.grid = Grid.init(state.gpallocator.allocator()) catch |err| {
-        std.debug.print("failed to allocate grid: {}\n", .{err});
-        return;
-    };
-    state.nextpiece = pieces.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
+    state.grid = Grid.init(state.gpallocator.allocator()) catch @panic("OOM");
+    state.piece.next = PIECES.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
     nextpiece();
     sfx.playmusic();
 }
@@ -65,68 +66,56 @@ pub fn deinit() void {
 
 pub fn reset() void {
     std.debug.print("reset game\n", .{});
-    state.score = 0;
-    state.level = 0;
-    state.lines = 0;
-    state.lineslevelup = 0;
     state.lastmove = 0;
-    state.dropinterval = 2.0;
-    state.nextpiece = pieces.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
-    state.heldpiece = null;
-    state.pieceslider = .{
-        .active = false,
-        .start_time = 0,
-        .duration = 50,
-        .targetx = 0,
-        .targety = 0,
-    };
-
+    state.progression.score = 0;
+    state.progression.level = 0;
+    state.progression.cleared = 0;
+    state.progression.clearedperlevel = 0;
+    state.progression.dropinterval = 2.0;
+    state.piece.next = PIECES.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
+    state.piece.held = null;
+    state.piece.slider = .{};
     state.grid.deinit();
-    state.grid = Grid.init(state.gpallocator.allocator()) catch |err| {
-        std.debug.print("failed to allocate grid: {}\n", .{err});
-        return;
-    };
+    state.grid = Grid.init(state.gpallocator.allocator()) catch @panic("OOM");
     nextpiece();
-
     state.gameover = false;
     state.paused = false;
-    std.debug.print("init game\n", .{});
 }
 
 pub fn nextpiece() void {
-    state.piece = state.nextpiece;
-    state.nextpiece = pieces.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
-    state.piecex = 3;
-    state.piecey = 0;
-    state.piecer = 0;
-    state.swapped = false;
+    state.piece.current = state.piece.next;
+    state.piece.next = PIECES.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
+    state.piece.x = 3;
+    state.piece.y = 0;
+    state.piece.r = 0;
+    state.piece.swapped = false;
 
-    if (!checkmove(state.piecex, state.piecey)) {
+    if (!checkmove(state.piece.x, state.piece.y)) {
         for (0..Grid.HEIGHT) |r| {
             anim.linecleardown(r);
             sfx.playgameover();
         }
 
-        state.piece = null;
+        state.piece.current = null;
         state.gameover = true;
     }
 }
 
 pub fn swappiece() bool {
-    if (state.swapped) {
+    if (state.piece.swapped) {
         std.debug.print("already swapped\n", .{});
         return false;
     }
-    if (state.heldpiece) |held| {
-        state.heldpiece = state.piece;
-        state.piece = held;
+    if (state.piece.held) |held| {
+        state.piece.held = state.piece.current;
+        state.piece.current = held;
     } else {
-        state.heldpiece = state.piece;
+        state.piece.held = state.piece.current;
         nextpiece();
     }
-    state.swapped = true;
+    state.piece.swapped = true;
     state.lastmove = sfx.ray.GetTime();
-    return state.swapped;
+    return state.piece.swapped;
 }
 
 pub fn pause() void {
@@ -136,14 +125,14 @@ pub fn pause() void {
 }
 
 pub fn ghosty() i32 {
-    var y = state.piecey;
-    while (checkmove(state.piecex, y + 1)) : (y += 1) {}
+    var y = state.piece.y;
+    while (checkmove(state.piece.x, y + 1)) : (y += 1) {}
     return y;
 }
 
 pub fn checkmove(x: i32, y: i32) bool {
-    if (state.piece) |piece| {
-        const shape = piece.shape[state.piecer];
+    if (state.piece.current) |piece| {
+        const shape = piece.shape[state.piece.r];
         for (shape, 0..) |row, j| {
             for (row, 0..) |cell, i| {
                 if (cell) {
@@ -171,20 +160,20 @@ pub fn checkmove(x: i32, y: i32) bool {
 // drop the piece to the bottom, clear lines and return num cleared
 pub fn harddrop() i32 {
     std.debug.print("game.drop\n", .{});
-    var y = state.piecey;
-    while (checkmove(state.piecex, y + 1)) : (y += 1) {}
-    state.piecey = y;
-    if (state.piece) |piece| {
-        const shape = piece.shape[state.piecer];
+    var y = state.piece.y;
+    while (checkmove(state.piece.x, y + 1)) : (y += 1) {}
+    state.piece.y = y;
+    if (state.piece.current) |piece| {
+        const shape = piece.shape[state.piece.r];
         for (shape, 0..) |row, i| {
             for (row, 0..) |cell, j| {
                 if (cell) {
-                    const gx = state.piecex + @as(i32, @intCast(i));
-                    const gy = state.piecey + @as(i32, @intCast(j));
+                    const gx = state.piece.x + @as(i32, @intCast(i));
+                    const gy = state.piece.y + @as(i32, @intCast(j));
                     if (gx >= 0 and gx < Grid.WIDTH and gy >= 0 and gy < Grid.HEIGHT) {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
-                        const ac = anim.Animated.init(state.gpallocator.allocator(), ix, iy, piece.color) catch |err| {
+                        const ac = Animated.init(state.gpallocator.allocator(), ix, iy, piece.color) catch |err| {
                             std.debug.print("failed to allocate cell: {}\n", .{err});
                             return 0;
                         };
@@ -198,14 +187,14 @@ pub fn harddrop() i32 {
     state.lastmove = sfx.ray.GetTime();
     const cleared = state.grid.clear();
     std.debug.print("game.drop done {}\n", .{cleared});
-    state.lineslevelup += cleared;
+    state.progression.clearedperlevel += cleared;
     return cleared;
 }
 
 // move piece right
 pub fn right() bool {
-    const x: i32 = state.piecex + 1;
-    const y = state.piecey;
+    const x: i32 = state.piece.x + 1;
+    const y = state.piece.y;
     if (!checkmove(x, y)) {
         return false;
     }
@@ -216,8 +205,8 @@ pub fn right() bool {
 
 // move piece left
 pub fn left() bool {
-    const x: i32 = state.piecex - 1;
-    const y = state.piecey;
+    const x: i32 = state.piece.x - 1;
+    const y = state.piece.y;
     if (!checkmove(x, y)) {
         return false;
     }
@@ -229,8 +218,8 @@ pub fn left() bool {
 
 // move piece down
 pub fn down() bool {
-    const x: i32 = state.piecex;
-    const y: i32 = state.piecey + 1;
+    const x: i32 = state.piece.x;
+    const y: i32 = state.piece.y + 1;
     if (!checkmove(x, y)) {
         return false;
     }
@@ -241,39 +230,39 @@ pub fn down() bool {
 
 // rotate piece clockwise
 pub fn rotate() bool {
-    const oldr: u32 = state.piecer;
-    state.piecer = (state.piecer + 1) % 4; // increment and wrap around the rotation
-    std.debug.print("rotation {} -> {}\n", .{ oldr, state.piecer });
+    const oldr: u32 = state.piece.r;
+    state.piece.r = (state.piece.r + 1) % 4; // increment and wrap around the rotation
+    std.debug.print("rotation {} -> {}\n", .{ oldr, state.piece.r });
 
     // after rotation, the piece fits, return
-    if (checkmove(state.piecex, state.piecey)) {
+    if (checkmove(state.piece.x, state.piece.y)) {
         state.lastmove = sfx.ray.GetTime();
         return true;
     }
 
     // try wall-kicks to fit the piece
-    if (state.piece) |piece| {
-        const kickData = piece.kicks[finddirection(oldr, state.piecer)];
+    if (state.piece.current) |piece| {
+        const kickData = piece.kicks[finddirection(oldr, state.piece.r)];
 
         // kick and check if the moved piece fits
         for (kickData) |kick| {
-            state.piecex += kick[0];
-            state.piecey += kick[1];
+            state.piece.x += kick[0];
+            state.piece.y += kick[1];
 
-            if (checkmove(state.piecex, state.piecey)) {
+            if (checkmove(state.piece.x, state.piece.y)) {
                 std.debug.print("kick\n", .{});
                 state.lastmove = sfx.ray.GetTime();
                 return true;
             }
             // revert the kick
             std.debug.print("failed kick\n", .{});
-            state.piecex -= kick[0];
-            state.piecey -= kick[1];
+            state.piece.x -= kick[0];
+            state.piece.y -= kick[1];
         }
     }
 
     // unkickable, revert the rotation and return false
-    state.piecer = oldr;
+    state.piece.r = oldr;
     return false;
 }
 
@@ -281,8 +270,8 @@ pub fn frozen() bool {
     return state.gameover or state.paused;
 }
 
-pub fn tickable() bool {
-    return !false and !state.pieceslider.active and !frozen() and sfx.ray.GetTime() - state.lastmove >= state.dropinterval;
+pub fn dropready() bool {
+    return !state.piece.slider.active and !frozen() and sfx.ray.GetTime() - state.lastmove >= state.progression.dropinterval;
 }
 
 // (0 for CW, 1 for CCW)
@@ -292,12 +281,12 @@ fn finddirection(oldr: u32, newr: u32) u32 {
 }
 
 fn slidepiece(x: i32, y: i32) void {
-    state.pieceslider.targetx = x;
-    state.pieceslider.targety = y;
-    state.pieceslider.sourcex = state.piecex;
-    state.pieceslider.sourcey = state.piecey;
-    state.piecex = state.pieceslider.targetx;
-    state.piecey = state.pieceslider.targety;
-    state.pieceslider.start_time = std.time.milliTimestamp();
-    state.pieceslider.active = true;
+    state.piece.slider.targetx = x;
+    state.piece.slider.targety = y;
+    state.piece.slider.sourcex = state.piece.x;
+    state.piece.slider.sourcey = state.piece.y;
+    state.piece.x = state.piece.slider.targetx;
+    state.piece.y = state.piece.slider.targety;
+    state.piece.slider.start_time = std.time.milliTimestamp();
+    state.piece.slider.active = true;
 }

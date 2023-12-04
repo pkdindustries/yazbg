@@ -9,12 +9,9 @@ pub const UnattachedAnimating = struct {
     cells: [MAX_ANIMATED]?*Animated = undefined,
 
     pub fn init(allocator: std.mem.Allocator) !*Self {
+        std.debug.print("init unattached\n", .{});
         const c = try allocator.create(Self);
-
-        c.* = Self{
-            .allocator = allocator,
-        };
-
+        c.* = Self{ .allocator = allocator };
         for (c.cells, 0..) |_, i| {
             c.cells[i] = null;
         }

@@ -18,7 +18,7 @@ pub fn main() !void {
     try gfx.init();
     defer gfx.deinit();
 
-    game.init();
+    try game.init();
     defer game.deinit();
 
     std.debug.print("system init {}ms\n", .{timer.lap() / MS});
@@ -29,15 +29,17 @@ pub fn main() !void {
         // fill music buffer
         sfx.updatemusic();
         // tick
-        tick();
+        if (game.dropready()) {
+            move(game.down, sfx.playclick, harddrop);
+        }
         // handle input
         switch (ray.GetKeyPressed()) {
             ray.KEY_P => game.pause(),
             ray.KEY_R => game.reset(),
-            ray.KEY_SPACE => drop(),
+            ray.KEY_SPACE => harddrop(),
             ray.KEY_LEFT => move(game.left, sfx.playclick, sfx.playerror),
             ray.KEY_RIGHT => move(game.right, sfx.playclick, sfx.playerror),
-            ray.KEY_DOWN => move(game.down, sfx.playclick, drop),
+            ray.KEY_DOWN => move(game.down, sfx.playclick, harddrop),
             ray.KEY_UP => move(game.rotate, sfx.playclick, sfx.playerror),
             ray.KEY_C => move(game.swappiece, sfx.playwoosh, sfx.playerror),
             ray.KEY_B => gfx.nextbackground(),
@@ -60,13 +62,7 @@ pub fn main() !void {
     }
 }
 
-fn tick() void {
-    if (game.tickable()) {
-        move(game.down, sfx.playclick, drop);
-    }
-}
-
-fn drop() void {
+fn harddrop() void {
     if (game.frozen()) return;
 
     sfx.playwoosh();
@@ -79,27 +75,27 @@ fn drop() void {
 
 fn progression(lines: i32) void {
     if (lines < 1) return;
-    game.state.score += 1000 * lines * lines;
-    game.state.lines += lines;
+    game.state.progression.score += 1000 * lines * lines;
+    game.state.progression.cleared += lines;
     sfx.playclear();
     if (lines > 3) sfx.playwin();
-    if (game.state.lineslevelup > 6) {
+    if (game.state.progression.clearedperlevel > 6) {
         std.debug.print("level up\n", .{});
         gfx.nextbackground();
         sfx.nextmusic();
         sfx.playlevel();
-        game.state.level += 1;
-        game.state.score += 1000 * game.state.level;
-        game.state.dropinterval -= 0.15;
-        if (game.state.dropinterval <= 0.1) {
-            game.state.dropinterval = 0.1;
+        game.state.progression.level += 1;
+        game.state.progression.score += 1000 * game.state.progression.level;
+        game.state.progression.dropinterval -= 0.15;
+        if (game.state.progression.dropinterval <= 0.1) {
+            game.state.progression.dropinterval = 0.1;
         }
         // fixme: controllability at high levels
         // feels much better with no animation
-        if (game.state.dropinterval <= 0.3) {
-            game.state.pieceslider.duration = 50;
+        if (game.state.progression.dropinterval <= 0.3) {
+            game.state.piece.slider.duration = 50;
         }
-        game.state.lineslevelup = 0;
+        game.state.progression.clearedperlevel = 0;
     }
 }
 

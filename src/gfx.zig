@@ -3,7 +3,6 @@ const ray = @import("raylib.zig");
 const sfx = @import("sfx.zig");
 const game = @import("game.zig");
 const rnd = @import("random.zig");
-const anim = @import("animation.zig");
 
 const ogwindowwidth: i32 = 640;
 const ogwindowheight: i32 = 760;
@@ -188,8 +187,8 @@ fn preshade() void {
         freqY = 10.0;
         ampX = 2.0;
         ampY = 2.0;
-        speedX = 0.15 * (@as(f32, @floatFromInt(game.state.level)) + 2);
-        speedY = 0.15 * (@as(f32, @floatFromInt(game.state.level)) + 2);
+        speedX = 0.15 * (@as(f32, @floatFromInt(game.state.progression.level)) + 2);
+        speedY = 0.15 * (@as(f32, @floatFromInt(game.state.progression.level)) + 2);
     }
 
     ray.SetShaderValue(bgshader, freqXLoc, &freqX, ray.SHADER_UNIFORM_FLOAT);
@@ -228,30 +227,30 @@ fn background() void {
 }
 
 fn player() void {
-    if (game.state.piece) |p| {
-        var drawX: i32 = game.state.piecex * cellsize;
-        var drawY: i32 = game.state.piecey * cellsize;
+    if (game.state.piece.current) |p| {
+        var drawX: i32 = game.state.piece.x * cellsize;
+        var drawY: i32 = game.state.piece.y * cellsize;
         var fdrawx: f32 = @floatFromInt(drawX);
         var fdrawy: f32 = @floatFromInt(drawY);
 
-        const elapsed_time = std.time.milliTimestamp() - game.state.pieceslider.start_time;
+        const elapsed_time = std.time.milliTimestamp() - game.state.piece.slider.start_time;
         // animate the piece if the slider is active
-        if (game.state.pieceslider.active) {
-            drawX = game.state.pieceslider.sourcex * cellsize;
-            drawY = game.state.pieceslider.sourcey * cellsize;
+        if (game.state.piece.slider.active) {
+            drawX = game.state.piece.slider.sourcex * cellsize;
+            drawY = game.state.piece.slider.sourcey * cellsize;
             fdrawx = @floatFromInt(drawX);
             fdrawy = @floatFromInt(drawY);
-            const duration: f32 = @floatFromInt(game.state.pieceslider.duration);
+            const duration: f32 = @floatFromInt(game.state.piece.slider.duration);
             const ratio: f32 = std.math.clamp(@as(f32, @floatFromInt(elapsed_time)) / duration, 0.0, 1.0);
-            const targetx: f32 = @floatFromInt(game.state.piecex * cellsize);
-            const targety: f32 = @floatFromInt(game.state.piecey * cellsize);
+            const targetx: f32 = @floatFromInt(game.state.piece.x * cellsize);
+            const targety: f32 = @floatFromInt(game.state.piece.y * cellsize);
             // lerp between the current position and the target position
             fdrawx = std.math.lerp(fdrawx, targetx, ratio);
             fdrawy = std.math.lerp(fdrawy, targety, ratio);
             // deactivate slider, set position if animation is complete
-            if (elapsed_time >= game.state.pieceslider.duration) {
-                game.state.pieceslider.active = false;
-                if (elapsed_time > game.state.pieceslider.duration + 5)
+            if (elapsed_time >= game.state.piece.slider.duration) {
+                game.state.piece.slider.active = false;
+                if (elapsed_time > game.state.piece.slider.duration + 5)
                     std.debug.print("slide {}ms\n", .{elapsed_time});
             }
         }
@@ -259,11 +258,11 @@ fn player() void {
         const xdx: i32 = @intFromFloat(fdrawx);
         const ydx: i32 = @intFromFloat(fdrawy);
         // draw the piece at the interpolated position
-        piece(xdx, ydx, p.shape[game.state.piecer], p.color);
+        piece(xdx, ydx, p.shape[game.state.piece.r], p.color);
 
         // draw ghost
         const color = .{ p.color[0], p.color[1], p.color[2], 60 };
-        piece(xdx, game.ghosty() * cellsize, p.shape[game.state.piecer], color);
+        piece(xdx, game.ghosty() * cellsize, p.shape[game.state.piece.r], color);
     }
 }
 
@@ -335,7 +334,7 @@ fn ui() void {
     ray.DrawLineEx(ray.Vector2{ .x = 140, .y = 0 }, ray.Vector2{ .x = 140, .y = @floatFromInt(ogwindowheight) }, 3, ray.RED);
     ray.DrawLineEx(ray.Vector2{ .x = ogwindowwidth - 135, .y = 0 }, ray.Vector2{ .x = ogwindowwidth - 135, .y = @floatFromInt(ogwindowheight) }, 3, ray.RED);
 
-    if (std.fmt.bufPrintZ(&textbuf, "score\n{}\nlines\n{}\nlevel\n{}", .{ game.state.score, game.state.lines, game.state.level })) |score| {
+    if (std.fmt.bufPrintZ(&textbuf, "score\n{}\nlines\n{}\nlevel\n{}", .{ game.state.progression.score, game.state.progression.cleared, game.state.progression.level })) |score| {
         var color = ray.GREEN;
         var size: f32 = 22;
         if (false) {
@@ -353,7 +352,7 @@ fn ui() void {
         2, // spacing
         ray.GRAY // color
     );
-    if (game.state.nextpiece) |nextpiece| {
+    if (game.state.piece.next) |nextpiece| {
         piece(ogwindowwidth - 250, 35, nextpiece.shape[0], nextpiece.color);
     }
 
@@ -361,7 +360,7 @@ fn ui() void {
         2, // spacing
         ray.GRAY // color
     );
-    if (game.state.heldpiece) |held| {
+    if (game.state.piece.held) |held| {
         piece(35 - gridoffsetx, 35, held.shape[0], held.color);
     }
 

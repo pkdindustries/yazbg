@@ -10,6 +10,7 @@ pub const Grid = struct {
     cells: [HEIGHT][WIDTH]?*anim.Animated = undefined,
 
     pub fn init(allocator: std.mem.Allocator) !*Self {
+        std.debug.print("init grid\n", .{});
         const gc = try allocator.create(Self);
         gc.* = Self{
             .allocator = allocator,
@@ -22,6 +23,20 @@ pub const Grid = struct {
             }
         }
         return gc;
+    }
+
+    pub fn deinit(self: *Self) void {
+        std.debug.print("deinit grid\n", .{});
+        for (self.cells, 0..) |line, i| {
+            for (line, 0..) |cell, j| {
+                if (cell) |cptr| {
+                    self.allocator.destroy(cptr);
+                    self.cells[i][j] = null;
+                }
+            }
+        }
+        self.unattached.deinit();
+        self.allocator.destroy(self);
     }
 
     fn removeline(self: *Self, line: usize) void {
@@ -55,19 +70,6 @@ pub const Grid = struct {
                 cptr.setcoords(i, line + 1);
             }
         }
-    }
-
-    pub fn deinit(self: *Self) void {
-        for (self.cells, 0..) |line, i| {
-            for (line, 0..) |cell, j| {
-                if (cell) |cptr| {
-                    self.allocator.destroy(cptr);
-                    self.cells[i][j] = null;
-                }
-            }
-        }
-        self.unattached.deinit();
-        self.allocator.destroy(self);
     }
 
     pub fn checkline(self: *Self, line: usize) bool {
