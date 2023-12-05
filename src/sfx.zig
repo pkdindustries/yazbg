@@ -1,8 +1,8 @@
 pub const ray = @import("raylib.zig");
 const std = @import("std");
 const builtin = @import("builtin");
-const rnd = @import("random.zig");
 const target = builtin.target;
+const game = @import("game.zig");
 
 var errsound = ray.Sound{};
 var clacksound = ray.Sound{};
@@ -42,6 +42,7 @@ pub fn init() !void {
             songs[i] = ray.LoadMusicStream(m);
         }
     }
+    playmusic();
 }
 
 pub fn deinit() void {
@@ -115,7 +116,7 @@ pub fn mute() void {
 }
 pub fn randommusic() void {
     ray.StopMusicStream(songs[songindex]);
-    songindex = rnd.ng.random().intRangeAtMost(usize, 0, music.len - 1);
+    songindex = game.state.rng.random().intRangeAtMost(usize, 0, music.len - 1);
     playmusic();
 }
 

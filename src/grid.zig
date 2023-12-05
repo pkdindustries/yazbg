@@ -1,20 +1,23 @@
 const std = @import("std");
 const anim = @import("animation.zig");
+const Animated = anim.Animated;
+const Unattached = anim.UnattachedAnimating;
 
 pub const Grid = struct {
     const Self = @This();
     pub const WIDTH = 10;
     pub const HEIGHT = 20;
     allocator: std.mem.Allocator = undefined,
-    unattached: *anim.UnattachedAnimating = undefined,
-    cells: [HEIGHT][WIDTH]?*anim.Animated = undefined,
+    unattached: *Unattached = undefined,
+    cells: [HEIGHT][WIDTH]?*Animated = undefined,
+    cleartimer: i64 = 0,
 
     pub fn init(allocator: std.mem.Allocator) !*Self {
         std.debug.print("init grid\n", .{});
         const gc = try allocator.create(Self);
         gc.* = Self{
             .allocator = allocator,
-            .unattached = try anim.UnattachedAnimating.init(allocator),
+            .unattached = try Unattached.init(allocator),
         };
 
         for (gc.cells, 0..) |line, i| {
@@ -48,6 +51,7 @@ pub const Grid = struct {
                 cptr.duration = 250;
                 self.unattached.add(cptr);
                 self.cells[line][i] = null;
+                self.cleartimer = std.time.milliTimestamp() + 100;
             }
         }
     }
@@ -95,7 +99,7 @@ pub const Grid = struct {
                     shift_line -= 1;
                 }
             } else {
-                line -= 1; // Move to the next row up only if the current line is not completed
+                line -= 1;
             }
         }
         return count;
@@ -122,16 +126,12 @@ test "init" {
     var gpa = GPA{};
     const g = try Grid.init(gpa.allocator());
     defer g.deinit();
-    g.cells[0][0] = try anim.Animated.init(gpa.allocator(), 0, 0, .{ 255, 255, 255, 255 });
+    g.cells[0][0] = try Animated.init(gpa.allocator(), 0, 0, .{ 255, 255, 255, 255 });
 
     if (g.cells[0][0]) |cptr| {
         std.debug.print("0 0 {any}\n", .{cptr.*});
         g.cells[0][0] = null;
         gpa.allocator().destroy(cptr);
-    }
-
-    if (g.cells[0][0]) |cptr| {
-        std.debug.print("nulled {any}\n", .{cptr.*});
     }
 }
 
@@ -144,7 +144,7 @@ test "rm" {
 
     // fill line 0
     for (g.cells[0], 0..) |_, i| {
-        g.cells[0][i] = try anim.Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
+        g.cells[0][i] = try Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
     }
 
     g.print();
@@ -165,12 +165,12 @@ test "shift" {
 
     // fill line 0
     for (g.cells[0], 0..) |_, i| {
-        g.cells[0][i] = try anim.Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
+        g.cells[0][i] = try Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
     }
 
     // fill line 1
     for (g.cells[1], 0..) |_, i| {
-        g.cells[1][i] = try anim.Animated.init(gpa.allocator(), i, 1, .{ 255, 255, 255, 255 });
+        g.cells[1][i] = try Animated.init(gpa.allocator(), i, 1, .{ 255, 255, 255, 255 });
     }
 
     g.print();
@@ -199,15 +199,15 @@ test "clear" {
 
     // fill line 0
     for (g.cells[19], 0..) |_, i| {
-        g.cells[19][i] = try anim.Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
+        g.cells[19][i] = try Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
     }
 
-    g.cells[18][0] = try anim.Animated.init(gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
-    g.cells[17][0] = try anim.Animated.init(gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
-    g.cells[17][1] = try anim.Animated.init(gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
+    g.cells[18][0] = try Animated.init(gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
+    g.cells[17][0] = try Animated.init(gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
+    g.cells[17][1] = try Animated.init(gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
 
     for (g.cells[16], 0..) |_, i| {
-        g.cells[16][i] = try anim.Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
+        g.cells[16][i] = try Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
     }
     g.print();
     _ = g.clear();

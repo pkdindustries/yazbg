@@ -3,23 +3,19 @@ const ray = @import("raylib.zig");
 const game = @import("game.zig");
 const sfx = @import("sfx.zig");
 const gfx = @import("gfx.zig");
-const rnd = @import("random.zig");
 
 const MS = 1_000_000;
 pub fn main() !void {
     var timer = try std.time.Timer.start();
 
-    try rnd.init();
-    defer rnd.deinit();
+    try game.init();
+    defer game.deinit();
 
     try sfx.init();
     defer sfx.deinit();
 
     try gfx.init();
     defer gfx.deinit();
-
-    try game.init();
-    defer game.deinit();
 
     std.debug.print("system init {}ms\n", .{timer.lap() / MS});
 
@@ -53,6 +49,7 @@ pub fn main() !void {
 
         // draw the frame
         gfx.frame();
+
         // performance stats
         const frametime_elapsed = timer.lap();
         const total_elapsed = gamelogic_elapsed + frametime_elapsed;
@@ -79,7 +76,7 @@ fn progression(lines: i32) void {
     game.state.progression.cleared += lines;
     sfx.playclear();
     if (lines > 3) sfx.playwin();
-    if (game.state.progression.clearedperlevel > 6) {
+    if (game.state.progression.clearedthislevel > 6) {
         std.debug.print("level up\n", .{});
         gfx.nextbackground();
         sfx.nextmusic();
@@ -87,15 +84,11 @@ fn progression(lines: i32) void {
         game.state.progression.level += 1;
         game.state.progression.score += 1000 * game.state.progression.level;
         game.state.progression.dropinterval -= 0.15;
+        game.state.progression.clearedthislevel = 0;
+
         if (game.state.progression.dropinterval <= 0.1) {
             game.state.progression.dropinterval = 0.1;
         }
-        // fixme: controllability at high levels
-        // feels much better with no animation
-        if (game.state.progression.dropinterval <= 0.3) {
-            game.state.piece.slider.duration = 50;
-        }
-        game.state.progression.clearedperlevel = 0;
     }
 }
 

@@ -1,14 +1,13 @@
 const std = @import("std");
 const sfx = @import("sfx.zig");
-const rnd = @import("random.zig");
-const anim = @import("animation.zig");
-const Animated = anim.Animated;
+const anim = @import("animation.zig").Animated;
 const Grid = @import("grid.zig").Grid;
-const PIECES = @import("pieces.zig");
+const shapes = @import("pieces.zig");
 const GPA = std.heap.GeneralPurposeAllocator(.{});
 
 pub const YAZBG = struct {
     gpallocator: GPA = undefined,
+    rng: std.rand.DefaultPrng = undefined,
     grid: *Grid = undefined,
     gameover: bool = false,
     paused: bool = false,
@@ -20,15 +19,15 @@ pub const YAZBG = struct {
         // total lines cleared
         cleared: i32 = 0,
         // lines cleared since last level up
-        clearedperlevel: i32 = 0,
+        clearedthislevel: i32 = 0,
         // time between drops
         dropinterval: f64 = 2.0,
     } = .{},
     // current, next and held piece shapes
     piece: struct {
-        current: ?PIECES.tetramino = null,
-        next: ?PIECES.tetramino = null,
-        held: ?PIECES.tetramino = null,
+        current: ?shapes.tetramino = null,
+        next: ?shapes.tetramino = null,
+        held: ?shapes.tetramino = null,
         swapped: bool = false,
         x: i32 = 0,
         y: i32 = 0,
@@ -50,10 +49,14 @@ pub var state = YAZBG{};
 pub fn init() !void {
     std.debug.print("init game\n", .{});
     state.gpallocator = GPA{};
+    state.rng = std.rand.DefaultPrng.init(blk: {
+        var seed: u64 = undefined;
+        try std.os.getrandom(std.mem.asBytes(&seed));
+        break :blk seed;
+    });
     state.grid = Grid.init(state.gpallocator.allocator()) catch @panic("OOM");
-    state.piece.next = PIECES.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
+    state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
     nextpiece();
-    sfx.playmusic();
 }
 
 pub fn deinit() void {
@@ -67,14 +70,9 @@ pub fn deinit() void {
 pub fn reset() void {
     std.debug.print("reset game\n", .{});
     state.lastmove = 0;
-    state.progression.score = 0;
-    state.progression.level = 0;
-    state.progression.cleared = 0;
-    state.progression.clearedperlevel = 0;
-    state.progression.dropinterval = 2.0;
-    state.piece.next = PIECES.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
-    state.piece.held = null;
-    state.piece.slider = .{};
+    state.progression = .{};
+    state.piece = .{};
+    state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
     state.grid.deinit();
     state.grid = Grid.init(state.gpallocator.allocator()) catch @panic("OOM");
     nextpiece();
@@ -84,18 +82,16 @@ pub fn reset() void {
 
 pub fn nextpiece() void {
     state.piece.current = state.piece.next;
-    state.piece.next = PIECES.tetraminos[rnd.ng.random().intRangeAtMost(u32, 0, 6)];
+    state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
     state.piece.x = 3;
     state.piece.y = 0;
     state.piece.r = 0;
     state.piece.swapped = false;
-
     if (!checkmove(state.piece.x, state.piece.y)) {
         for (0..Grid.HEIGHT) |r| {
             anim.linecleardown(r);
             sfx.playgameover();
         }
-
         state.piece.current = null;
         state.gameover = true;
     }
@@ -173,7 +169,7 @@ pub fn harddrop() i32 {
                     if (gx >= 0 and gx < Grid.WIDTH and gy >= 0 and gy < Grid.HEIGHT) {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
-                        const ac = Animated.init(state.gpallocator.allocator(), ix, iy, piece.color) catch |err| {
+                        const ac = anim.init(state.gpallocator.allocator(), ix, iy, piece.color) catch |err| {
                             std.debug.print("failed to allocate cell: {}\n", .{err});
                             return 0;
                         };
@@ -187,7 +183,7 @@ pub fn harddrop() i32 {
     state.lastmove = sfx.ray.GetTime();
     const cleared = state.grid.clear();
     std.debug.print("game.drop done {}\n", .{cleared});
-    state.progression.clearedperlevel += cleared;
+    state.progression.clearedthislevel += cleared;
     return cleared;
 }
 
@@ -210,7 +206,6 @@ pub fn left() bool {
     if (!checkmove(x, y)) {
         return false;
     }
-
     slidepiece(x, y);
     state.lastmove = sfx.ray.GetTime();
     return true;
@@ -271,7 +266,8 @@ pub fn frozen() bool {
 }
 
 pub fn dropready() bool {
-    return !state.piece.slider.active and !frozen() and sfx.ray.GetTime() - state.lastmove >= state.progression.dropinterval;
+    return !state.piece.slider.active and !frozen() and
+        (sfx.ray.GetTime() - state.lastmove >= state.progression.dropinterval);
 }
 
 // (0 for CW, 1 for CCW)

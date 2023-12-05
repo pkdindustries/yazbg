@@ -6,7 +6,6 @@ pub const tetramino = struct {
 
 const o = false;
 const X = true;
-// https://cdn.wikimg.net/en/strategywiki/images/7/7f/Tetris_rotation_super.png
 pub const tetraminos = [_]tetramino{
     // I - Line piece
     tetramino{

@@ -1,6 +1,5 @@
 const std = @import("std");
 const game = @import("game.zig");
-const rnd = @import("random.zig");
 
 const MAX_ANIMATED = 500;
 pub const UnattachedAnimating = struct {
@@ -87,7 +86,6 @@ pub const Animated = struct {
             .position = p,
             .target = p,
             .color = color,
-            .id = rnd.ng.random().intRangeAtMost(u32, 0, 6000000),
         };
 
         return cell;
@@ -166,36 +164,37 @@ pub const Animated = struct {
             std.math.lerp(self.source[1], self.target[1], t),
         };
     }
+
+    // set a row to random x,y
+    pub fn linesplat(row: usize) void {
+        inline for (game.state.grid.cells[row], 0..) |ac, i| {
+            if (ac) |cptr| {
+                const xr: i32 = game.state.rng.random().intRangeAtMost(i32, -2000, 2000);
+                const yr: i32 = game.state.rng.random().intRangeAtMost(i32, -2000, 2000);
+                cptr.target[0] = @as(f32, @floatFromInt(xr));
+                cptr.target[1] = @as(f32, @floatFromInt(yr));
+                cptr.duration = 1000;
+                cptr.mode = .easein;
+                game.state.grid.unattached.add(cptr);
+                game.state.grid.cells[row][i] = null;
+                cptr.start();
+            }
+        }
+    }
+
+    pub fn linecleardown(row: usize) void {
+        inline for (game.state.grid.cells[row], 0..) |ac, i| {
+            if (ac) |cptr| {
+                cptr.target[1] = 800;
+                cptr.duration = 500;
+                cptr.mode = .easeout;
+                game.state.grid.unattached.add(cptr);
+                game.state.grid.cells[row][i] = null;
+                cptr.start();
+            }
+        }
+    }
 };
-
-// set a row to random x,y
-pub fn linesplat(row: usize) void {
-    inline for (game.state.grid.cells[row], 0..) |ac, i| {
-        if (ac) |cptr| {
-            const xr: i32 = rnd.ng.random().intRangeAtMost(i32, -2000, 2000);
-            const yr: i32 = rnd.ng.random().intRangeAtMost(i32, -2000, 2000);
-            cptr.target[0] = @as(f32, @floatFromInt(xr));
-            cptr.target[1] = @as(f32, @floatFromInt(yr));
-            cptr.duration = 1000;
-            cptr.mode = .easein;
-            game.state.grid.unattached.add(cptr);
-            game.state.grid.cells[row][i] = null;
-            cptr.start();
-        }
-    }
-}
-
-pub fn linecleardown(row: usize) void {
-    inline for (game.state.grid.cells[row], 0..) |ac, i| {
-        if (ac) |cptr| {
-            cptr.target[1] = 800;
-            cptr.duration = 500;
-            game.state.grid.unattached.add(cptr);
-            game.state.grid.cells[row][i] = null;
-            cptr.start();
-        }
-    }
-}
 
 const testing = std.testing;
 // test init
