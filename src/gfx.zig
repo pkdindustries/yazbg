@@ -3,10 +3,9 @@ const ray = @import("raylib.zig");
 const sfx = @import("sfx.zig");
 const game = @import("game.zig");
 
-pub const OGWIDTH: i32 = 640;
-pub const OGHEIGHT: i32 = 760;
-
 pub const Window = struct {
+    pub const OGWIDTH: i32 = 640;
+    pub const OGHEIGHT: i32 = 760;
     width: i32 = OGWIDTH,
     height: i32 = OGHEIGHT,
     texture: ray.RenderTexture2D = undefined,
@@ -80,7 +79,7 @@ pub fn frame() void {
         }
         ray.EndTextureMode();
         // scale texture to window size
-        const src = ray.Rectangle{ .x = 0, .y = 0, .width = OGWIDTH, .height = -OGHEIGHT };
+        const src = ray.Rectangle{ .x = 0, .y = 0, .width = window.OGWIDTH, .height = -window.OGHEIGHT };
         const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(window.width), .height = @floatFromInt(window.height) };
         ray.DrawTexturePro(window.texture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
     }
@@ -91,8 +90,8 @@ pub fn init() !void {
     std.debug.print("init gfx\n", .{});
     // window init
     ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
-    ray.InitWindow(OGWIDTH, OGHEIGHT, "yazbg");
-    window.texture = ray.LoadRenderTexture(OGWIDTH, OGHEIGHT);
+    ray.InitWindow(window.OGWIDTH, window.OGHEIGHT, "yazbg");
+    window.texture = ray.LoadRenderTexture(window.OGWIDTH, window.OGHEIGHT);
     //ray.GenTextureMipmaps(&texture.texture);
     ray.SetTextureFilter(window.texture.texture, ray.TEXTURE_FILTER_TRILINEAR);
     // background warp shader
@@ -149,11 +148,11 @@ pub fn nextbackground() void {
 pub fn updatescale() void {
     if (ray.IsWindowResized()) {
         var width = ray.GetScreenWidth();
-        var height = @divTrunc(width * OGHEIGHT, OGWIDTH);
+        var height = @divTrunc(width * window.OGHEIGHT, window.OGWIDTH);
         const maxheight = ray.GetMonitorHeight(0) - 100; // Assuming the primary monitor
         if (height > maxheight) {
             height = maxheight;
-            width = @divTrunc(height * OGWIDTH, OGHEIGHT);
+            width = @divTrunc(height * window.OGWIDTH, window.OGHEIGHT);
         }
         window.width = width;
         window.height = height;
@@ -192,8 +191,8 @@ fn preshade() void {
     ray.SetShaderValue(bg.shader, bg.speedyloc, &bg.speedy, ray.SHADER_UNIFORM_FLOAT);
 
     var size: [2]f32 = undefined;
-    size[0] = @as(f32, @floatFromInt(OGWIDTH));
-    size[1] = @as(f32, @floatFromInt(OGHEIGHT));
+    size[0] = @as(f32, @floatFromInt(window.OGWIDTH));
+    size[1] = @as(f32, @floatFromInt(window.OGHEIGHT));
     ray.SetShaderValue(bg.shader, bg.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
 }
 
@@ -211,8 +210,8 @@ fn background() void {
     const tgt = ray.Rectangle{
         .x = 0,
         .y = 0,
-        .width = @floatFromInt(OGWIDTH),
-        .height = @floatFromInt(OGHEIGHT),
+        .width = @floatFromInt(window.OGWIDTH),
+        .height = @floatFromInt(window.OGHEIGHT),
     };
 
     ray.DrawTexturePro(bg.texture[bg.index], src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
@@ -321,11 +320,11 @@ fn ui() void {
         .a = 20,
     };
 
-    ray.DrawRectangle(0, 0, 140, OGHEIGHT, bordercolor);
-    ray.DrawRectangle(OGWIDTH - 135, 0, 135, OGHEIGHT, bordercolor);
+    ray.DrawRectangle(0, 0, 140, window.OGHEIGHT, bordercolor);
+    ray.DrawRectangle(window.OGWIDTH - 135, 0, 135, window.OGHEIGHT, bordercolor);
 
-    ray.DrawLineEx(ray.Vector2{ .x = 140, .y = 0 }, ray.Vector2{ .x = 140, .y = @floatFromInt(OGHEIGHT) }, 3, ray.RED);
-    ray.DrawLineEx(ray.Vector2{ .x = OGWIDTH - 135, .y = 0 }, ray.Vector2{ .x = OGWIDTH - 135, .y = @floatFromInt(OGHEIGHT) }, 3, ray.RED);
+    ray.DrawLineEx(ray.Vector2{ .x = 140, .y = 0 }, ray.Vector2{ .x = 140, .y = @floatFromInt(window.OGHEIGHT) }, 3, ray.RED);
+    ray.DrawLineEx(ray.Vector2{ .x = window.OGWIDTH - 135, .y = 0 }, ray.Vector2{ .x = window.OGWIDTH - 135, .y = @floatFromInt(window.OGHEIGHT) }, 3, ray.RED);
 
     if (std.fmt.bufPrintZ(&textbuf, "score\n{}\nlines\n{}\nlevel\n{}", .{ game.state.progression.score, game.state.progression.cleared, game.state.progression.level })) |score| {
         var color = ray.GREEN;
@@ -346,7 +345,7 @@ fn ui() void {
         ray.GRAY // color
     );
     if (game.state.piece.next) |nextpiece| {
-        piece(OGWIDTH - 250, 35, nextpiece.shape[0], nextpiece.color);
+        piece(window.OGWIDTH - 250, 35, nextpiece.shape[0], nextpiece.color);
     }
 
     ray.DrawTextEx(window.font, "held", ray.Vector2{ .x = 23, .y = 30 }, 40, // font size
@@ -359,7 +358,7 @@ fn ui() void {
 
     if (game.state.paused) {
         ray.BeginShaderMode(static);
-        ray.DrawRectangle(0, 0, OGWIDTH, OGHEIGHT, ray.Color{
+        ray.DrawRectangle(0, 0, window.OGWIDTH, window.OGHEIGHT, ray.Color{
             .r = 0,
             .g = 0,
             .b = 0,
@@ -377,7 +376,7 @@ fn ui() void {
     }
 
     if (game.state.gameover) {
-        ray.DrawRectangle(0, 0, OGWIDTH, OGHEIGHT, ray.Color{
+        ray.DrawRectangle(0, 0, window.OGWIDTH, window.OGHEIGHT, ray.Color{
             .r = 10,
             .g = 0,
             .b = 0,
