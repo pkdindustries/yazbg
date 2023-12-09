@@ -28,6 +28,7 @@ pub fn main() !void {
         if (game.dropready()) {
             move(game.down, sfx.playclick, harddrop);
         }
+
         // handle input
         switch (ray.GetKeyPressed()) {
             ray.KEY_P => game.pause(),
@@ -85,7 +86,6 @@ fn progression(lines: i32) void {
         game.state.progression.score += 1000 * game.state.progression.level;
         game.state.progression.dropinterval -= 0.15;
         game.state.progression.clearedthislevel = 0;
-
         if (game.state.progression.dropinterval <= 0.1) {
             game.state.progression.dropinterval = 0.1;
         }
@@ -104,7 +104,7 @@ fn move(comptime movefn: fn () bool, comptime ok: fn () void, comptime fail: fn 
 }
 
 fn checkleak() void {
-    const leaks = game.state.gpallocator.detectLeaks();
+    const leaks = game.state.alloc.detectLeaks();
     if (!leaks) {
         std.debug.print("no leaks\n", .{});
     }

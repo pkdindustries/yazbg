@@ -6,7 +6,7 @@ const shapes = @import("pieces.zig");
 const GPA = std.heap.GeneralPurposeAllocator(.{});
 
 pub const YAZBG = struct {
-    gpallocator: GPA = undefined,
+    alloc: GPA = undefined,
     rng: std.rand.DefaultPrng = undefined,
     grid: *Grid = undefined,
     gameover: bool = false,
@@ -48,13 +48,13 @@ pub var state = YAZBG{};
 
 pub fn init() !void {
     std.debug.print("init game\n", .{});
-    state.gpallocator = GPA{};
+    state.alloc = GPA{};
     state.rng = std.rand.DefaultPrng.init(blk: {
         var seed: u64 = undefined;
         try std.os.getrandom(std.mem.asBytes(&seed));
         break :blk seed;
     });
-    state.grid = Grid.init(state.gpallocator.allocator()) catch @panic("OOM");
+    state.grid = Grid.init(state.alloc.allocator()) catch @panic("OOM");
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
     nextpiece();
 }
@@ -62,7 +62,7 @@ pub fn init() !void {
 pub fn deinit() void {
     std.debug.print("deinit game\n", .{});
     state.grid.deinit();
-    if (state.gpallocator.deinit() == .leak) {
+    if (state.alloc.deinit() == .leak) {
         std.debug.print("leaked memory\n", .{});
     }
 }
@@ -74,7 +74,7 @@ pub fn reset() void {
     state.piece = .{};
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
     state.grid.deinit();
-    state.grid = Grid.init(state.gpallocator.allocator()) catch @panic("OOM");
+    state.grid = Grid.init(state.alloc.allocator()) catch @panic("OOM");
     nextpiece();
     state.gameover = false;
     state.paused = false;
@@ -169,7 +169,7 @@ pub fn harddrop() i32 {
                     if (gx >= 0 and gx < Grid.WIDTH and gy >= 0 and gy < Grid.HEIGHT) {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
-                        const ac = anim.init(state.gpallocator.allocator(), ix, iy, piece.color) catch |err| {
+                        const ac = anim.init(state.alloc.allocator(), ix, iy, piece.color) catch |err| {
                             std.debug.print("failed to allocate cell: {}\n", .{err});
                             return 0;
                         };

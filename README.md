@@ -4,16 +4,7 @@ yet another zig block game!
 ![Screenshot of yazbg](screenshot.jpg)
 
 
-
-I realized dad already made one 
-
-https://github.com/andrewrk/tetris/
-
-however, block games [tm] have always been my goto project for learning a new language. so here we are, my first zig program. im still at the stage where i'm casting everything 4 times.
-
- it mostly trys to follows the Tetris Guideline / SRS rotation.
-
-https://tetris.fandom.com/wiki/Tetris_Guideline
+block games [tm] have always been my goto project for learning a new language. so here we are, my first zig program.
 
 raylib is used for graphics and input handling.
 
@@ -28,13 +19,16 @@ zig build run
 
 ## controls
 ```
-l/r arrow keys: move block
-up arrow key: rotate block
-down arrow key: soft drop
-space: hard drop
-c: swap block
-p: pause
-r: restart
+  left/right: move
+  up: rotate
+  down: drop
+  space: hard drop
+  c: swap piece
+  b: next background
+  m: mute
+  n: next music
+  p: pause
+  r: reset
 ```
 
-tested with zig version: `0.12.0-dev.1669+c25f2fa56`
+tested with zig version: `0.12.0-dev.1802+56deb5b05`
