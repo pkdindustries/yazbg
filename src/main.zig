@@ -73,7 +73,7 @@ fn harddrop() void {
 
 fn progression(lines: i32) void {
     if (lines < 1) return;
-    game.state.progression.score += 1000 * lines * lines;
+    game.state.progression.score += 1000 * (lines ^ 2);
     game.state.progression.cleared += lines;
     sfx.playclear();
     if (lines > 3) sfx.playwin();

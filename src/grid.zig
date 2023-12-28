@@ -1,12 +1,13 @@
 const std = @import("std");
 const anim = @import("animation.zig");
 const Animated = anim.Animated;
-const Unattached = anim.UnattachedAnimating;
+const Unattached = anim.Animating;
 
 pub const Grid = struct {
     const Self = @This();
+    pub const SAFETY = 3;
     pub const WIDTH = 10;
-    pub const HEIGHT = 20;
+    pub const HEIGHT = 20 + SAFETY;
     allocator: std.mem.Allocator = undefined,
     unattached: *Unattached = undefined,
     cells: [HEIGHT][WIDTH]?*Animated = undefined,

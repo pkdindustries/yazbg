@@ -1,8 +1,8 @@
 const std = @import("std");
 const game = @import("game.zig");
 
-const MAX_ANIMATED = 500;
-pub const UnattachedAnimating = struct {
+pub const Animating = struct {
+    pub const MAX_ANIMATED = 500;
     const Self = @This();
     allocator: std.mem.Allocator = undefined,
     cells: [MAX_ANIMATED]?*Animated = undefined,
@@ -57,7 +57,6 @@ pub const UnattachedAnimating = struct {
 
 pub const Animated = struct {
     const Self = @This();
-    id: i128 = 0,
     color: [4]u8 = undefined,
     source: [2]f32 = undefined,
     target: [2]f32 = undefined,
@@ -76,8 +75,8 @@ pub const Animated = struct {
 
     pub fn init(allocator: std.mem.Allocator, gridx: usize, gridy: usize, color: [4]u8) !*Self {
         const p: [2]f32 = .{
-            @as(f32, @floatFromInt(gridx * 35)),
-            @as(f32, @floatFromInt(gridy * 35)),
+            @as(f32, @floatFromInt(gridx * 32)),
+            @as(f32, @floatFromInt(gridy * 32)),
         };
 
         const cell = try allocator.create(Self);
@@ -92,8 +91,8 @@ pub const Animated = struct {
     }
 
     pub fn setcoords(self: *Self, x: usize, y: usize) void {
-        const drawx: f32 = @floatFromInt(x * 35);
-        const drawy: f32 = @floatFromInt(y * 35);
+        const drawx: f32 = @floatFromInt(x * 32);
+        const drawy: f32 = @floatFromInt(y * 32);
         self.target[0] = drawx;
         self.target[1] = drawy;
         self.start();
@@ -116,17 +115,14 @@ pub const Animated = struct {
         self.animating = true;
     }
 
-    pub fn easeinout(self: *Self, t: f32) f32 {
-        _ = self;
+    pub fn easeinout(t: f32) f32 {
         return t * t * t * (t * (t * 6 - 15) + 10);
     }
-    pub fn easein(self: *Self, t: f32) f32 {
-        _ = self;
+    pub fn easein(t: f32) f32 {
         return t * t;
     }
 
-    pub fn easeout(self: *Self, t: f32) f32 {
-        _ = self;
+    pub fn easeout(t: f32) f32 {
         return t * (2 - t);
     }
 
@@ -153,10 +149,10 @@ pub const Animated = struct {
         const d = @as(f32, @floatFromInt(self.duration));
         var t = std.math.clamp(e / d, 0.0, 1.0);
         switch (self.mode) {
-            .easeinout => t = self.easeinout(t),
+            .easeinout => t = easeinout(t),
             .linear => {},
-            .easein => t = self.easein(t),
-            .easeout => t = self.easeout(t),
+            .easein => t = easein(t),
+            .easeout => t = easeout(t),
         }
 
         self.position = .{

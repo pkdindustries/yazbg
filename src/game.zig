@@ -126,6 +126,24 @@ pub fn ghosty() i32 {
     return y;
 }
 
+// check if the game over condition is met (every cell in piece is in safety area (top 3 rows))
+pub fn checkgameover() bool {
+    if (state.piece.current) |piece| {
+        const shape = piece.shape[state.piece.r];
+        for (shape, 0..) |row, j| {
+            for (row) |cell| {
+                if (cell) {
+                    const gy = state.piece.y + @as(i32, @intCast(j));
+                    if (gy > 3) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
 pub fn checkmove(x: i32, y: i32) bool {
     if (state.piece.current) |piece| {
         const shape = piece.shape[state.piece.r];
@@ -134,15 +152,16 @@ pub fn checkmove(x: i32, y: i32) bool {
                 if (cell) {
                     const gx = x + @as(i32, @intCast(j));
                     const gy = y + @as(i32, @intCast(i));
-                    // cell is out of bounds
 
-                    if (gx < 0 or gx >= Grid.WIDTH or gy < 0 or gy >= Grid.HEIGHT) {
+                    // cell is out of bounds
+                    if (gx < 0 or gx >= Grid.WIDTH or gy >= Grid.HEIGHT) {
                         return false;
                     }
 
                     const ix = @as(usize, @intCast(gx));
                     const iy = @as(usize, @intCast(gy));
-                    // cell is already occupied via newcells
+
+                    // cell is already occupied
                     if (state.grid.cells[iy][ix]) |_| {
                         return false;
                     }

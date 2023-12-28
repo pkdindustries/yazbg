@@ -6,18 +6,17 @@ const game = @import("game.zig");
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
     pub const OGHEIGHT: i32 = 760;
+    pub const CELLSIZE: i32 = 32;
+    pub const CELLPADDING: i32 = 2;
     width: i32 = OGWIDTH,
     height: i32 = OGHEIGHT,
     texture: ray.RenderTexture2D = undefined,
     font: ray.Font = undefined,
-    gridoffsetx: i32 = 150,
-    gridoffsety: i32 = 50,
-    cellsize: i32 = 35,
-    cellpadding: i32 = 2,
+    gridoffsetx: i32 = 162,
+    gridoffsety: i32 = 20,
 };
 
 pub const Background = struct {
-    const Self = @This();
     path: [9][*:0]const u8 = .{
         "resources/texture/bluestars.png",
         "resources/texture/nebula.png",
@@ -32,14 +31,14 @@ pub const Background = struct {
     texture: [9]ray.Texture2D = undefined,
     index: u32 = 0,
     shader: ray.Shader = undefined,
-    secondsloc: i32 = 0,
-    freqxloc: i32 = 0,
-    freqyloc: i32 = 0,
-    ampxloc: i32 = 0,
-    ampyloc: i32 = 0,
-    speedxloc: i32 = 0,
-    speedyloc: i32 = 0,
-    sizeloc: i32 = 0,
+    secondsloc: i32 = undefined,
+    freqxloc: i32 = undefined,
+    freqyloc: i32 = undefined,
+    ampxloc: i32 = undefined,
+    ampyloc: i32 = undefined,
+    speedxloc: i32 = undefined,
+    speedyloc: i32 = undefined,
+    sizeloc: i32 = undefined,
     freqx: f32 = 10.0,
     freqy: f32 = 10.0,
     ampx: f32 = 2.0,
@@ -53,7 +52,7 @@ var bg = Background{};
 
 // static shader
 var static: ray.Shader = undefined;
-var statictimeloc: i32 = 0;
+var statictimeloc: i32 = undefined;
 
 pub fn frame() void {
     // resize
@@ -72,7 +71,7 @@ pub fn frame() void {
                 // player piece and ghost
                 player();
                 // grid and animated
-                drawcells();
+                cells();
             }
             ray.EndShaderMode();
             ui();
@@ -220,22 +219,22 @@ fn background() void {
 
 fn player() void {
     if (game.state.piece.current) |p| {
-        var drawX: i32 = game.state.piece.x * window.cellsize;
-        var drawY: i32 = game.state.piece.y * window.cellsize;
+        var drawX: i32 = game.state.piece.x * Window.CELLSIZE;
+        var drawY: i32 = game.state.piece.y * Window.CELLSIZE;
         var fdrawx: f32 = @floatFromInt(drawX);
         var fdrawy: f32 = @floatFromInt(drawY);
 
         const elapsed_time = std.time.milliTimestamp() - game.state.piece.slider.start_time;
         // animate the piece if the slider is active
         if (game.state.piece.slider.active) {
-            drawX = game.state.piece.slider.sourcex * window.cellsize;
-            drawY = game.state.piece.slider.sourcey * window.cellsize;
+            drawX = game.state.piece.slider.sourcex * Window.CELLSIZE;
+            drawY = game.state.piece.slider.sourcey * Window.CELLSIZE;
             fdrawx = @floatFromInt(drawX);
             fdrawy = @floatFromInt(drawY);
             const duration: f32 = @floatFromInt(game.state.piece.slider.duration);
             const ratio: f32 = std.math.clamp(@as(f32, @floatFromInt(elapsed_time)) / duration, 0.0, 1.0);
-            const targetx: f32 = @floatFromInt(game.state.piece.x * window.cellsize);
-            const targety: f32 = @floatFromInt(game.state.piece.y * window.cellsize);
+            const targetx: f32 = @floatFromInt(game.state.piece.x * Window.CELLSIZE);
+            const targety: f32 = @floatFromInt(game.state.piece.y * Window.CELLSIZE);
             // lerp between the current position and the target position
             fdrawx = std.math.lerp(fdrawx, targetx, ratio);
             fdrawy = std.math.lerp(fdrawy, targety, ratio);
@@ -254,11 +253,11 @@ fn player() void {
 
         // draw ghost
         const color = .{ p.color[0], p.color[1], p.color[2], 60 };
-        piece(xdx, game.ghosty() * window.cellsize, p.shape[game.state.piece.r], color);
+        piece(xdx, game.ghosty() * Window.CELLSIZE, p.shape[game.state.piece.r], color);
     }
 }
 
-fn drawcells() void {
+fn cells() void {
     // find the active animatedcells
     inline for (game.state.grid.cells) |row| {
         for (row) |cell| {
@@ -267,7 +266,7 @@ fn drawcells() void {
                 const drawX: i32 = @as(i32, @intFromFloat(cptr.position[0]));
                 const drawY: i32 = @as(i32, @intFromFloat(cptr.position[1]));
                 roundedfillbox(drawX, drawY, cptr.color);
-            } else {}
+            }
         }
     }
 
@@ -286,8 +285,8 @@ fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
     for (shape, 0..) |row, i| {
         for (row, 0..) |cell, j| {
             if (cell) {
-                const xs: i32 = @as(i32, @intCast(i)) * window.cellsize;
-                const ys: i32 = @as(i32, @intCast(j)) * window.cellsize;
+                const xs: i32 = @as(i32, @intCast(i)) * Window.CELLSIZE;
+                const ys: i32 = @as(i32, @intCast(j)) * Window.CELLSIZE;
                 roundedfillbox(x + xs, y + ys, color);
             }
         }
@@ -299,9 +298,9 @@ fn roundedfillbox(x: i32, y: i32, color: [4]u8) void {
     ray.DrawRectangleRounded(ray.Rectangle{
         .x = @floatFromInt(window.gridoffsetx + x),
         .y = @floatFromInt(window.gridoffsety + y),
-        .width = @floatFromInt(window.cellsize - 2 * window.cellpadding),
-        .height = @floatFromInt(window.cellsize - 2 * window.cellpadding),
-    }, 0.4, 20, ray.Color{
+        .width = @floatFromInt(Window.CELLSIZE - 2 * Window.CELLPADDING),
+        .height = @floatFromInt(Window.CELLSIZE - 2 * Window.CELLPADDING),
+    }, 0.6, 20, ray.Color{
         .r = color[0],
         .g = color[1],
         .b = color[2],
@@ -319,12 +318,16 @@ fn ui() void {
         .b = 255,
         .a = 20,
     };
+    _ = bordercolor; // autofix
 
-    ray.DrawRectangle(0, 0, 140, Window.OGHEIGHT, bordercolor);
-    ray.DrawRectangle(Window.OGWIDTH - 135, 0, 135, Window.OGHEIGHT, bordercolor);
+    const safetyY: f32 = @floatFromInt(window.gridoffsety + (Window.CELLSIZE * 3));
 
-    ray.DrawLineEx(ray.Vector2{ .x = 140, .y = 0 }, ray.Vector2{ .x = 140, .y = @floatFromInt(Window.OGHEIGHT) }, 3, ray.RED);
-    ray.DrawLineEx(ray.Vector2{ .x = Window.OGWIDTH - 135, .y = 0 }, ray.Vector2{ .x = Window.OGWIDTH - 135, .y = @floatFromInt(Window.OGHEIGHT) }, 3, ray.RED);
+    //ray.DrawRectangle(0, 0, Window.OGWIDTH, @intFromFloat(safetyY), bordercolor);
+    //ray.DrawRectangle(0, @intFromFloat(safetyY), 140, Window.OGHEIGHT, bordercolor);
+    //ray.DrawRectangle(Window.OGWIDTH - 145, @intFromFloat(safetyY), 145, Window.OGHEIGHT, bordercolor);
+
+    ray.DrawLineEx(ray.Vector2{ .x = 155, .y = safetyY }, ray.Vector2{ .x = 155, .y = @floatFromInt(Window.OGHEIGHT) }, 3, ray.RED);
+    ray.DrawLineEx(ray.Vector2{ .x = Window.OGWIDTH - 155, .y = safetyY }, ray.Vector2{ .x = Window.OGWIDTH - 155, .y = @floatFromInt(Window.OGHEIGHT) }, 3, ray.RED);
 
     if (std.fmt.bufPrintZ(&textbuf, "score\n{}\nlines\n{}\nlevel\n{}", .{ game.state.progression.score, game.state.progression.cleared, game.state.progression.level })) |score| {
         var color = ray.GREEN;
@@ -345,7 +348,7 @@ fn ui() void {
         ray.GRAY // color
     );
     if (game.state.piece.next) |nextpiece| {
-        piece(Window.OGWIDTH - 250, 35, nextpiece.shape[0], nextpiece.color);
+        piece(Window.OGWIDTH - 250, 35 + window.gridoffsety, nextpiece.shape[0], nextpiece.color);
     }
 
     ray.DrawTextEx(window.font, "held", ray.Vector2{ .x = 23, .y = 30 }, 40, // font size
@@ -353,7 +356,7 @@ fn ui() void {
         ray.GRAY // color
     );
     if (game.state.piece.held) |held| {
-        piece(35 - window.gridoffsetx, 35, held.shape[0], held.color);
+        piece(35 - window.gridoffsetx, 35 + window.gridoffsety, held.shape[0], held.color);
     }
 
     if (game.state.paused) {
