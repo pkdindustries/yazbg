@@ -31,4 +31,4 @@ zig build run
   r: reset
 ```
 
-tested with zig version: `0.12.0-dev.1802+56deb5b05`
+tested with zig version: `0.13.0`

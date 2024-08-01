@@ -3,6 +3,6 @@
     .name = "yazbg",
     .version = "0.0.1",
     .dependencies = .{
-        .raylib = .{ .url = "https://github.com/raysan5/raylib/archive/ae50bfa2cc569c0f8d5bc4315d39db64005b1b08.tar.gz", .hash = "1220c28847ca8e8756734ae84355802b764c9d9cf4de057dbc6fc2b15c56e726f27b" },
+        .raylib = .{ .url = "https://github.com/raysan5/raylib/archive/9e39788e077f1d35c5fe54600f2143423a80bb3d.tar.gz", .hash = "122051da01fbb000a51f6e03bba5b4177667d374c87720c9a353b1e270c60e118055" },
     },
 }

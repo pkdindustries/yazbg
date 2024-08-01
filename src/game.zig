@@ -51,7 +51,7 @@ pub fn init() !void {
     state.alloc = GPA{};
     state.rng = std.rand.DefaultPrng.init(blk: {
         var seed: u64 = undefined;
-        try std.os.getrandom(std.mem.asBytes(&seed));
+        std.crypto.random.bytes(std.mem.asBytes(&seed)); // No `try` needed
         break :blk seed;
     });
     state.grid = Grid.init(state.alloc.allocator()) catch @panic("OOM");
