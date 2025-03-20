@@ -7,7 +7,7 @@ const GPA = std.heap.GeneralPurposeAllocator(.{});
 
 pub const YAZBG = struct {
     alloc: GPA = undefined,
-    rng: std.rand.DefaultPrng = undefined,
+    rng: std.Random.DefaultPrng = undefined,
     grid: *Grid = undefined,
     gameover: bool = false,
     paused: bool = false,
@@ -49,7 +49,7 @@ pub var state = YAZBG{};
 pub fn init() !void {
     std.debug.print("init game\n", .{});
     state.alloc = GPA{};
-    state.rng = std.rand.DefaultPrng.init(blk: {
+    state.rng = std.Random.DefaultPrng.init(blk: {
         var seed: u64 = undefined;
         std.crypto.random.bytes(std.mem.asBytes(&seed)); // No `try` needed
         break :blk seed;

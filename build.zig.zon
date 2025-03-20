@@ -1,8 +1,9 @@
 .{
+    .fingerprint = 0x6c01f59daece9749,
     .paths = .{"."},
-    .name = "yazbg",
+    .name = .yazbg,
     .version = "0.0.1",
     .dependencies = .{
-        .raylib = .{ .url = "https://github.com/raysan5/raylib/archive/9e39788e077f1d35c5fe54600f2143423a80bb3d.tar.gz", .hash = "122051da01fbb000a51f6e03bba5b4177667d374c87720c9a353b1e270c60e118055" },
+        .raylib = .{ .url = "https://github.com/raysan5/raylib/archive/cd9206956caa774c3ed9df0957b6b3167e5000c7.tar.gz", .hash = "raylib-5.5.0-whq8uKV0zQBqlO6I6eodSUsMeRngbFTt0pYX1z4OvDxO" }
     },
 }
