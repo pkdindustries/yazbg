@@ -117,10 +117,10 @@ pub fn nextpiece() void {
     if (!checkmove(state.piece.x, state.piece.y)) {
         for (0..Grid.HEIGHT) |r| {
             anim.linecleardown(r);
-            events.push(.GameOver);
         }
         state.piece.current = null;
         state.gameover = true;
+        events.push(.GameOver);
     }
 }
 
