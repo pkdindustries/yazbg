@@ -3,6 +3,7 @@ const ray = @import("raylib.zig");
 const sfx = @import("sfx.zig");
 const game = @import("game.zig");
 const hud = @import("hud.zig");
+const level = @import("level.zig");
 
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
@@ -232,8 +233,8 @@ fn preshade() void {
         bg.freqy = 10.0;
         bg.ampx = 2.0;
         bg.ampy = 2.0;
-        bg.speedx = 0.15 * (@as(f32, @floatFromInt(game.state.progression.level)) + 2);
-        bg.speedy = 0.15 * (@as(f32, @floatFromInt(game.state.progression.level)) + 2);
+        bg.speedx = 0.15 * (@as(f32, @floatFromInt(level.progression.level)) + 2);
+        bg.speedy = 0.15 * (@as(f32, @floatFromInt(level.progression.level)) + 2);
     }
 
     ray.SetShaderValue(bg.shader, bg.freqxloc, &bg.freqx, ray.SHADER_UNIFORM_FLOAT);

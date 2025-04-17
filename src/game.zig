@@ -5,6 +5,7 @@ const Grid = @import("grid.zig").Grid;
 const shapes = @import("pieces.zig");
 const GPA = std.heap.GeneralPurposeAllocator(.{});
 const events = @import("events.zig");
+const level = @import("level.zig");
 
 // ---------------------------------------------------------------------------
 // Time handling
@@ -29,16 +30,6 @@ pub const YAZBG = struct {
     lastmove_ms: i64 = 0,
     // latest timestamp pushed in via `tick()`
     current_time_ms: i64 = 0,
-    progression: struct {
-        score: i32 = 0,
-        level: i32 = 0,
-        // total lines cleared
-        cleared: i32 = 0,
-        // lines cleared since last level up
-        clearedthislevel: i32 = 0,
-        // time between automatic drops (in milliseconds)
-        dropinterval_ms: i64 = 2_000,
-    } = .{},
     // current, next and held piece shapes
     piece: struct {
         current: ?shapes.tetramino = null,
@@ -92,8 +83,6 @@ pub fn deinit() void {
 pub fn reset() void {
     std.debug.print("reset game\n", .{});
     state.lastmove_ms = 0;
-    state.progression = .{};
-    state.progression.dropinterval_ms = 2_000;
     state.piece = .{};
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
     state.grid.deinit();
@@ -319,7 +308,7 @@ pub fn frozen() bool {
 
 pub fn dropready() bool {
     return !state.piece.slider.active and !frozen() and
-        (state.current_time_ms - state.lastmove_ms >= state.progression.dropinterval_ms);
+        (state.current_time_ms - state.lastmove_ms >= level.progression.dropinterval_ms);
 }
 
 // (0 for CW, 1 for CCW)
