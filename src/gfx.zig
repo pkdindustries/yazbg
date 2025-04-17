@@ -120,10 +120,8 @@ pub fn process(queue: *events.EventQueue) void {
             nextbackground();
             warp_end_ms = now + 300;
         },
-
         // no‑op for the remaining events
-        .Click, .Error, .Woosh, .Clack, .Win,
-        .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece, .Pause, .Reset => {},
+        .Spawn, .Lock, .Hold, .Click, .Error, .Woosh, .Clack, .Win, .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece, .Pause, .Reset => {},
     };
 }
 
@@ -209,7 +207,7 @@ fn preshade() void {
     ray.SetShaderValue(static, statictimeloc, &@as(f32, @floatCast(ray.GetTime())), ray.SHADER_UNIFORM_FLOAT);
 
     const now = std.time.milliTimestamp();
-    if (game.state.grid.cleartimer > now or warp_end_ms > now) {
+    if (warp_end_ms > now) {
         bg.freqx = 25.0;
         bg.freqy = 25.0;
         bg.ampx = 10.0;

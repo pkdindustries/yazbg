@@ -13,6 +13,11 @@ pub const Event = union(enum) {
     LevelUp,
     GameOver,
 
+    // Gameplay lifecycle events (pure game‑logic → graphics/audio/UI)
+    Spawn, // a new active piece appeared
+    Lock, // the piece was fixed to the grid
+    Hold, // player used the hold feature
+
     // Input events
     MoveLeft,
     MoveRight,

@@ -110,6 +110,10 @@ pub fn nextpiece() void {
     state.piece.y = 0;
     state.piece.r = 0;
     state.piece.swapped = false;
+
+    if (!state.gameover) {
+        events.push(.Spawn);
+    }
     if (!checkmove(state.piece.x, state.piece.y)) {
         for (0..Grid.HEIGHT) |r| {
             anim.linecleardown(r);
@@ -134,6 +138,8 @@ pub fn swappiece() void {
     }
     state.piece.swapped = true;
     state.lastmove_ms = state.current_time_ms;
+
+    events.push(.Hold);
     return;
 }
 
@@ -215,6 +221,9 @@ pub fn harddrop() void {
     if (cleared > 0) {
         events.push(.{ .Clear = @as(u8, @intCast(cleared)) });
     }
+
+    // Piece is now locked into the grid.
+    events.push(.Lock);
 
     // spawn a new piece after the drop has settled
     nextpiece();
