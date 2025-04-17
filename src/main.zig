@@ -3,6 +3,7 @@ const ray = @import("raylib.zig");
 const game = @import("game.zig");
 const sfx = @import("sfx.zig");
 const gfx = @import("gfx.zig");
+const hud = @import("hud.zig");
 const events = @import("events.zig");
 const level = @import("level.zig");
 
@@ -66,6 +67,7 @@ pub fn main() !void {
         // queued events after all gameplay code
         level.process(&events.queue);
         sfx.process(&events.queue);
+        hud.process(&events.queue);
         gfx.process(&events.queue);
         events.queue.clear();
 
