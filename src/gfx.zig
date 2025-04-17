@@ -311,7 +311,8 @@ fn roundedfillbox(x: i32, y: i32, color: [4]u8) void {
 
 var textbuf: [1000]u8 = undefined;
 fn ui() void {
-    ray.SetTextLineSpacing(22);
+    // Set reasonable line spacing for score display (factor of font size)
+    ray.SetTextLineSpacing(1.0);
 
     const bordercolor = ray.Color{
         .r = 0,
@@ -326,17 +327,17 @@ fn ui() void {
     ray.DrawLineEx(ray.Vector2{ .x = 140, .y = 0 }, ray.Vector2{ .x = 140, .y = @floatFromInt(Window.OGHEIGHT) }, 3, ray.RED);
     ray.DrawLineEx(ray.Vector2{ .x = Window.OGWIDTH - 135, .y = 0 }, ray.Vector2{ .x = Window.OGWIDTH - 135, .y = @floatFromInt(Window.OGHEIGHT) }, 3, ray.RED);
 
-    if (std.fmt.bufPrintZ(&textbuf, "score\n{}\nlines\n{}\nlevel\n{}", .{ game.state.progression.score, game.state.progression.cleared, game.state.progression.level })) |score| {
+    if (std.fmt.bufPrintZ(&textbuf, "score\n{}\n\nlines\n{}\n\nlevel\n{}", .{ game.state.progression.score, game.state.progression.cleared, game.state.progression.level })) |score| {
         var color = ray.GREEN;
         var size: f32 = 22;
         if (false) {
             scramblefx(score, 10);
             color = ray.RED;
-            size = 30;
+            size = 22;
         }
         // var scoreheight = ray.MeasureTextEx(sys.spacefont, score, size, 3).y;
         // var scorey = @as(f32, @floatFromInt(windowheight)) - scoreheight * 2;
-        ray.DrawTextEx(window.font, score, ray.Vector2{ .x = 10, .y = 620 }, size, 3, color);
+        ray.DrawTextEx(window.font, score, ray.Vector2{ .x = 10, .y = 590 }, 20, 0, color);
     } else |err| {
         std.debug.print("error printing score: {}\n", .{err});
     }
