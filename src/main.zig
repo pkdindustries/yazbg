@@ -3,6 +3,7 @@ const ray = @import("raylib.zig");
 const game = @import("game.zig");
 const sfx = @import("sfx.zig");
 const gfx = @import("gfx.zig");
+const events = @import("events.zig");
 
 const MS = 1_000_000;
 pub fn main() !void {
@@ -22,11 +23,20 @@ pub fn main() !void {
     printkeys();
 
     while (!ray.WindowShouldClose()) {
-        // fill music buffer
+        // Update game clock for this frame
+        const now_ms: i64 = @as(i64, @intCast(std.time.milliTimestamp()));
+        game.tick(now_ms);
+
+        // fill music buffer & process audio events
         sfx.updatemusic();
+        sfx.process(&events.queue);
         // tick
         if (game.dropready()) {
-            move(game.down, sfx.playclick, harddrop);
+            if (!game.down()) {
+                harddrop();
+            } else {
+                events.push(.Click);
+            }
         }
 
         // handle input
@@ -34,11 +44,11 @@ pub fn main() !void {
             ray.KEY_P => game.pause(),
             ray.KEY_R => game.reset(),
             ray.KEY_SPACE => harddrop(),
-            ray.KEY_LEFT => move(game.left, sfx.playclick, sfx.playerror),
-            ray.KEY_RIGHT => move(game.right, sfx.playclick, sfx.playerror),
-            ray.KEY_DOWN => move(game.down, sfx.playclick, harddrop),
-            ray.KEY_UP => move(game.rotate, sfx.playclick, sfx.playerror),
-            ray.KEY_C => move(game.swappiece, sfx.playwoosh, sfx.playerror),
+            ray.KEY_LEFT => if (game.left()) events.push(.Click) else events.push(.Error),
+            ray.KEY_RIGHT => if (game.right()) events.push(.Click) else events.push(.Error),
+            ray.KEY_DOWN => if (game.down()) events.push(.Click) else harddrop(),
+            ray.KEY_UP => if (game.rotate()) events.push(.Click) else events.push(.Error),
+            ray.KEY_C => if (game.swappiece()) events.push(.Woosh) else events.push(.Error),
             ray.KEY_B => gfx.nextbackground(),
             ray.KEY_M => sfx.mute(),
             ray.KEY_N => sfx.nextmusic(),
@@ -63,8 +73,9 @@ pub fn main() !void {
 fn harddrop() void {
     if (game.frozen()) return;
 
-    sfx.playwoosh();
-    sfx.playclack();
+    // Sound effects
+    events.push(.Woosh);
+    events.push(.Clack);
 
     const lines: i32 = game.harddrop();
     progression(lines);
@@ -75,31 +86,20 @@ fn progression(lines: i32) void {
     if (lines < 1) return;
     game.state.progression.score += 1000 * lines * lines;
     game.state.progression.cleared += lines;
-    sfx.playclear();
-    if (lines > 3) sfx.playwin();
+    events.push(.{ .Clear = @as(u8, @intCast(lines)) });
+    if (lines > 3) events.push(.Win);
     if (game.state.progression.clearedthislevel > 6) {
         std.debug.print("level up\n", .{});
         gfx.nextbackground();
         sfx.nextmusic();
-        sfx.playlevel();
+        events.push(.LevelUp);
         game.state.progression.level += 1;
         game.state.progression.score += 1000 * game.state.progression.level;
-        game.state.progression.dropinterval -= 0.15;
+        game.state.progression.dropinterval_ms -= 150;
         game.state.progression.clearedthislevel = 0;
-        if (game.state.progression.dropinterval <= 0.1) {
-            game.state.progression.dropinterval = 0.1;
+        if (game.state.progression.dropinterval_ms <= 100) {
+            game.state.progression.dropinterval_ms = 100;
         }
-    }
-}
-
-// move the piece, if it can't move, call failback
-fn move(comptime movefn: fn () bool, comptime ok: fn () void, comptime fail: fn () void) void {
-    if (game.frozen())
-        return;
-    if (movefn()) {
-        ok();
-    } else {
-        fail();
     }
 }
 

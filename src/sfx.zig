@@ -3,6 +3,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const target = builtin.target;
 const game = @import("game.zig");
+const events = @import("events.zig");
 
 var errsound = ray.Sound{};
 var clacksound = ray.Sound{};
@@ -22,6 +23,27 @@ var music: [3][*:0]const u8 = .{
 };
 var songs: [3]ray.Music = undefined;
 var songindex: usize = 0;
+
+// -----------------------------------------------------------------------------
+// Event handling
+// -----------------------------------------------------------------------------
+
+/// Consume all queued events and translate them into concrete audio calls.
+pub fn process(queue: *events.EventQueue) void {
+    for (queue.items()) |e| {
+        switch (e) {
+            .Click => playclick(),
+            .Error => playerror(),
+            .Woosh => playwoosh(),
+            .Clack => playclack(),
+            .Clear => |_| playclear(),
+            .Win => playwin(),
+            .LevelUp => playlevel(),
+            .GameOver => playgameover(),
+        }
+    }
+    queue.clear();
+}
 
 pub fn init() !void {
     // audio

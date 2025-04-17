@@ -1,9 +1,23 @@
 const std = @import("std");
-const sfx = @import("sfx.zig");
+
 const anim = @import("animation.zig").Animated;
 const Grid = @import("grid.zig").Grid;
 const shapes = @import("pieces.zig");
 const GPA = std.heap.GeneralPurposeAllocator(.{});
+const events = @import("events.zig");
+
+// ---------------------------------------------------------------------------
+// Time handling
+// ---------------------------------------------------------------------------
+
+// The game logic does not obtain the current timestamp on its own.  Instead the
+// outer loop (main.zig) calls `tick(now_ms)` once per frame to inject the
+// monotonic time in milliseconds.  This makes the entire game state fully
+// deterministic and unit‑testable.
+
+// Return a monotonic timestamp in milliseconds.  This is used as the sole time
+// source for gameplay logic so that the game code stays completely decoupled
+// from rendering/audio libraries.
 
 pub const YAZBG = struct {
     alloc: GPA = undefined,
@@ -11,8 +25,10 @@ pub const YAZBG = struct {
     grid: *Grid = undefined,
     gameover: bool = false,
     paused: bool = false,
-    // time of last move
-    lastmove: f64 = 0,
+    // time of the last successful move (milliseconds, monotonic clock)
+    lastmove_ms: i64 = 0,
+    // latest timestamp pushed in via `tick()`
+    current_time_ms: i64 = 0,
     progression: struct {
         score: i32 = 0,
         level: i32 = 0,
@@ -20,8 +36,8 @@ pub const YAZBG = struct {
         cleared: i32 = 0,
         // lines cleared since last level up
         clearedthislevel: i32 = 0,
-        // time between drops
-        dropinterval: f64 = 2.0,
+        // time between automatic drops (in milliseconds)
+        dropinterval_ms: i64 = 2_000,
     } = .{},
     // current, next and held piece shapes
     piece: struct {
@@ -46,6 +62,12 @@ pub const YAZBG = struct {
 
 pub var state = YAZBG{};
 
+// Called once per frame by the host application.  All time‑dependent logic in
+// the game state uses `state.current_time_ms`, supplied via this function.
+pub fn tick(now_ms: i64) void {
+    state.current_time_ms = now_ms;
+}
+
 pub fn init() !void {
     std.debug.print("init game\n", .{});
     state.alloc = GPA{};
@@ -69,8 +91,9 @@ pub fn deinit() void {
 
 pub fn reset() void {
     std.debug.print("reset game\n", .{});
-    state.lastmove = 0;
+    state.lastmove_ms = 0;
     state.progression = .{};
+    state.progression.dropinterval_ms = 2_000;
     state.piece = .{};
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
     state.grid.deinit();
@@ -90,7 +113,7 @@ pub fn nextpiece() void {
     if (!checkmove(state.piece.x, state.piece.y)) {
         for (0..Grid.HEIGHT) |r| {
             anim.linecleardown(r);
-            sfx.playgameover();
+            events.push(.GameOver);
         }
         state.piece.current = null;
         state.gameover = true;
@@ -110,7 +133,7 @@ pub fn swappiece() bool {
         nextpiece();
     }
     state.piece.swapped = true;
-    state.lastmove = sfx.ray.GetTime();
+    state.lastmove_ms = state.current_time_ms;
     return state.piece.swapped;
 }
 
@@ -180,7 +203,7 @@ pub fn harddrop() i32 {
         }
     }
 
-    state.lastmove = sfx.ray.GetTime();
+    state.lastmove_ms = state.current_time_ms;
     const cleared = state.grid.clear();
     std.debug.print("game.drop done {}\n", .{cleared});
     state.progression.clearedthislevel += cleared;
@@ -195,7 +218,7 @@ pub fn right() bool {
         return false;
     }
     slidepiece(x, y);
-    state.lastmove = sfx.ray.GetTime();
+    state.lastmove_ms = state.current_time_ms;
     return true;
 }
 
@@ -207,7 +230,7 @@ pub fn left() bool {
         return false;
     }
     slidepiece(x, y);
-    state.lastmove = sfx.ray.GetTime();
+    state.lastmove_ms = state.current_time_ms;
     return true;
 }
 
@@ -219,7 +242,7 @@ pub fn down() bool {
         return false;
     }
     slidepiece(x, y);
-    state.lastmove = sfx.ray.GetTime();
+    state.lastmove_ms = state.current_time_ms;
     return true;
 }
 
@@ -231,7 +254,7 @@ pub fn rotate() bool {
 
     // after rotation, the piece fits, return
     if (checkmove(state.piece.x, state.piece.y)) {
-        state.lastmove = sfx.ray.GetTime();
+        state.lastmove_ms = state.current_time_ms;
         return true;
     }
 
@@ -246,7 +269,7 @@ pub fn rotate() bool {
 
             if (checkmove(state.piece.x, state.piece.y)) {
                 std.debug.print("kick\n", .{});
-                state.lastmove = sfx.ray.GetTime();
+                state.lastmove_ms = state.current_time_ms;
                 return true;
             }
             // revert the kick
@@ -267,7 +290,7 @@ pub fn frozen() bool {
 
 pub fn dropready() bool {
     return !state.piece.slider.active and !frozen() and
-        (sfx.ray.GetTime() - state.lastmove >= state.progression.dropinterval);
+        (state.current_time_ms - state.lastmove_ms >= state.progression.dropinterval_ms);
 }
 
 // (0 for CW, 1 for CCW)
