@@ -10,7 +10,9 @@ pub const Event = union(enum) {
     Clack,
     Clear: u8, // payload = number of lines
     Win,
-    LevelUp,
+    LevelUp: u8,
+    /// New drop interval in milliseconds; emitted by level progression logic when reset or level up
+    DropInterval: i64,
     GameOver,
 
     // Gameplay lifecycle events (pure game‑logic → graphics/audio/UI)

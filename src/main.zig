@@ -66,6 +66,8 @@ pub fn main() !void {
 
         // queued events after all gameplay code
         level.process(&events.queue);
+        // propagate progression events (e.g., drop interval changes)
+        game.process(&events.queue);
         sfx.process(&events.queue);
         hud.process(&events.queue);
         gfx.process(&events.queue);

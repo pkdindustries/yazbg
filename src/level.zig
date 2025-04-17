@@ -17,6 +17,8 @@ pub var progression: Progression = .{};
 
 fn handleReset() void {
     progression = .{};
+    // inform subscribers of reset drop interval
+    events.push(.{ .DropInterval = progression.dropinterval_ms });
 }
 
 /// Handles progression-related events and updates local progression state.
@@ -42,13 +44,16 @@ fn handleClear(lines: u8) void {
     // Level up
     progression.clearedthislevel += cleared;
     if (progression.clearedthislevel > 6) {
-        events.push(.LevelUp);
         progression.level += 1;
+
         progression.score += 1000 * progression.level;
         progression.dropinterval_ms -= 150;
         progression.clearedthislevel = 0;
         if (progression.dropinterval_ms <= 100) {
             progression.dropinterval_ms = 100;
         }
+
+        events.push(.{ .LevelUp = @as(u8, @intCast(progression.level)) });
+        events.push(.{ .DropInterval = progression.dropinterval_ms });
     }
 }

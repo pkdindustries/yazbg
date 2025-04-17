@@ -3,7 +3,6 @@ const ray = @import("raylib.zig");
 const sfx = @import("sfx.zig");
 const game = @import("game.zig");
 const hud = @import("hud.zig");
-const level = @import("level.zig");
 
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
@@ -57,7 +56,8 @@ var bg = Background{};
 // graphics‑only reactions (e.g. Clear/GameOver events) so we no longer need to
 // mutate the game state from inside the renderer.
 var warp_end_ms: i64 = 0;
-
+var dropIntervalMs: i64 = 0;
+var level: u8 = 0;
 // static shader
 var static: ray.Shader = undefined;
 var statictimeloc: i32 = 0;
@@ -120,7 +120,10 @@ pub fn process(queue: *events.EventQueue) void {
     // kept exhaustive so the compiler reminds us when new events are added.
     const now = std.time.milliTimestamp();
     for (queue.items()) |e| switch (e) {
-        .LevelUp => nextbackground(),
+        .LevelUp => |newlevel| {
+            nextbackground();
+            level = newlevel;
+        },
         .Clear => |lines| {
             // Prolong the background warp effect proportionally to the number
             // of lines removed so it is visible even when the grid animation
@@ -136,6 +139,8 @@ pub fn process(queue: *events.EventQueue) void {
         },
         // no‑op for the remaining events
         .Spawn, .Lock, .Hold, .Click, .Error, .Woosh, .Clack, .Win, .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece, .Pause, .Reset => {},
+        // update local drop interval on DropInterval events
+        .DropInterval => |ms| dropIntervalMs = ms,
     };
 }
 
@@ -233,8 +238,8 @@ fn preshade() void {
         bg.freqy = 10.0;
         bg.ampx = 2.0;
         bg.ampy = 2.0;
-        bg.speedx = 0.15 * (@as(f32, @floatFromInt(level.progression.level)) + 2);
-        bg.speedy = 0.15 * (@as(f32, @floatFromInt(level.progression.level)) + 2);
+        bg.speedx = 0.15 * (@as(f32, @floatFromInt(level)) + 2);
+        bg.speedy = 0.15 * (@as(f32, @floatFromInt(level)) + 2);
     }
 
     ray.SetShaderValue(bg.shader, bg.freqxloc, &bg.freqx, ray.SHADER_UNIFORM_FLOAT);

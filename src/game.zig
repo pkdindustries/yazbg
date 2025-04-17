@@ -5,20 +5,6 @@ const Grid = @import("grid.zig").Grid;
 const shapes = @import("pieces.zig");
 const GPA = std.heap.GeneralPurposeAllocator(.{});
 const events = @import("events.zig");
-const level = @import("level.zig");
-
-// ---------------------------------------------------------------------------
-// Time handling
-// ---------------------------------------------------------------------------
-
-// The game logic does not obtain the current timestamp on its own.  Instead the
-// outer loop (main.zig) calls `tick(now_ms)` once per frame to inject the
-// monotonic time in milliseconds.  This makes the entire game state fully
-// deterministic and unit‑testable.
-
-// Return a monotonic timestamp in milliseconds.  This is used as the sole time
-// source for gameplay logic so that the game code stays completely decoupled
-// from rendering/audio libraries.
 
 pub const YAZBG = struct {
     alloc: GPA = undefined,
@@ -30,6 +16,8 @@ pub const YAZBG = struct {
     lastmove_ms: i64 = 0,
     // latest timestamp pushed in via `tick()`
     current_time_ms: i64 = 0,
+    // current drop interval (ms), owned by level module and received via events
+    dropinterval_ms: i64 = 2_000,
     // current, next and held piece shapes
     piece: struct {
         current: ?shapes.tetramino = null,
@@ -308,7 +296,7 @@ pub fn frozen() bool {
 
 pub fn dropready() bool {
     return !state.piece.slider.active and !frozen() and
-        (state.current_time_ms - state.lastmove_ms >= level.progression.dropinterval_ms);
+        (state.current_time_ms - state.lastmove_ms >= state.dropinterval_ms);
 }
 
 // (0 for CW, 1 for CCW)
@@ -341,6 +329,16 @@ pub fn handleInput(queue: *events.EventQueue) void {
             .SwapPiece => swappiece(),
             .Pause => pause(),
             .Reset => reset(),
+            else => {},
+        }
+    }
+}
+
+/// Handle progression events emitted by level (e.g., drop interval changes).
+pub fn process(queue: *events.EventQueue) void {
+    for (queue.items()) |e| {
+        switch (e) {
+            .DropInterval => |ms| state.dropinterval_ms = ms,
             else => {},
         }
     }

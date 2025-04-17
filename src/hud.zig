@@ -38,7 +38,7 @@ pub fn process(queue: *events.EventQueue) void {
                 // Basic Tetris‑style scoring: 1000 × (lines²)
                 state.score += 1000 * lines * lines;
             },
-            .LevelUp => {
+            .LevelUp => |_| {
                 state.level += 1;
                 // Bonus points on level up.
                 state.score += 1000 * state.level;
@@ -52,7 +52,7 @@ pub fn process(queue: *events.EventQueue) void {
             .GameOver => state.gameover = true,
 
             // Events that do not influence the HUD yet.
-            .Click, .Error, .Woosh, .Clack, .Win, .Spawn, .Lock, .Hold, .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece => {},
+            .Click, .Error, .Woosh, .Clack, .Win, .Spawn, .Lock, .Hold, .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece, .DropInterval => {},
         }
     }
 }
