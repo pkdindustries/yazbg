@@ -120,8 +120,10 @@ pub fn process(queue: *events.EventQueue) void {
             nextbackground();
             warp_end_ms = now + 300;
         },
+
         // no‑op for the remaining events
-        .Click, .Error, .Woosh, .Clack, .Win => {},
+        .Click, .Error, .Woosh, .Clack, .Win,
+        .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece, .Pause, .Reset => {},
     };
 }
 

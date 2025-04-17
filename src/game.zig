@@ -268,7 +268,6 @@ pub fn down() bool {
 pub fn rotate() void {
     const oldr: u32 = state.piece.r;
     state.piece.r = (state.piece.r + 1) % 4; // increment and wrap around the rotation
-    std.debug.print("rotation {} -> {}\n", .{ oldr, state.piece.r });
 
     // after rotation, the piece fits, return
     if (checkmove(state.piece.x, state.piece.y)) {
@@ -329,4 +328,22 @@ fn slidepiece(x: i32, y: i32) void {
     state.piece.y = state.piece.slider.targety;
     state.piece.slider.start_time = std.time.milliTimestamp();
     state.piece.slider.active = true;
+}
+
+pub fn handleInput(queue: *events.EventQueue) void {
+    for (queue.items()) |e| {
+        switch (e) {
+            .MoveLeft => left(),
+            .MoveRight => right(),
+            .MoveDown => {
+                if (!down()) harddrop();
+            },
+            .Rotate => rotate(),
+            .HardDrop => harddrop(),
+            .SwapPiece => swappiece(),
+            .Pause => pause(),
+            .Reset => reset(),
+            else => {},
+        }
+    }
 }

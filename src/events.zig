@@ -12,6 +12,16 @@ pub const Event = union(enum) {
     Win,
     LevelUp,
     GameOver,
+
+    // Input events
+    MoveLeft,
+    MoveRight,
+    MoveDown,
+    Rotate,
+    HardDrop,
+    SwapPiece,
+    Pause,
+    Reset,
 };
 
 /// Very small fixed‑size queue – enough for one frame.
@@ -24,6 +34,7 @@ pub const EventQueue = struct {
         if (self.len < MAX) {
             self.events[self.len] = e;
             self.len += 1;
+            std.debug.print("{any}\n", .{e});
         } else {
             // Silently drop when overflow – should never happen in this game.
             std.debug.print("EventQueue overflow – dropping event {any}\n", .{e});
@@ -48,9 +59,6 @@ pub const EventQueue = struct {
 
 pub var queue: EventQueue = .{};
 
-/// Convenience helper so callers do not have to take the address of the global
-/// queue.
 pub inline fn push(e: Event) void {
     queue.push(e);
 }
-

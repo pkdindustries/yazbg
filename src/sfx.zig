@@ -44,6 +44,9 @@ pub fn process(queue: *events.EventQueue) void {
                 nextmusic();
             },
             .GameOver => playgameover(),
+
+            // input events do not trigger audio directly (yet)
+            .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece, .Pause, .Reset => {},
         }
     }
 }

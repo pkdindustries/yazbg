@@ -25,30 +25,40 @@ pub fn main() !void {
 
     while (!ray.WindowShouldClose()) {
         // Update game clock for this frame
-        const now_ms: i64 = @as(i64, @intCast(std.time.milliTimestamp()));
-        game.tick(now_ms);
+
+        game.tick(std.time.milliTimestamp());
         sfx.updatemusic();
+
+        switch (ray.GetKeyPressed()) {
+            ray.KEY_P => events.push(.Pause),
+            ray.KEY_R => events.push(.Reset),
+            ray.KEY_SPACE => events.push(.HardDrop),
+            ray.KEY_LEFT => events.push(.MoveLeft),
+            ray.KEY_RIGHT => events.push(.MoveRight),
+            ray.KEY_DOWN => events.push(.MoveDown),
+            ray.KEY_UP => events.push(.Rotate),
+            ray.KEY_C => events.push(.SwapPiece),
+
+            // These keys still trigger immediate effects in their respective
+            // subsystems – they are unrelated to the core gameplay mechanics.
+            ray.KEY_B => gfx.nextbackground(),
+            ray.KEY_M => sfx.mute(),
+            ray.KEY_N => sfx.nextmusic(),
+
+            ray.KEY_L => checkleak(),
+            else => {},
+        }
+
+        // Let the game state consume all input events before any further game
+        // logic runs this frame (auto‑drop, etc.).
+        game.handleInput(&events.queue);
+
+        // Automatic drop after player input has been handled so that a
+        // just‑moved piece is not dropped immediately within the same frame.
         if (game.dropready()) {
             if (!game.down()) {
                 game.harddrop();
             }
-        }
-
-        // handle input
-        switch (ray.GetKeyPressed()) {
-            ray.KEY_P => game.pause(),
-            ray.KEY_R => game.reset(),
-            ray.KEY_SPACE => game.harddrop(),
-            ray.KEY_LEFT => game.left(),
-            ray.KEY_RIGHT => game.right(),
-            ray.KEY_DOWN => if (!game.down()) game.harddrop(),
-            ray.KEY_UP => game.rotate(),
-            ray.KEY_C => game.swappiece(),
-            ray.KEY_B => gfx.nextbackground(),
-            ray.KEY_M => sfx.mute(),
-            ray.KEY_N => sfx.nextmusic(),
-            ray.KEY_L => checkleak(),
-            else => {},
         }
 
         const gamelogic_elapsed = timer.lap();
