@@ -51,6 +51,11 @@ pub const Background = struct {
 var window = Window{};
 var bg = Background{};
 
+// Additional local effect timer to decouple from gameplay code.  Set by
+// graphics‑only reactions (e.g. Clear/GameOver events) so we no longer need to
+// mutate the game state from inside the renderer.
+var warp_end_ms: i64 = 0;
+
 // static shader
 var static: ray.Shader = undefined;
 var statictimeloc: i32 = 0;
@@ -84,6 +89,40 @@ pub fn frame() void {
         ray.DrawTexturePro(window.texture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
     }
     ray.EndDrawing();
+}
+
+// -----------------------------------------------------------------------------
+// Event handling – react to high‑level gameplay events that influence rendering
+// but should not be triggered directly from game logic or main.zig.
+// -----------------------------------------------------------------------------
+
+const events = @import("events.zig");
+
+/// Inspect the queued events and perform graphics‑related side effects.
+/// Must be called once per frame.  Does NOT clear the queue – caller decides
+/// when every subsystem has consumed the events.
+pub fn process(queue: *events.EventQueue) void {
+    // Currently we only react to a subset of events.  The switch statement is
+    // kept exhaustive so the compiler reminds us when new events are added.
+    const now = std.time.milliTimestamp();
+    for (queue.items()) |e| switch (e) {
+        .LevelUp => nextbackground(),
+        .Clear => |lines| {
+            // Prolong the background warp effect proportionally to the number
+            // of lines removed so it is visible even when the grid animation
+            // finishes very quickly.
+            const extra_ms: i64 = 120 * @as(i64, @intCast(lines));
+            if (warp_end_ms < now + extra_ms) warp_end_ms = now + extra_ms;
+        },
+        .GameOver => {
+            // Immediately intensify the warp and pick a contrasting background
+            // to highlight the end of the run.
+            nextbackground();
+            warp_end_ms = now + 300;
+        },
+        // no‑op for the remaining events
+        .Click, .Error, .Woosh, .Clack, .Win => {},
+    };
 }
 
 pub fn init() !void {
@@ -167,7 +206,8 @@ fn preshade() void {
     ray.SetShaderValue(bg.shader, bg.secondsloc, &@as(f32, @floatCast(ray.GetTime())), ray.SHADER_UNIFORM_FLOAT);
     ray.SetShaderValue(static, statictimeloc, &@as(f32, @floatCast(ray.GetTime())), ray.SHADER_UNIFORM_FLOAT);
 
-    if (game.state.grid.cleartimer > (std.time.milliTimestamp())) {
+    const now = std.time.milliTimestamp();
+    if (game.state.grid.cleartimer > now or warp_end_ms > now) {
         bg.freqx = 25.0;
         bg.freqy = 25.0;
         bg.ampx = 10.0;

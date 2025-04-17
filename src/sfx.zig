@@ -38,11 +38,14 @@ pub fn process(queue: *events.EventQueue) void {
             .Clack => playclack(),
             .Clear => |_| playclear(),
             .Win => playwin(),
-            .LevelUp => playlevel(),
+            .LevelUp => {
+                // level up jingle and switch to the next track
+                playlevel();
+                nextmusic();
+            },
             .GameOver => playgameover(),
         }
     }
-    queue.clear();
 }
 
 pub fn init() !void {

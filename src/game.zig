@@ -177,7 +177,13 @@ pub fn checkmove(x: i32, y: i32) bool {
 }
 
 // drop the piece to the bottom, clear lines and return num cleared
-pub fn harddrop() i32 {
+pub fn harddrop() void {
+    if (frozen()) return;
+
+    // immediate sound effects (handled by audio subsystem)
+    events.push(.Woosh);
+    events.push(.Clack);
+
     std.debug.print("game.drop\n", .{});
     var y = state.piece.y;
     while (checkmove(state.piece.x, y + 1)) : (y += 1) {}
@@ -194,7 +200,7 @@ pub fn harddrop() i32 {
                         const iy = @as(usize, @intCast(gy));
                         const ac = anim.init(state.alloc.allocator(), ix, iy, piece.color) catch |err| {
                             std.debug.print("failed to allocate cell: {}\n", .{err});
-                            return 0;
+                            return;
                         };
                         state.grid.cells[iy][ix] = ac;
                     }
@@ -206,8 +212,35 @@ pub fn harddrop() i32 {
     state.lastmove_ms = state.current_time_ms;
     const cleared = state.grid.clear();
     std.debug.print("game.drop done {}\n", .{cleared});
-    state.progression.clearedthislevel += cleared;
-    return cleared;
+    // ---------------------------------------------------------------------
+    // Progression + score bookkeeping (was previously done in main).  Keeping
+    // it here keeps all game‑state mutations inside the game module and lets
+    // the outer loop stay purely orchestration.
+    // ---------------------------------------------------------------------
+    if (cleared > 0) {
+        state.progression.score += @as(i32, 1000) * cleared * cleared;
+        state.progression.cleared += cleared;
+        events.push(.{ .Clear = @as(u8, @intCast(cleared)) });
+        if (cleared > 3) events.push(.Win);
+
+        state.progression.clearedthislevel += cleared;
+        if (state.progression.clearedthislevel > 6) {
+            std.debug.print("level up\n", .{});
+            events.push(.LevelUp);
+            state.progression.level += 1;
+            state.progression.score += @as(i32, 1000) * state.progression.level;
+            state.progression.dropinterval_ms -= 150;
+            state.progression.clearedthislevel = 0;
+            if (state.progression.dropinterval_ms <= 100) {
+                state.progression.dropinterval_ms = 100;
+            }
+        }
+    }
+
+    // spawn a new piece after the drop has settled
+    nextpiece();
+
+    return;
 }
 
 // move piece right

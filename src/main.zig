@@ -26,14 +26,10 @@ pub fn main() !void {
         // Update game clock for this frame
         const now_ms: i64 = @as(i64, @intCast(std.time.milliTimestamp()));
         game.tick(now_ms);
-
-        // fill music buffer & process audio events
         sfx.updatemusic();
-        sfx.process(&events.queue);
-        // tick
         if (game.dropready()) {
             if (!game.down()) {
-                harddrop();
+                game.harddrop();
             } else {
                 events.push(.Click);
             }
@@ -43,10 +39,10 @@ pub fn main() !void {
         switch (ray.GetKeyPressed()) {
             ray.KEY_P => game.pause(),
             ray.KEY_R => game.reset(),
-            ray.KEY_SPACE => harddrop(),
+            ray.KEY_SPACE => game.harddrop(),
             ray.KEY_LEFT => if (game.left()) events.push(.Click) else events.push(.Error),
             ray.KEY_RIGHT => if (game.right()) events.push(.Click) else events.push(.Error),
-            ray.KEY_DOWN => if (game.down()) events.push(.Click) else harddrop(),
+            ray.KEY_DOWN => if (game.down()) events.push(.Click) else game.harddrop(),
             ray.KEY_UP => if (game.rotate()) events.push(.Click) else events.push(.Error),
             ray.KEY_C => if (game.swappiece()) events.push(.Woosh) else events.push(.Error),
             ray.KEY_B => gfx.nextbackground(),
@@ -58,6 +54,11 @@ pub fn main() !void {
 
         const gamelogic_elapsed = timer.lap();
 
+        // queued events after all gameplay code
+        sfx.process(&events.queue);
+        gfx.process(&events.queue);
+        events.queue.clear();
+
         // draw the frame
         gfx.frame();
 
@@ -66,39 +67,6 @@ pub fn main() !void {
         const total_elapsed = gamelogic_elapsed + frametime_elapsed;
         if (gamelogic_elapsed > 5 * MS or frametime_elapsed > 10 * MS) {
             std.debug.print("frame {}ms, game {}ms, total {}ms, raytime {d:.2}\n", .{ frametime_elapsed / MS, gamelogic_elapsed / MS, total_elapsed / MS, ray.GetFrameTime() * MS / 1000 });
-        }
-    }
-}
-
-fn harddrop() void {
-    if (game.frozen()) return;
-
-    // Sound effects
-    events.push(.Woosh);
-    events.push(.Clack);
-
-    const lines: i32 = game.harddrop();
-    progression(lines);
-    game.nextpiece();
-}
-
-fn progression(lines: i32) void {
-    if (lines < 1) return;
-    game.state.progression.score += 1000 * lines * lines;
-    game.state.progression.cleared += lines;
-    events.push(.{ .Clear = @as(u8, @intCast(lines)) });
-    if (lines > 3) events.push(.Win);
-    if (game.state.progression.clearedthislevel > 6) {
-        std.debug.print("level up\n", .{});
-        gfx.nextbackground();
-        sfx.nextmusic();
-        events.push(.LevelUp);
-        game.state.progression.level += 1;
-        game.state.progression.score += 1000 * game.state.progression.level;
-        game.state.progression.dropinterval_ms -= 150;
-        game.state.progression.clearedthislevel = 0;
-        if (game.state.progression.dropinterval_ms <= 100) {
-            game.state.progression.dropinterval_ms = 100;
         }
     }
 }
