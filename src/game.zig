@@ -120,10 +120,10 @@ pub fn nextpiece() void {
     }
 }
 
-pub fn swappiece() bool {
+pub fn swappiece() void {
     if (state.piece.swapped) {
         std.debug.print("already swapped\n", .{});
-        return false;
+        return;
     }
     if (state.piece.held) |held| {
         state.piece.held = state.piece.current;
@@ -134,7 +134,7 @@ pub fn swappiece() bool {
     }
     state.piece.swapped = true;
     state.lastmove_ms = state.current_time_ms;
-    return state.piece.swapped;
+    return;
 }
 
 pub fn pause() void {
@@ -212,29 +212,8 @@ pub fn harddrop() void {
     state.lastmove_ms = state.current_time_ms;
     const cleared = state.grid.clear();
     std.debug.print("game.drop done {}\n", .{cleared});
-    // ---------------------------------------------------------------------
-    // Progression + score bookkeeping (was previously done in main).  Keeping
-    // it here keeps all game‑state mutations inside the game module and lets
-    // the outer loop stay purely orchestration.
-    // ---------------------------------------------------------------------
     if (cleared > 0) {
-        state.progression.score += @as(i32, 1000) * cleared * cleared;
-        state.progression.cleared += cleared;
         events.push(.{ .Clear = @as(u8, @intCast(cleared)) });
-        if (cleared > 3) events.push(.Win);
-
-        state.progression.clearedthislevel += cleared;
-        if (state.progression.clearedthislevel > 6) {
-            std.debug.print("level up\n", .{});
-            events.push(.LevelUp);
-            state.progression.level += 1;
-            state.progression.score += @as(i32, 1000) * state.progression.level;
-            state.progression.dropinterval_ms -= 150;
-            state.progression.clearedthislevel = 0;
-            if (state.progression.dropinterval_ms <= 100) {
-                state.progression.dropinterval_ms = 100;
-            }
-        }
     }
 
     // spawn a new piece after the drop has settled
@@ -244,27 +223,31 @@ pub fn harddrop() void {
 }
 
 // move piece right
-pub fn right() bool {
+pub fn right() void {
     const x: i32 = state.piece.x + 1;
     const y = state.piece.y;
     if (!checkmove(x, y)) {
-        return false;
+        events.push(.Error);
+        return;
     }
     slidepiece(x, y);
     state.lastmove_ms = state.current_time_ms;
-    return true;
+    events.push(.Click);
+    return;
 }
 
 // move piece left
-pub fn left() bool {
+pub fn left() void {
     const x: i32 = state.piece.x - 1;
     const y = state.piece.y;
     if (!checkmove(x, y)) {
-        return false;
+        events.push(.Error);
+        return;
     }
     slidepiece(x, y);
     state.lastmove_ms = state.current_time_ms;
-    return true;
+    events.push(.Click);
+    return;
 }
 
 // move piece down
@@ -272,15 +255,17 @@ pub fn down() bool {
     const x: i32 = state.piece.x;
     const y: i32 = state.piece.y + 1;
     if (!checkmove(x, y)) {
+        events.push(.Error);
         return false;
     }
     slidepiece(x, y);
     state.lastmove_ms = state.current_time_ms;
+    events.push(.Click);
     return true;
 }
 
 // rotate piece clockwise
-pub fn rotate() bool {
+pub fn rotate() void {
     const oldr: u32 = state.piece.r;
     state.piece.r = (state.piece.r + 1) % 4; // increment and wrap around the rotation
     std.debug.print("rotation {} -> {}\n", .{ oldr, state.piece.r });
@@ -288,7 +273,8 @@ pub fn rotate() bool {
     // after rotation, the piece fits, return
     if (checkmove(state.piece.x, state.piece.y)) {
         state.lastmove_ms = state.current_time_ms;
-        return true;
+        events.push(.Click);
+        return;
     }
 
     // try wall-kicks to fit the piece
@@ -303,7 +289,8 @@ pub fn rotate() bool {
             if (checkmove(state.piece.x, state.piece.y)) {
                 std.debug.print("kick\n", .{});
                 state.lastmove_ms = state.current_time_ms;
-                return true;
+                events.push(.Click);
+                return;
             }
             // revert the kick
             std.debug.print("failed kick\n", .{});
@@ -314,7 +301,8 @@ pub fn rotate() bool {
 
     // unkickable, revert the rotation and return false
     state.piece.r = oldr;
-    return false;
+    events.push(.Error);
+    return;
 }
 
 pub fn frozen() bool {

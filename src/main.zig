@@ -4,6 +4,7 @@ const game = @import("game.zig");
 const sfx = @import("sfx.zig");
 const gfx = @import("gfx.zig");
 const events = @import("events.zig");
+const level = @import("level.zig");
 
 const MS = 1_000_000;
 pub fn main() !void {
@@ -30,8 +31,6 @@ pub fn main() !void {
         if (game.dropready()) {
             if (!game.down()) {
                 game.harddrop();
-            } else {
-                events.push(.Click);
             }
         }
 
@@ -40,11 +39,11 @@ pub fn main() !void {
             ray.KEY_P => game.pause(),
             ray.KEY_R => game.reset(),
             ray.KEY_SPACE => game.harddrop(),
-            ray.KEY_LEFT => if (game.left()) events.push(.Click) else events.push(.Error),
-            ray.KEY_RIGHT => if (game.right()) events.push(.Click) else events.push(.Error),
-            ray.KEY_DOWN => if (game.down()) events.push(.Click) else game.harddrop(),
-            ray.KEY_UP => if (game.rotate()) events.push(.Click) else events.push(.Error),
-            ray.KEY_C => if (game.swappiece()) events.push(.Woosh) else events.push(.Error),
+            ray.KEY_LEFT => game.left(),
+            ray.KEY_RIGHT => game.right(),
+            ray.KEY_DOWN => if (!game.down()) game.harddrop(),
+            ray.KEY_UP => game.rotate(),
+            ray.KEY_C => game.swappiece(),
             ray.KEY_B => gfx.nextbackground(),
             ray.KEY_M => sfx.mute(),
             ray.KEY_N => sfx.nextmusic(),
@@ -55,6 +54,7 @@ pub fn main() !void {
         const gamelogic_elapsed = timer.lap();
 
         // queued events after all gameplay code
+        level.process(&events.queue);
         sfx.process(&events.queue);
         gfx.process(&events.queue);
         events.queue.clear();
@@ -65,7 +65,7 @@ pub fn main() !void {
         // performance stats
         const frametime_elapsed = timer.lap();
         const total_elapsed = gamelogic_elapsed + frametime_elapsed;
-        if (gamelogic_elapsed > 5 * MS or frametime_elapsed > 10 * MS) {
+        if (gamelogic_elapsed > 1 * MS or frametime_elapsed > 10 * MS) {
             std.debug.print("frame {}ms, game {}ms, total {}ms, raytime {d:.2}\n", .{ frametime_elapsed / MS, gamelogic_elapsed / MS, total_elapsed / MS, ray.GetFrameTime() * MS / 1000 });
         }
     }
