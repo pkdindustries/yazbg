@@ -27,18 +27,21 @@ pub var state: Hud = .{};
 /// exactly once per frame after game logic has queued its events and before
 /// the renderer reads the HUD values.
 pub fn process(queue: *events.EventQueue) void {
-    for (queue.items()) |e| {
-        switch (e) {
+    for (queue.items()) |rec| {
+        switch (rec.event) {
             // -----------------------------------------------------------------
             // Gameplay progression
             // -----------------------------------------------------------------
             .Clear => |raw_lines| {
+                std.debug.print("process clear\n", .{});
+
                 const lines: i32 = @intCast(raw_lines);
                 state.lines += lines;
                 // Basic Tetris‑style scoring: 1000 × (lines²)
                 state.score += 1000 * lines * lines;
             },
             .LevelUp => |_| {
+                std.debug.print("process level up\n", .{});
                 state.level += 1;
                 // Bonus points on level up.
                 state.score += 1000 * state.level;

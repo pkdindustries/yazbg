@@ -30,8 +30,9 @@ var songindex: usize = 0;
 
 /// Consume all queued events and translate them into concrete audio calls.
 pub fn process(queue: *events.EventQueue) void {
-    for (queue.items()) |e| {
-        switch (e) {
+    for (queue.items()) |rec| {
+        // debug: print event, source, and timestamp
+        switch (rec.event) {
             .Click => playclick(),
             .Error => playerror(),
             .Woosh => playwoosh(),

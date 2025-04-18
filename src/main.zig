@@ -25,34 +25,31 @@ pub fn main() !void {
     printkeys();
 
     while (!ray.WindowShouldClose()) {
-        // Update game clock for this frame
-
+        // start‑of‑frame housekeeping
+        // anything that was defered
+        events.flushDeferred();
+        // update clock
         game.tick(std.time.milliTimestamp());
+        // keep music fed
         sfx.updatemusic();
 
         switch (ray.GetKeyPressed()) {
-            ray.KEY_P => events.push(.Pause),
-            ray.KEY_R => events.push(.Reset),
-            ray.KEY_SPACE => events.push(.HardDrop),
-            ray.KEY_LEFT => events.push(.MoveLeft),
-            ray.KEY_RIGHT => events.push(.MoveRight),
-            ray.KEY_DOWN => events.push(.MoveDown),
-            ray.KEY_UP => events.push(.Rotate),
-            ray.KEY_C => events.push(.SwapPiece),
-
-            // These keys still trigger immediate effects in their respective
-            // subsystems – they are unrelated to the core gameplay mechanics.
+            ray.KEY_P => events.push(.Pause, events.Source.Input),
+            ray.KEY_R => events.push(.Reset, events.Source.Input),
+            ray.KEY_SPACE => events.push(.HardDrop, events.Source.Input),
+            ray.KEY_LEFT => events.push(.MoveLeft, events.Source.Input),
+            ray.KEY_RIGHT => events.push(.MoveRight, events.Source.Input),
+            ray.KEY_DOWN => events.push(.MoveDown, events.Source.Input),
+            ray.KEY_UP => events.push(.Rotate, events.Source.Input),
+            ray.KEY_C => events.push(.SwapPiece, events.Source.Input),
             ray.KEY_B => gfx.nextbackground(),
             ray.KEY_M => sfx.mute(),
             ray.KEY_N => sfx.nextmusic(),
-
             ray.KEY_L => checkleak(),
             else => {},
         }
 
-        // Let the game state consume all input events before any further game
-        // logic runs this frame (auto‑drop, etc.).
-        game.handleInput(&events.queue);
+        const gamelogic_elapsed = timer.lap();
 
         // Automatic drop after player input has been handled so that a
         // just‑moved piece is not dropped immediately within the same frame.
@@ -62,12 +59,9 @@ pub fn main() !void {
             }
         }
 
-        const gamelogic_elapsed = timer.lap();
-
-        // queued events after all gameplay code
-        level.process(&events.queue);
-        // propagate progression events (e.g., drop interval changes)
+        // queued events
         game.process(&events.queue);
+        level.process(&events.queue);
         sfx.process(&events.queue);
         hud.process(&events.queue);
         gfx.process(&events.queue);
@@ -79,8 +73,8 @@ pub fn main() !void {
         // performance stats
         const frametime_elapsed = timer.lap();
         const total_elapsed = gamelogic_elapsed + frametime_elapsed;
-        if (gamelogic_elapsed > 1 * MS or frametime_elapsed > 10 * MS) {
-            std.debug.print("frame {}ms, game {}ms, total {}ms, raytime {d:.2}\n", .{ frametime_elapsed / MS, gamelogic_elapsed / MS, total_elapsed / MS, ray.GetFrameTime() * MS / 1000 });
+        if (gamelogic_elapsed > 1 * MS or frametime_elapsed > 17 * MS) {
+            std.debug.print("frame {}ms, game {}ms, total {}ms\n", .{ frametime_elapsed / MS, gamelogic_elapsed / MS, total_elapsed / MS });
         }
     }
 }

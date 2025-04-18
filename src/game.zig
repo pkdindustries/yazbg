@@ -89,7 +89,7 @@ pub fn nextpiece() void {
     state.piece.swapped = false;
 
     if (!state.gameover) {
-        events.push(.Spawn);
+        events.push(.Spawn, events.Source.Game);
     }
     if (!checkmove(state.piece.x, state.piece.y)) {
         for (0..Grid.HEIGHT) |r| {
@@ -97,7 +97,7 @@ pub fn nextpiece() void {
         }
         state.piece.current = null;
         state.gameover = true;
-        events.push(.GameOver);
+        events.push(.GameOver, events.Source.Game);
     }
 }
 
@@ -116,7 +116,7 @@ pub fn swappiece() void {
     state.piece.swapped = true;
     state.lastmove_ms = state.current_time_ms;
 
-    events.push(.Hold);
+    events.push(.Hold, events.Source.Game);
     return;
 }
 
@@ -164,8 +164,8 @@ pub fn harddrop() void {
     if (frozen()) return;
 
     // immediate sound effects (handled by audio subsystem)
-    events.push(.Woosh);
-    events.push(.Clack);
+    events.push(.Woosh, events.Source.Game);
+    events.push(.Clack, events.Source.Game);
 
     std.debug.print("game.drop\n", .{});
     var y = state.piece.y;
@@ -196,11 +196,11 @@ pub fn harddrop() void {
     const cleared = state.grid.clear();
     std.debug.print("game.drop done {}\n", .{cleared});
     if (cleared > 0) {
-        events.push(.{ .Clear = @as(u8, @intCast(cleared)) });
+        events.push(.{ .Clear = @as(u8, @intCast(cleared)) }, events.Source.Game);
     }
 
     // Piece is now locked into the grid.
-    events.push(.Lock);
+    events.push(.Lock, events.Source.Game);
 
     // spawn a new piece after the drop has settled
     nextpiece();
@@ -213,12 +213,12 @@ pub fn right() void {
     const x: i32 = state.piece.x + 1;
     const y = state.piece.y;
     if (!checkmove(x, y)) {
-        events.push(.Error);
+        events.push(.Error, events.Source.Game);
         return;
     }
     slidepiece(x, y);
     state.lastmove_ms = state.current_time_ms;
-    events.push(.Click);
+    events.push(.Click, events.Source.Game);
     return;
 }
 
@@ -227,12 +227,12 @@ pub fn left() void {
     const x: i32 = state.piece.x - 1;
     const y = state.piece.y;
     if (!checkmove(x, y)) {
-        events.push(.Error);
+        events.push(.Error, events.Source.Game);
         return;
     }
     slidepiece(x, y);
     state.lastmove_ms = state.current_time_ms;
-    events.push(.Click);
+    events.push(.Click, events.Source.Game);
     return;
 }
 
@@ -241,12 +241,12 @@ pub fn down() bool {
     const x: i32 = state.piece.x;
     const y: i32 = state.piece.y + 1;
     if (!checkmove(x, y)) {
-        events.push(.Error);
+        events.push(.Error, events.Source.Game);
         return false;
     }
     slidepiece(x, y);
     state.lastmove_ms = state.current_time_ms;
-    events.push(.Click);
+    events.push(.Click, events.Source.Game);
     return true;
 }
 
@@ -258,7 +258,7 @@ pub fn rotate() void {
     // after rotation, the piece fits, return
     if (checkmove(state.piece.x, state.piece.y)) {
         state.lastmove_ms = state.current_time_ms;
-        events.push(.Click);
+        events.push(.Click, events.Source.Game);
         return;
     }
 
@@ -274,7 +274,7 @@ pub fn rotate() void {
             if (checkmove(state.piece.x, state.piece.y)) {
                 std.debug.print("kick\n", .{});
                 state.lastmove_ms = state.current_time_ms;
-                events.push(.Click);
+                events.push(.Click, events.Source.Game);
                 return;
             }
             // revert the kick
@@ -286,7 +286,7 @@ pub fn rotate() void {
 
     // unkickable, revert the rotation and return false
     state.piece.r = oldr;
-    events.push(.Error);
+    events.push(.Error, events.Source.Game);
     return;
 }
 
@@ -316,9 +316,15 @@ fn slidepiece(x: i32, y: i32) void {
     state.piece.slider.active = true;
 }
 
-pub fn handleInput(queue: *events.EventQueue) void {
-    for (queue.items()) |e| {
-        switch (e) {
+/// Handle progression events emitted by level (e.g., drop interval changes).
+pub fn process(queue: *events.EventQueue) void {
+    for (queue.items()) |rec| {
+        // debug: print event, source, and timestamp
+        switch (rec.event) {
+            .DropInterval => |ms| {
+                state.dropinterval_ms = ms;
+                std.debug.print("process game.dropinterval {}\n", .{ms});
+            },
             .MoveLeft => left(),
             .MoveRight => right(),
             .MoveDown => {
@@ -329,16 +335,6 @@ pub fn handleInput(queue: *events.EventQueue) void {
             .SwapPiece => swappiece(),
             .Pause => pause(),
             .Reset => reset(),
-            else => {},
-        }
-    }
-}
-
-/// Handle progression events emitted by level (e.g., drop interval changes).
-pub fn process(queue: *events.EventQueue) void {
-    for (queue.items()) |e| {
-        switch (e) {
-            .DropInterval => |ms| state.dropinterval_ms = ms,
             else => {},
         }
     }

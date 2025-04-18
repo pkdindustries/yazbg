@@ -1,6 +1,5 @@
 const std = @import("std");
 const ray = @import("raylib.zig");
-const sfx = @import("sfx.zig");
 const game = @import("game.zig");
 const hud = @import("hud.zig");
 
@@ -105,49 +104,41 @@ pub fn frame() void {
     ray.EndDrawing();
 }
 
-// -----------------------------------------------------------------------------
-// Event handling – react to high‑level gameplay events that influence rendering
-// but should not be triggered directly from game logic or main.zig.
-// -----------------------------------------------------------------------------
-
 const events = @import("events.zig");
 
-/// Inspect the queued events and perform graphics‑related side effects.
-/// Must be called once per frame.  Does NOT clear the queue – caller decides
-/// when every subsystem has consumed the events.
 pub fn process(queue: *events.EventQueue) void {
-    // Currently we only react to a subset of events.  The switch statement is
-    // kept exhaustive so the compiler reminds us when new events are added.
     const now = std.time.milliTimestamp();
-    for (queue.items()) |e| switch (e) {
-        .LevelUp => |newlevel| {
-            nextbackground();
-            level = newlevel;
-        },
-        .Clear => |lines| {
-            // Prolong the background warp effect proportionally to the number
-            // of lines removed so it is visible even when the grid animation
-            // finishes very quickly.
-            const extra_ms: i64 = 120 * @as(i64, @intCast(lines));
-            if (warp_end_ms < now + extra_ms) warp_end_ms = now + extra_ms;
-        },
-        .GameOver => {
-            // Immediately intensify the warp and pick a contrasting background
-            // to highlight the end of the run.
-            nextbackground();
-            warp_end_ms = now + 300;
-        },
-        // no‑op for the remaining events
-        .Spawn, .Lock, .Hold, .Click, .Error, .Woosh, .Clack, .Win, .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece, .Pause, .Reset => {},
-        // update local drop interval on DropInterval events
-        .DropInterval => |ms| dropIntervalMs = ms,
-    };
+    // Process and debug-print each event
+    for (queue.items()) |rec| {
+        switch (rec.event) {
+            .LevelUp => |newlevel| {
+                nextbackground();
+                level = newlevel;
+            },
+            .Clear => |lines| {
+                // Prolong the background warp effect proportionally to the number
+                // of lines removed so it is visible even when the grid animation
+                // finishes very quickly.
+                const extra_ms: i64 = 120 * @as(i64, @intCast(lines));
+                if (warp_end_ms < now + extra_ms) warp_end_ms = now + extra_ms;
+            },
+            .GameOver => {
+                // Immediately intensify the warp and pick a contrasting background
+                // to highlight the end of the run.
+                nextbackground();
+                warp_end_ms = now + 300;
+            },
+            // update local drop interval on DropInterval events
+            .DropInterval => |ms| dropIntervalMs = ms,
+            .Spawn, .Lock, .Hold, .Click, .Error, .Woosh, .Clack, .Win, .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece, .Pause, .Reset => {},
+        }
+    }
 }
 
 pub fn init() !void {
     std.debug.print("init gfx\n", .{});
     // window init
-    ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
+    ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE | ray.FLAG_VSYNC_HINT | ray.FLAG_WINDOW_UNDECORATED);
     ray.InitWindow(Window.OGWIDTH, Window.OGHEIGHT, "yazbg");
     window.texture = ray.LoadRenderTexture(Window.OGWIDTH, Window.OGHEIGHT);
     //ray.GenTextureMipmaps(&texture.texture);

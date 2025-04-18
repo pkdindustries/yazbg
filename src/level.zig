@@ -16,15 +16,17 @@ pub const Progression = struct {
 pub var progression: Progression = .{};
 
 fn handleReset() void {
+    std.debug.print("resetting progression\n", .{});
     progression = .{};
     // inform subscribers of reset drop interval
-    events.push(.{ .DropInterval = progression.dropinterval_ms });
+    events.push(.{ .DropInterval = progression.dropinterval_ms }, events.Source.Level);
 }
 
 /// Handles progression-related events and updates local progression state.
 pub fn process(queue: *events.EventQueue) void {
-    for (queue.items()) |e| {
-        switch (e) {
+    for (queue.items()) |rec| {
+        // debug: print event, source, and timestamp
+        switch (rec.event) {
             .Reset => handleReset(),
             .Clear => |lines| handleClear(lines),
             else => {},
@@ -33,13 +35,15 @@ pub fn process(queue: *events.EventQueue) void {
 }
 
 fn handleClear(lines: u8) void {
+    std.debug.print("clearing {d} lines\n", .{lines});
     const cleared = @as(i32, lines);
     // Score: 1000 * (lines^2)
     progression.score += 1000 * cleared * cleared;
     progression.cleared += cleared;
     // Tetris bonus
     if (cleared > 3) {
-        events.push(.Win);
+        // Defer follow‑up events so that they are visible in the next frame.
+        events.pushDeferred(.Win, events.Source.Level);
     }
     // Level up
     progression.clearedthislevel += cleared;
@@ -53,7 +57,7 @@ fn handleClear(lines: u8) void {
             progression.dropinterval_ms = 100;
         }
 
-        events.push(.{ .LevelUp = @as(u8, @intCast(progression.level)) });
-        events.push(.{ .DropInterval = progression.dropinterval_ms });
+        events.pushDeferred(.{ .LevelUp = @as(u8, @intCast(progression.level)) }, events.Source.Level);
+        events.pushDeferred(.{ .DropInterval = progression.dropinterval_ms }, events.Source.Level);
     }
 }
