@@ -27,15 +27,6 @@ pub const YAZBG = struct {
         x: i32 = 0,
         y: i32 = 0,
         r: u32 = 0,
-        slider: struct {
-            active: bool = false,
-            start_time: i64 = 0,
-            duration: i64 = 50,
-            targetx: i32 = 0,
-            targety: i32 = 0,
-            sourcex: i32 = 0,
-            sourcey: i32 = 0,
-        } = .{},
     } = .{},
 };
 
@@ -216,7 +207,8 @@ pub fn right() void {
         events.push(.Error, events.Source.Game);
         return;
     }
-    slidepiece(x, y);
+    state.piece.x = x;
+    state.piece.y = y;
     state.lastmove_ms = state.current_time_ms;
     events.push(.Click, events.Source.Game);
     return;
@@ -230,7 +222,8 @@ pub fn left() void {
         events.push(.Error, events.Source.Game);
         return;
     }
-    slidepiece(x, y);
+    state.piece.x = x;
+    state.piece.y = y;
     state.lastmove_ms = state.current_time_ms;
     events.push(.Click, events.Source.Game);
     return;
@@ -244,7 +237,8 @@ pub fn down() bool {
         events.push(.Error, events.Source.Game);
         return false;
     }
-    slidepiece(x, y);
+    state.piece.x = x;
+    state.piece.y = y;
     state.lastmove_ms = state.current_time_ms;
     events.push(.Click, events.Source.Game);
     return true;
@@ -295,25 +289,13 @@ pub fn frozen() bool {
 }
 
 pub fn dropready() bool {
-    return !state.piece.slider.active and !frozen() and
-        (state.current_time_ms - state.lastmove_ms >= state.dropinterval_ms);
+    return !frozen() and (state.current_time_ms - state.lastmove_ms >= state.dropinterval_ms);
 }
 
 // (0 for CW, 1 for CCW)
 fn finddirection(oldr: u32, newr: u32) u32 {
     if (oldr > newr or (oldr == 0 and newr == 3) or (oldr == 3 and newr == 0)) return 1;
     return 0;
-}
-
-fn slidepiece(x: i32, y: i32) void {
-    state.piece.slider.targetx = x;
-    state.piece.slider.targety = y;
-    state.piece.slider.sourcex = state.piece.x;
-    state.piece.slider.sourcey = state.piece.y;
-    state.piece.x = state.piece.slider.targetx;
-    state.piece.y = state.piece.slider.targety;
-    state.piece.slider.start_time = std.time.milliTimestamp();
-    state.piece.slider.active = true;
 }
 
 /// Handle progression events emitted by level (e.g., drop interval changes).

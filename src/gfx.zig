@@ -92,6 +92,20 @@ var level: u8 = 0;
 var static: ray.Shader = undefined;
 var statictimeloc: i32 = 0;
 
+const Slide = struct {
+    active: bool = false,
+    start_time: i64 = 0,
+    duration: i64 = 50, // ms
+    sourcex: i32 = 0,
+    sourcey: i32 = 0,
+    targetx: i32 = 0,
+    targety: i32 = 0,
+};
+
+var slide: Slide = .{};
+var last_piece_x: i32 = 0;
+var last_piece_y: i32 = 0;
+
 pub fn frame() void {
     // resize
     updatescale();
@@ -161,11 +175,25 @@ pub fn process(queue: *events.EventQueue) void {
                 nextbackground();
                 warp_end_ms = now + 300;
             },
-            // update local drop interval on DropInterval events
+
+            .MoveLeft => startSlide(1, 0),
+            .MoveRight => startSlide(-1, 0),
+            .MoveDown => startSlide(0, -1),
+            // Drop interval tweaked by the level subsystem.
             .DropInterval => |ms| dropIntervalMs = ms,
-            .Spawn, .Lock, .Hold, .Click, .Error, .Woosh, .Clack, .Win, .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece, .Pause, .Reset => {},
+            .Spawn => slide.active = false,
+            .Lock, .Hold, .Click, .Error, .Woosh, .Clack, .Win, .Rotate, .HardDrop, .SwapPiece, .Pause, .Reset => {},
         }
     }
+}
+
+fn startSlide(dx: i32, dy: i32) void {
+    slide.active = true;
+    slide.start_time = std.time.milliTimestamp();
+    slide.targetx = game.state.piece.x * window.cellsize;
+    slide.targety = game.state.piece.y * window.cellsize;
+    slide.sourcex = slide.targetx + dx * window.cellsize;
+    slide.sourcey = slide.targety + dy * window.cellsize;
 }
 
 pub fn init() !void {
@@ -303,31 +331,30 @@ fn background() void {
 
 fn player() void {
     if (game.state.piece.current) |p| {
-        var drawX: i32 = game.state.piece.x * window.cellsize;
-        var drawY: i32 = game.state.piece.y * window.cellsize;
+        const drawX: i32 = game.state.piece.x * window.cellsize;
+        const drawY: i32 = game.state.piece.y * window.cellsize;
+
         var fdrawx: f32 = @floatFromInt(drawX);
         var fdrawy: f32 = @floatFromInt(drawY);
 
-        const elapsed_time = std.time.milliTimestamp() - game.state.piece.slider.start_time;
-        // animate the piece if the slider is active
-        if (game.state.piece.slider.active) {
-            drawX = game.state.piece.slider.sourcex * window.cellsize;
-            drawY = game.state.piece.slider.sourcey * window.cellsize;
-            fdrawx = @floatFromInt(drawX);
-            fdrawy = @floatFromInt(drawY);
-            const duration: f32 = @floatFromInt(game.state.piece.slider.duration);
+        if (slide.active) {
+            const elapsed_time = std.time.milliTimestamp() - slide.start_time;
+            const duration: f32 = @floatFromInt(slide.duration);
             const ratio: f32 = std.math.clamp(@as(f32, @floatFromInt(elapsed_time)) / duration, 0.0, 1.0);
-            const targetx: f32 = @floatFromInt(game.state.piece.x * window.cellsize);
-            const targety: f32 = @floatFromInt(game.state.piece.y * window.cellsize);
-            // lerp between the current position and the target position
-            fdrawx = std.math.lerp(fdrawx, targetx, ratio);
-            fdrawy = std.math.lerp(fdrawy, targety, ratio);
-            // deactivate slider, set position if animation is complete
-            if (elapsed_time >= game.state.piece.slider.duration) {
-                game.state.piece.slider.active = false;
-                if (elapsed_time > game.state.piece.slider.duration + 5)
-                    std.debug.print("slide {}ms\n", .{elapsed_time});
+
+            // interpolate between source and target (pixel coordinates)
+            fdrawx = std.math.lerp(@as(f32, @floatFromInt(slide.sourcex)), @as(f32, @floatFromInt(slide.targetx)), ratio);
+            fdrawy = std.math.lerp(@as(f32, @floatFromInt(slide.sourcey)), @as(f32, @floatFromInt(slide.targety)), ratio);
+
+            // stop animation when done
+            if (elapsed_time >= slide.duration) {
+                slide.active = false;
             }
+        } else {
+            // If the piece teleported (e.g. hard‑drop) make sure the next
+            // movement animates from the current cell.
+            last_piece_x = game.state.piece.x;
+            last_piece_y = game.state.piece.y;
         }
 
         const xdx: i32 = @intFromFloat(fdrawx);
