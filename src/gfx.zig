@@ -51,6 +51,37 @@ pub const Background = struct {
 var window = Window{};
 var bg = Background{};
 
+// window dragging
+var drag_active: bool = false;
+fn updatedrag() void {
+    const DRAG_BAR_HEIGHT: f32 = 600.0;
+    // Begin a new drag if the left button was just pressed inside the bar.
+    if (!drag_active and ray.IsMouseButtonPressed(ray.MOUSE_BUTTON_LEFT)) {
+        const mouse = ray.GetMousePosition();
+        if (mouse.y < DRAG_BAR_HEIGHT) {
+            drag_active = true;
+            _ = ray.GetMouseDelta();
+        }
+    }
+
+    // Update the window position while the drag is active.
+    if (drag_active) {
+        const delta = ray.GetMouseDelta();
+
+        if (delta.x != 0 or delta.y != 0) {
+            var win_pos = ray.GetWindowPosition();
+            win_pos.x += delta.x;
+            win_pos.y += delta.y;
+            ray.SetWindowPosition(@as(i32, @intFromFloat(win_pos.x)), @as(i32, @intFromFloat(win_pos.y)));
+        }
+
+        // Stop the drag once the button is released
+        if (!ray.IsMouseButtonDown(ray.MOUSE_BUTTON_LEFT)) {
+            drag_active = false;
+        }
+    }
+}
+
 // Additional local effect timer to decouple from gameplay code.  Set by
 // graphics‑only reactions (e.g. Clear/GameOver events) so we no longer need to
 // mutate the game state from inside the renderer.
@@ -64,6 +95,8 @@ var statictimeloc: i32 = 0;
 pub fn frame() void {
     // resize
     updatescale();
+    // Allow the user to move the undecorated window.
+    // updatedrag();
     // shader uniforms
     preshade();
     ray.BeginDrawing();
@@ -138,7 +171,7 @@ pub fn process(queue: *events.EventQueue) void {
 pub fn init() !void {
     std.debug.print("init gfx\n", .{});
     // window init
-    ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE | ray.FLAG_VSYNC_HINT | ray.FLAG_WINDOW_UNDECORATED);
+    ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE | ray.FLAG_VSYNC_HINT);
     ray.InitWindow(Window.OGWIDTH, Window.OGHEIGHT, "yazbg");
     window.texture = ray.LoadRenderTexture(Window.OGWIDTH, Window.OGHEIGHT);
     //ray.GenTextureMipmaps(&texture.texture);
