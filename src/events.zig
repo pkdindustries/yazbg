@@ -4,10 +4,7 @@ const std = @import("std");
 // Renderer/audio layer subscribes and performs real work.
 pub const Event = union(enum) {
     // Sound effects
-    Click,
     Error,
-    Woosh,
-    Clack,
     Clear: u8, // payload = number of lines
     Win,
     LevelUp: u8,
@@ -19,7 +16,7 @@ pub const Event = union(enum) {
     Spawn, // a new active piece appeared
     Lock, // the piece was fixed to the grid
     Hold, // player used the hold feature
-
+    Kick, // piece was kicked (rotated) into the grid
     // Input events
     MoveLeft,
     MoveRight,

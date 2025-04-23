@@ -183,7 +183,7 @@ pub fn process(queue: *events.EventQueue) void {
             // Drop interval tweaked by the level subsystem.
             .DropInterval => |ms| dropIntervalMs = ms,
             .Spawn => slide.active = false,
-            .Lock, .Hold, .Click, .Error, .Woosh, .Clack, .Win, .Rotate, .HardDrop, .SwapPiece, .Pause => {},
+            else => {},
         }
     }
 }

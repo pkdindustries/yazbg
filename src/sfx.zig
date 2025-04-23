@@ -33,11 +33,8 @@ pub fn process(queue: *events.EventQueue) void {
     for (queue.items()) |rec| {
         // debug: print event, source, and timestamp
         switch (rec.event) {
-            .Click => playclick(),
             .Error => playerror(),
-            .Woosh => playwoosh(),
-            .Clack => playclack(),
-            .Clear => |_| playclear(),
+            .Clear => playclear(),
             .Win => playwin(),
             .LevelUp => |_| {
                 // level up jingle and switch to the next track
@@ -46,9 +43,18 @@ pub fn process(queue: *events.EventQueue) void {
             },
             .GameOver => playgameover(),
             .Reset => reset(),
-
-            // input events do not trigger audio directly (yet)
-            .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece, .Pause, .Spawn, .Lock, .Hold, .DropInterval => {},
+            .MoveLeft => playclick(),
+            .MoveRight => playclick(),
+            .MoveDown => playclick(),
+            .Rotate => playclick(),
+            .HardDrop => {
+                playclack();
+                playwoosh();
+            },
+            .SwapPiece => playclick(),
+            .Pause => playclick(),
+            .Kick => playclack(),
+            else => {},
         }
     }
 }

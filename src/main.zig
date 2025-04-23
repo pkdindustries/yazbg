@@ -10,6 +10,7 @@ const level = @import("level.zig");
 const MS = 1_000_000;
 pub fn main() !void {
     var timer = try std.time.Timer.start();
+    ray.SetTraceLogLevel(ray.LOG_WARNING);
 
     try game.init();
     defer game.deinit();

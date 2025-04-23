@@ -155,8 +155,7 @@ pub fn harddrop() void {
     if (frozen()) return;
 
     // immediate sound effects (handled by audio subsystem)
-    events.push(.Woosh, events.Source.Game);
-    events.push(.Clack, events.Source.Game);
+    events.push(.HardDrop, events.Source.Game);
 
     std.debug.print("game.drop\n", .{});
     var y = state.piece.y;
@@ -210,7 +209,7 @@ pub fn right() void {
     state.piece.x = x;
     state.piece.y = y;
     state.lastmove_ms = state.current_time_ms;
-    events.push(.Click, events.Source.Game);
+    events.push(.MoveRight, events.Source.Game);
     return;
 }
 
@@ -268,7 +267,7 @@ pub fn rotate() void {
             if (checkmove(state.piece.x, state.piece.y)) {
                 std.debug.print("kick\n", .{});
                 state.lastmove_ms = state.current_time_ms;
-                events.push(.Click, events.Source.Game);
+                events.push(.Kick, events.Source.Game);
                 return;
             }
             // revert the kick

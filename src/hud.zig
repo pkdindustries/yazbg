@@ -53,9 +53,7 @@ pub fn process(queue: *events.EventQueue) void {
             .Pause => state.paused = !state.paused,
             .Reset => state.reset(),
             .GameOver => state.gameover = true,
-
-            // Events that do not influence the HUD yet.
-            .Click, .Error, .Woosh, .Clack, .Win, .Spawn, .Lock, .Hold, .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece, .DropInterval => {},
+            else => {},
         }
     }
 }
