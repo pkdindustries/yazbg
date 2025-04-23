@@ -175,6 +175,7 @@ pub fn process(queue: *events.EventQueue) void {
                 nextbackground();
                 warp_end_ms = now + 300;
             },
+            .Reset => reset(),
 
             .MoveLeft => startSlide(1, 0),
             .MoveRight => startSlide(-1, 0),
@@ -182,9 +183,17 @@ pub fn process(queue: *events.EventQueue) void {
             // Drop interval tweaked by the level subsystem.
             .DropInterval => |ms| dropIntervalMs = ms,
             .Spawn => slide.active = false,
-            .Lock, .Hold, .Click, .Error, .Woosh, .Clack, .Win, .Rotate, .HardDrop, .SwapPiece, .Pause, .Reset => {},
+            .Lock, .Hold, .Click, .Error, .Woosh, .Clack, .Win, .Rotate, .HardDrop, .SwapPiece, .Pause => {},
         }
     }
+}
+
+/// Reset graphics to first level state
+pub fn reset() void {
+    std.debug.print("resetting graphics\n", .{});
+    bg.index = 0;
+    level = 0;
+    loadbackground();
 }
 
 fn startSlide(dx: i32, dy: i32) void {

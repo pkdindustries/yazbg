@@ -225,7 +225,7 @@ pub fn left() void {
     state.piece.x = x;
     state.piece.y = y;
     state.lastmove_ms = state.current_time_ms;
-    events.push(.Click, events.Source.Game);
+    events.push(.MoveLeft, events.Source.Game);
     return;
 }
 
@@ -240,7 +240,7 @@ pub fn down() bool {
     state.piece.x = x;
     state.piece.y = y;
     state.lastmove_ms = state.current_time_ms;
-    events.push(.Click, events.Source.Game);
+    events.push(.MoveDown, events.Source.Game);
     return true;
 }
 
@@ -252,7 +252,7 @@ pub fn rotate() void {
     // after rotation, the piece fits, return
     if (checkmove(state.piece.x, state.piece.y)) {
         state.lastmove_ms = state.current_time_ms;
-        events.push(.Click, events.Source.Game);
+        events.push(.Rotate, events.Source.Game);
         return;
     }
 

@@ -45,11 +45,20 @@ pub fn process(queue: *events.EventQueue) void {
                 nextmusic();
             },
             .GameOver => playgameover(),
+            .Reset => reset(),
 
             // input events do not trigger audio directly (yet)
-            .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece, .Pause, .Reset, .Spawn, .Lock, .Hold, .DropInterval => {},
+            .MoveLeft, .MoveRight, .MoveDown, .Rotate, .HardDrop, .SwapPiece, .Pause, .Spawn, .Lock, .Hold, .DropInterval => {},
         }
     }
+}
+
+/// Reset music to first level
+pub fn reset() void {
+    std.debug.print("resetting music\n", .{});
+    ray.StopMusicStream(songs[songindex]);
+    songindex = 0;
+    playmusic();
 }
 
 pub fn init() !void {
