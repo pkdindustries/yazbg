@@ -50,8 +50,6 @@ pub fn main() !void {
             else => {},
         }
 
-        const gamelogic_elapsed = timer.lap();
-
         // Automatic drop after player input has been handled so that a
         // just‑moved piece is not dropped immediately within the same frame.
         if (game.dropready()) {
@@ -67,6 +65,7 @@ pub fn main() !void {
         hud.process(&events.queue);
         gfx.process(&events.queue);
         events.queue.clear();
+        const gamelogic_elapsed = timer.lap();
 
         // draw the frame
         gfx.frame();
@@ -74,7 +73,7 @@ pub fn main() !void {
         // performance stats
         const frametime_elapsed = timer.lap();
         const total_elapsed = gamelogic_elapsed + frametime_elapsed;
-        if (gamelogic_elapsed > 1 * MS or frametime_elapsed > 17 * MS) {
+        if (gamelogic_elapsed > 2 * MS or frametime_elapsed > 17 * MS) {
             std.debug.print("frame {}ms, game {}ms, total {}ms\n", .{ frametime_elapsed / MS, gamelogic_elapsed / MS, total_elapsed / MS });
         }
     }

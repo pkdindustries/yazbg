@@ -154,9 +154,6 @@ pub fn checkmove(x: i32, y: i32) bool {
 pub fn harddrop() void {
     if (frozen()) return;
 
-    // immediate sound effects (handled by audio subsystem)
-    events.push(.HardDrop, events.Source.Game);
-
     std.debug.print("game.drop\n", .{});
     var y = state.piece.y;
     while (checkmove(state.piece.x, y + 1)) : (y += 1) {}
