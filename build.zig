@@ -60,7 +60,7 @@ pub fn build(b: *std.Build) void {
             .link_libc = true,
         });
         exe_lib.shared_memory = false;
-        exe_lib.root_module.single_threaded = false;
+        exe_lib.root_module.single_threaded = true;
 
         exe_lib.linkLibrary(raylib_artifact);
         exe_lib.addIncludePath(raylib_dep.path("src"));
@@ -87,8 +87,8 @@ pub fn build(b: *std.Build) void {
             "-sASYNCIFY",
             "-sINITIAL_MEMORY=167772160",
             "-sUSE_OFFSET_CONVERTER",
-            "--preload-file",
-            "resources",
+            "--shell-file",
+            b.path("src/shell.html").getPath(b),
         });
 
         const link_items: []const *std.Build.Step.Compile = &.{
