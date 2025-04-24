@@ -46,7 +46,7 @@ pub fn process(queue: *events.EventQueue) void {
             .MoveLeft => playclick(),
             .MoveRight => playclick(),
             .MoveDown => playclick(),
-            .Rotate => playclick(),
+            .Rotate => playwoosh(),
             .HardDrop => playwoosh(),
             .SwapPiece => playclick(),
             .Pause => playclick(),

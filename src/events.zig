@@ -17,6 +17,7 @@ pub const Event = union(enum) {
     Lock, // the piece was fixed to the grid
     Hold, // player used the hold feature
     Kick, // piece was kicked (rotated) into the grid
+    AutoDrop, // automatic dropping of piece based on timing
     // Input events
     MoveLeft,
     MoveRight,

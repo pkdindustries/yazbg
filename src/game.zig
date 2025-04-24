@@ -303,11 +303,10 @@ pub fn process(queue: *events.EventQueue) void {
             },
             .MoveLeft => left(),
             .MoveRight => right(),
-            .MoveDown => {
-                if (!down()) harddrop();
-            },
+            .MoveDown => if (!down()) harddrop(),
             .Rotate => rotate(),
             .HardDrop => harddrop(),
+            .AutoDrop => if (!down()) harddrop(),
             .SwapPiece => swappiece(),
             .Pause => pause(),
             .Reset => reset(),

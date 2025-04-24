@@ -49,12 +49,9 @@ pub fn main() !void {
             else => {},
         }
 
-        // Automatic drop after player input has been handled so that a
-        // just‑moved piece is not dropped immediately within the same frame.
+        // Check if it's time for automatic piece drop
         if (game.dropready()) {
-            if (!game.down()) {
-                game.harddrop();
-            }
+            events.push(.AutoDrop, events.Source.Game);
         }
 
         // queued events
