@@ -385,7 +385,7 @@ fn drawcells() void {
                 cptr.lerp(std.time.milliTimestamp());
                 const drawX: i32 = @as(i32, @intFromFloat(cptr.position[0]));
                 const drawY: i32 = @as(i32, @intFromFloat(cptr.position[1]));
-                roundedfillbox(drawX, drawY, cptr.color);
+                roundedfillboxscaled(drawX, drawY, cptr.color, cptr.scale);
             } else {}
         }
     }
@@ -395,19 +395,21 @@ fn drawcells() void {
         if (a) |cptr| {
             const drawX: i32 = @as(i32, @intFromFloat(cptr.position[0]));
             const drawY: i32 = @as(i32, @intFromFloat(cptr.position[1]));
-            roundedfillbox(drawX, drawY, cptr.color);
+            roundedfillboxscaled(drawX, drawY, cptr.color, cptr.scale);
         }
     }
 }
 
 // draw a piece
 fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
+    // Use default scale of 1.0 for player pieces
+    const scale: f32 = 1.0;
     for (shape, 0..) |row, i| {
         for (row, 0..) |cell, j| {
             if (cell) {
                 const xs: i32 = @as(i32, @intCast(i)) * window.cellsize;
                 const ys: i32 = @as(i32, @intCast(j)) * window.cellsize;
-                roundedfillbox(x + xs, y + ys, color);
+                roundedfillboxscaled(x + xs, y + ys, color, scale);
             }
         }
     }
@@ -415,11 +417,30 @@ fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
 
 // draw a rounded box (used internally by various rendering helpers within gfx)
 fn roundedfillbox(x: i32, y: i32, color: [4]u8) void {
+    // Use a default scale of 1.0
+    roundedfillboxscaled(x, y, color, 1.0);
+}
+
+// draw a rounded box with scale factor applied
+fn roundedfillboxscaled(x: i32, y: i32, color: [4]u8, scale: f32) void {
+    const cellsize_scaled = @as(f32, @floatFromInt(window.cellsize)) * scale;
+    const padding_scaled = @as(f32, @floatFromInt(window.cellpadding)) * scale;
+    const width_scaled = cellsize_scaled - 2 * padding_scaled;
+    const height_scaled = width_scaled;
+    
+    // Calculate center point of the cell
+    const center_x = @as(f32, @floatFromInt(window.gridoffsetx + x)) + @as(f32, @floatFromInt(window.cellsize)) / 2.0;
+    const center_y = @as(f32, @floatFromInt(window.gridoffsety + y)) + @as(f32, @floatFromInt(window.cellsize)) / 2.0;
+    
+    // Calculate top-left corner based on center and scaled size
+    const rect_x = center_x - width_scaled / 2.0;
+    const rect_y = center_y - height_scaled / 2.0;
+    
     ray.DrawRectangleRounded(ray.Rectangle{
-        .x = @floatFromInt(window.gridoffsetx + x),
-        .y = @floatFromInt(window.gridoffsety + y),
-        .width = @floatFromInt(window.cellsize - 2 * window.cellpadding),
-        .height = @floatFromInt(window.cellsize - 2 * window.cellpadding),
+        .x = rect_x,
+        .y = rect_y,
+        .width = width_scaled,
+        .height = height_scaled,
     }, 0.4, 20, ray.Color{
         .r = color[0],
         .g = color[1],

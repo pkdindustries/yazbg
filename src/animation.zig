@@ -62,6 +62,9 @@ pub const Animated = struct {
     source: [2]f32 = undefined,
     target: [2]f32 = undefined,
     position: [2]f32 = undefined,
+    source_scale: f32 = 1.0,
+    target_scale: f32 = 1.0,
+    scale: f32 = 1.0,
     startedat: i64 = 0,
     startnotbefore: i64 = 0,
     duration: i64 = 200,
@@ -86,6 +89,9 @@ pub const Animated = struct {
             .position = p,
             .target = p,
             .color = color,
+            .source_scale = 1.0,
+            .target_scale = 1.0,
+            .scale = 1.0,
         };
 
         return cell;
@@ -108,11 +114,14 @@ pub const Animated = struct {
     pub fn stop(self: *Self) void {
         self.source = self.target;
         self.position = self.target;
+        self.source_scale = self.target_scale;
+        self.scale = self.target_scale;
         self.animating = false;
     }
 
     pub fn start(self: *Self) void {
         self.startedat = std.time.milliTimestamp();
+        self.source_scale = self.scale;
         self.animating = true;
     }
 
@@ -163,6 +172,9 @@ pub const Animated = struct {
             std.math.lerp(self.source[0], self.target[0], t),
             std.math.lerp(self.source[1], self.target[1], t),
         };
+        
+        // Lerp the scale
+        self.scale = std.math.lerp(self.source_scale, self.target_scale, t);
     }
 
     // set a row to random x,y
@@ -173,6 +185,7 @@ pub const Animated = struct {
                 const yr: i32 = game.state.rng.random().intRangeAtMost(i32, -2000, 2000);
                 cptr.target[0] = @as(f32, @floatFromInt(xr));
                 cptr.target[1] = @as(f32, @floatFromInt(yr));
+                cptr.target_scale = 0.2; // Shrink cells as they fly away
                 cptr.duration = 1000;
                 cptr.mode = .easein;
                 game.state.grid.unattached.add(cptr);
