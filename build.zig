@@ -83,12 +83,11 @@ pub fn build(b: *std.Build) void {
             "zig-out/web/yazbg.html",
             "-sFULL-ES3=1",
             "-sUSE_GLFW=3",
-            "-O3",
             "-sASYNCIFY",
             "-sINITIAL_MEMORY=167772160",
             "-sUSE_OFFSET_CONVERTER",
             "--shell-file",
-            b.path("src/shell.html").getPath(b),
+            b.path("web/shell.html").getPath(b),
         });
 
         const link_items: []const *std.Build.Step.Compile = &.{
