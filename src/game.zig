@@ -84,7 +84,7 @@ pub fn nextpiece() void {
     }
     if (!checkmove(state.piece.x, state.piece.y)) {
         for (0..Grid.HEIGHT) |r| {
-            anim.linecleardown(r);
+            anim.linesplat(r);
         }
         state.piece.current = null;
         state.gameover = true;

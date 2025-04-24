@@ -186,7 +186,7 @@ pub const Animated = struct {
         inline for (game.state.grid.cells[row], 0..) |ac, i| {
             if (ac) |cptr| {
                 cptr.target[1] = 800;
-                cptr.duration = 500;
+                cptr.duration = 1000;
                 cptr.mode = .easeout;
                 game.state.grid.unattached.add(cptr);
                 game.state.grid.cells[row][i] = null;
