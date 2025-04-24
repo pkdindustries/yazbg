@@ -4,6 +4,9 @@
     .name = .yazbg,
     .version = "0.0.1",
     .dependencies = .{
-        .raylib = .{ .url = "https://github.com/raysan5/raylib/archive/cd9206956caa774c3ed9df0957b6b3167e5000c7.tar.gz", .hash = "raylib-5.5.0-whq8uKV0zQBqlO6I6eodSUsMeRngbFTt0pYX1z4OvDxO" }
+         .raylib = .{
+            .url = "git+https://github.com/raysan5/raylib?ref=master#f5c96302d5623950dccdca31f8dd66d6d633dbd1",
+            .hash = "raylib-5.5.0-whq8uFV0zQA9NXxhpYFZk_yHW6xzg5eKGmOtMJ2DOTdU",
+        },
     },
 }
