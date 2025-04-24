@@ -3,11 +3,10 @@ const std = @import("std");
 const anim = @import("animation.zig").Animated;
 const Grid = @import("grid.zig").Grid;
 const shapes = @import("pieces.zig");
-const GPA = std.heap.GeneralPurposeAllocator(.{});
 const events = @import("events.zig");
 
 pub const YAZBG = struct {
-    alloc: GPA = undefined,
+    alloc: std.mem.Allocator = undefined,
     rng: std.Random.DefaultPrng = undefined,
     grid: *Grid = undefined,
     gameover: bool = false,
@@ -38,15 +37,17 @@ pub fn tick(now_ms: i64) void {
     state.current_time_ms = now_ms;
 }
 
-pub fn init() !void {
+pub fn init(allocator: std.mem.Allocator) !void {
     std.debug.print("init game\n", .{});
-    state.alloc = GPA{};
+
+    state.alloc = allocator;
+
     state.rng = std.Random.DefaultPrng.init(blk: {
         var seed: u64 = undefined;
         std.crypto.random.bytes(std.mem.asBytes(&seed)); // No `try` needed
         break :blk seed;
     });
-    state.grid = Grid.init(state.alloc.allocator()) catch @panic("OOM");
+    state.grid = Grid.init(state.alloc) catch @panic("OOM");
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
     nextpiece();
 }
@@ -54,9 +55,6 @@ pub fn init() !void {
 pub fn deinit() void {
     std.debug.print("deinit game\n", .{});
     state.grid.deinit();
-    if (state.alloc.deinit() == .leak) {
-        std.debug.print("leaked memory\n", .{});
-    }
 }
 
 pub fn reset() void {
@@ -65,7 +63,7 @@ pub fn reset() void {
     state.piece = .{};
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
     state.grid.deinit();
-    state.grid = Grid.init(state.alloc.allocator()) catch @panic("OOM");
+    state.grid = Grid.init(state.alloc) catch @panic("OOM");
     nextpiece();
     state.gameover = false;
     state.paused = false;
@@ -168,7 +166,7 @@ pub fn harddrop() void {
                     if (gx >= 0 and gx < Grid.WIDTH and gy >= 0 and gy < Grid.HEIGHT) {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
-                        const ac = anim.init(state.alloc.allocator(), ix, iy, piece.color) catch |err| {
+                        const ac = anim.init(state.alloc, ix, iy, piece.color) catch |err| {
                             std.debug.print("failed to allocate cell: {}\n", .{err});
                             return;
                         };

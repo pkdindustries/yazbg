@@ -12,7 +12,7 @@ pub fn main() !void {
     var timer = try std.time.Timer.start();
     ray.SetTraceLogLevel(ray.LOG_WARNING);
 
-    try game.init();
+    try game.init(std.heap.c_allocator);
     defer game.deinit();
 
     try sfx.init();
@@ -46,7 +46,6 @@ pub fn main() !void {
             ray.KEY_B => gfx.nextbackground(),
             ray.KEY_M => sfx.mute(),
             ray.KEY_N => sfx.nextmusic(),
-            ray.KEY_L => checkleak(),
             else => {},
         }
 
@@ -79,12 +78,6 @@ pub fn main() !void {
     }
 }
 
-fn checkleak() void {
-    const leaks = game.state.alloc.detectLeaks();
-    if (!leaks) {
-        std.debug.print("no leaks\n", .{});
-    }
-}
 fn printkeys() void {
     std.debug.print("keys:\n", .{});
     std.debug.print("  left/right: move\n", .{});
