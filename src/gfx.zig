@@ -386,7 +386,7 @@ fn drawcells() void {
                 cptr.lerp(std.time.milliTimestamp());
                 const drawX: i32 = @as(i32, @intFromFloat(cptr.position[0]));
                 const drawY: i32 = @as(i32, @intFromFloat(cptr.position[1]));
-                roundedfillboxscaled(drawX, drawY, cptr.color, cptr.scale);
+                drawbox(drawX, drawY, cptr.color, cptr.scale);
             } else {}
         }
     }
@@ -396,7 +396,7 @@ fn drawcells() void {
         if (a) |cptr| {
             const drawX: i32 = @as(i32, @intFromFloat(cptr.position[0]));
             const drawY: i32 = @as(i32, @intFromFloat(cptr.position[1]));
-            roundedfillboxscaled(drawX, drawY, cptr.color, cptr.scale);
+            drawbox(drawX, drawY, cptr.color, cptr.scale);
         }
     }
 }
@@ -410,20 +410,13 @@ fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
             if (cell) {
                 const xs: i32 = @as(i32, @intCast(i)) * window.cellsize;
                 const ys: i32 = @as(i32, @intCast(j)) * window.cellsize;
-                roundedfillboxscaled(x + xs, y + ys, color, scale);
+                drawbox(x + xs, y + ys, color, scale);
             }
         }
     }
 }
-
-// draw a rounded box (used internally by various rendering helpers within gfx)
-fn roundedfillbox(x: i32, y: i32, color: [4]u8) void {
-    // Use a default scale of 1.0
-    roundedfillboxscaled(x, y, color, 1.0);
-}
-
 // draw a rounded box with scale factor applied
-fn roundedfillboxscaled(x: i32, y: i32, color: [4]u8, scale: f32) void {
+fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32) void {
     const cellsize_scaled = @as(f32, @floatFromInt(window.cellsize)) * scale;
     const padding_scaled = @as(f32, @floatFromInt(window.cellpadding)) * scale;
     const width_scaled = cellsize_scaled - 2 * padding_scaled;
