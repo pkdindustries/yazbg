@@ -43,9 +43,9 @@ pub fn main() !void {
             ray.KEY_DOWN => events.push(.MoveDown, events.Source.Input),
             ray.KEY_UP => events.push(.Rotate, events.Source.Input),
             ray.KEY_C => events.push(.SwapPiece, events.Source.Input),
-            ray.KEY_B => gfx.nextbackground(),
-            ray.KEY_M => sfx.mute(),
-            ray.KEY_N => sfx.nextmusic(),
+            ray.KEY_B => events.push(.NextBackground, events.Source.Input),
+            ray.KEY_M => events.push(.MuteAudio, events.Source.Input),
+            ray.KEY_N => events.push(.NextMusic, events.Source.Input),
             else => {},
         }
 

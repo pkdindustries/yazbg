@@ -69,6 +69,24 @@ pub fn reset() void {
     state.paused = false;
 }
 
+// set a row to random x,y
+pub fn linesplat(row: usize) void {
+    inline for (state.grid.cells[row], 0..) |ac, i| {
+        if (ac) |cptr| {
+            const xr: i32 = state.rng.random().intRangeAtMost(i32, -2000, 2000);
+            const yr: i32 = state.rng.random().intRangeAtMost(i32, -2000, 2000);
+            cptr.target[0] = @as(f32, @floatFromInt(xr));
+            cptr.target[1] = @as(f32, @floatFromInt(yr));
+            cptr.target_scale = 0.2; // Shrink cells as they fly away
+            cptr.duration = 1000;
+            cptr.mode = .easein;
+            state.grid.unattached.add(cptr);
+            state.grid.cells[row][i] = null;
+            cptr.start();
+        }
+    }
+}
+
 pub fn nextpiece() void {
     state.piece.current = state.piece.next;
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
@@ -82,7 +100,7 @@ pub fn nextpiece() void {
     }
     if (!checkmove(state.piece.x, state.piece.y)) {
         for (0..Grid.HEIGHT) |r| {
-            anim.linesplat(r);
+            linesplat(r);
         }
         state.piece.current = null;
         state.gameover = true;

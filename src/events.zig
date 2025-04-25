@@ -27,6 +27,9 @@ pub const Event = union(enum) {
     SwapPiece,
     Pause,
     Reset,
+    NextBackground,
+    MuteAudio,
+    NextMusic,
 };
 
 pub const Source = enum {

@@ -162,6 +162,7 @@ pub fn process(queue: *events.EventQueue) void {
                 nextbackground();
                 level = newlevel;
             },
+            .NextBackground => nextbackground(),
             .Clear => |lines| {
                 // Prolong the background warp effect proportionally to the number
                 // of lines removed so it is visible even when the grid animation

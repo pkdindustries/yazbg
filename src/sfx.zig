@@ -65,6 +65,8 @@ pub fn process(queue: *events.EventQueue) void {
             .Pause => playSound(.click),
             .Kick => playSound(.clack),
             .Lock => playSound(.clack),
+            .MuteAudio => mute(),
+            .NextMusic => nextmusic(),
             else => {},
         }
     }
