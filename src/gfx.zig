@@ -2,6 +2,7 @@ const std = @import("std");
 const ray = @import("raylib.zig");
 const game = @import("game.zig");
 const hud = @import("hud.zig");
+const events = @import("events.zig");
 
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
@@ -17,8 +18,29 @@ pub const Window = struct {
 };
 
 pub const Background = struct {
-    const Self = @This();
-    path: [9][*:0]const u8 = .{
+    texture: [9]ray.Texture2D = undefined,
+    index: u32 = 0,
+    shader: ray.Shader = undefined,
+
+    // Shader locations
+    secondsloc: i32 = 0,
+    freqxloc: i32 = 0,
+    freqyloc: i32 = 0,
+    ampxloc: i32 = 0,
+    ampyloc: i32 = 0,
+    speedxloc: i32 = 0,
+    speedyloc: i32 = 0,
+    sizeloc: i32 = 0,
+
+    // Shader parameters
+    freqx: f32 = 10.0,
+    freqy: f32 = 10.0,
+    ampx: f32 = 2.0,
+    ampy: f32 = 2.0,
+    speedx: f32 = 0.25,
+    speedy: f32 = 0.25,
+
+    const paths = [_][*:0]const u8{
         "resources/texture/bluestars.png",
         "resources/texture/nebula.png",
         "resources/texture/starfield.png",
@@ -28,34 +50,33 @@ pub const Background = struct {
         "resources/texture/warpgate.png",
         "resources/texture/starfield2.png",
         "resources/texture/starmap.png",
-    },
-    texture: [9]ray.Texture2D = undefined,
-    index: u32 = 0,
-    shader: ray.Shader = undefined,
-    secondsloc: i32 = 0,
-    freqxloc: i32 = 0,
-    freqyloc: i32 = 0,
-    ampxloc: i32 = 0,
-    ampyloc: i32 = 0,
-    speedxloc: i32 = 0,
-    speedyloc: i32 = 0,
-    sizeloc: i32 = 0,
-    freqx: f32 = 10.0,
-    freqy: f32 = 10.0,
-    ampx: f32 = 2.0,
-    ampy: f32 = 2.0,
-    speedx: f32 = 0.25,
-    speedy: f32 = 0.25,
+    };
+
+    // Update current texture filtering
+    pub fn load(self: *Background) void {
+        ray.GenTextureMipmaps(&self.texture[self.index]);
+        ray.SetTextureFilter(self.texture[self.index], ray.TEXTURE_FILTER_TRILINEAR);
+    }
+
+    // Cycle to next background texture
+    pub fn next(self: *Background) void {
+        self.index += 1;
+        if (self.index >= paths.len) {
+            self.index = 0;
+        }
+        self.load();
+    }
 };
 
 var window = Window{};
 var bg = Background{};
 
-// window dragging
+// Window dragging state and logic - currently disabled in frame()
 var drag_active: bool = false;
 fn updatedrag() void {
     const DRAG_BAR_HEIGHT: f32 = 600.0;
-    // Begin a new drag if the left button was just pressed inside the bar.
+
+    // Begin a new drag if the left button was just pressed inside the bar
     if (!drag_active and ray.IsMouseButtonPressed(ray.MOUSE_BUTTON_LEFT)) {
         const mouse = ray.GetMousePosition();
         if (mouse.y < DRAG_BAR_HEIGHT) {
@@ -64,7 +85,7 @@ fn updatedrag() void {
         }
     }
 
-    // Update the window position while the drag is active.
+    // Update the window position while the drag is active
     if (drag_active) {
         const delta = ray.GetMouseDelta();
 
@@ -82,13 +103,13 @@ fn updatedrag() void {
     }
 }
 
-// Additional local effect timer to decouple from gameplay code.  Set by
-// graphics‑only reactions (e.g. Clear/GameOver events) so we no longer need to
-// mutate the game state from inside the renderer.
+// Graphics state variables
+// Effect timer for visual effects like warp
 var warp_end_ms: i64 = 0;
 var dropIntervalMs: i64 = 0;
 var level: u8 = 0;
-// static shader
+
+// Static effect shader
 var static: ray.Shader = undefined;
 var statictimeloc: i32 = 0;
 
@@ -107,29 +128,32 @@ var last_piece_x: i32 = 0;
 var last_piece_y: i32 = 0;
 
 pub fn frame() void {
-    // resize
+    // Handle window resizing
     updatescale();
-    // Allow the user to move the undecorated window.
-    // updatedrag();
-    // shader uniforms
+
+    // Update shader uniforms
     preshade();
+
     ray.BeginDrawing();
     {
-        // draw to texture first
+        // Draw to render texture at original resolution
         ray.BeginTextureMode(window.texture);
         {
+            // Draw background with warp effect
             background();
-            // static shader
+
+            // Apply static effect shader to game elements
             ray.BeginShaderMode(static);
             {
-                // player piece and ghost
+                // Draw player piece and ghost
                 player();
-                // grid and animated
+
+                // Draw grid cells
                 drawcells();
             }
             ray.EndShaderMode();
 
-            // draw the HUD
+            // Draw HUD elements
             hud.draw(.{
                 .gridoffsetx = window.gridoffsetx,
                 .gridoffsety = window.gridoffsety,
@@ -143,7 +167,8 @@ pub fn frame() void {
             }, static);
         }
         ray.EndTextureMode();
-        // scale texture to window size
+
+        // Scale render texture to actual window size
         const src = ray.Rectangle{ .x = 0, .y = 0, .width = Window.OGWIDTH, .height = -Window.OGHEIGHT };
         const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(window.width), .height = @floatFromInt(window.height) };
         ray.DrawTexturePro(window.texture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
@@ -151,18 +176,16 @@ pub fn frame() void {
     ray.EndDrawing();
 }
 
-const events = @import("events.zig");
-
 pub fn process(queue: *events.EventQueue) void {
     const now = std.time.milliTimestamp();
     // Process and debug-print each event
     for (queue.items()) |rec| {
         switch (rec.event) {
             .LevelUp => |newlevel| {
-                nextbackground();
+                bg.next();
                 level = newlevel;
             },
-            .NextBackground => nextbackground(),
+            .NextBackground => bg.next(),
             .Clear => |lines| {
                 // Prolong the background warp effect proportionally to the number
                 // of lines removed so it is visible even when the grid animation
@@ -173,7 +196,7 @@ pub fn process(queue: *events.EventQueue) void {
             .GameOver => {
                 // Immediately intensify the warp and pick a contrasting background
                 // to highlight the end of the run.
-                nextbackground();
+                bg.next();
                 warp_end_ms = now + 300;
             },
             .Reset => reset(),
@@ -194,7 +217,7 @@ pub fn reset() void {
     std.debug.print("resetting graphics\n", .{});
     bg.index = 0;
     level = 0;
-    loadbackground();
+    bg.load();
 }
 
 fn startSlide(dx: i32, dy: i32) void {
@@ -208,13 +231,16 @@ fn startSlide(dx: i32, dy: i32) void {
 
 pub fn init() !void {
     std.debug.print("init gfx\n", .{});
-    // window init
+
+    // Initialize window
     ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE | ray.FLAG_VSYNC_HINT);
     ray.InitWindow(Window.OGWIDTH, Window.OGHEIGHT, "yazbg");
+
+    // Create render texture for resolution independence
     window.texture = ray.LoadRenderTexture(Window.OGWIDTH, Window.OGHEIGHT);
-    //ray.GenTextureMipmaps(&texture.texture);
     ray.SetTextureFilter(window.texture.texture, ray.TEXTURE_FILTER_TRILINEAR);
-    // background warp shader
+
+    // Load and setup background warp shader
     bg.shader = ray.LoadShader(null, "resources/shader/warp.fs");
     bg.secondsloc = ray.GetShaderLocation(bg.shader, "seconds");
     bg.freqxloc = ray.GetShaderLocation(bg.shader, "freqX");
@@ -224,21 +250,25 @@ pub fn init() !void {
     bg.speedxloc = ray.GetShaderLocation(bg.shader, "speedX");
     bg.speedyloc = ray.GetShaderLocation(bg.shader, "speedY");
     bg.sizeloc = ray.GetShaderLocation(bg.shader, "size");
-    // block static shader
+
+    // Load static effect shader for game elements
     static = ray.LoadShader(null, "resources/shader/static.fs");
     statictimeloc = ray.GetShaderLocation(static, "time");
-    // font init
+
+    // Initialize font
     window.font = ray.LoadFont("resources/font/space.ttf");
     ray.GenTextureMipmaps(&window.font.texture);
     ray.SetTextureFilter(window.font.texture, ray.TEXTURE_FILTER_TRILINEAR);
-    // load each of the images into an array of textures
-    for (bg.path, 0..) |f, i| {
-        var t = ray.LoadTexture(f);
-        ray.GenTextureMipmaps(&t);
-        ray.SetTextureFilter(t, ray.TEXTURE_FILTER_TRILINEAR);
-        bg.texture[i] = t;
+
+    // Load background textures
+    for (Background.paths, 0..) |path, i| {
+        var texture = ray.LoadTexture(path);
+        ray.GenTextureMipmaps(&texture);
+        ray.SetTextureFilter(texture, ray.TEXTURE_FILTER_TRILINEAR);
+        bg.texture[i] = texture;
     }
-    loadbackground();
+
+    bg.load();
 }
 
 pub fn deinit() void {
@@ -252,17 +282,13 @@ pub fn deinit() void {
     ray.UnloadFont(window.font);
 }
 
+// These global functions now call the Background struct methods
 pub fn loadbackground() void {
-    ray.GenTextureMipmaps(&bg.texture[bg.index]);
-    ray.SetTextureFilter(bg.texture[bg.index], ray.TEXTURE_FILTER_TRILINEAR);
+    bg.load();
 }
 
 pub fn nextbackground() void {
-    bg.index += 1;
-    if (bg.index >= bg.path.len) {
-        bg.index = 0;
-    }
-    loadbackground();
+    bg.next();
 }
 
 pub fn updatescale() void {
@@ -282,28 +308,35 @@ pub fn updatescale() void {
     }
 }
 
-// update shader stuff before draw call
+// Update shader parameters before drawing
 fn preshade() void {
-    ray.SetShaderValue(bg.shader, bg.secondsloc, &@as(f32, @floatCast(ray.GetTime())), ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(static, statictimeloc, &@as(f32, @floatCast(ray.GetTime())), ray.SHADER_UNIFORM_FLOAT);
+    const current_time = @as(f32, @floatCast(ray.GetTime()));
 
+    // Update time uniforms for both shaders
+    ray.SetShaderValue(bg.shader, bg.secondsloc, &current_time, ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(static, statictimeloc, &current_time, ray.SHADER_UNIFORM_FLOAT);
+
+    // Set background warp parameters based on game state
     const now = std.time.milliTimestamp();
     if (warp_end_ms > now) {
+        // Intense warp effect for special events
         bg.freqx = 25.0;
         bg.freqy = 25.0;
         bg.ampx = 10.0;
         bg.ampy = 10.0;
-        bg.speedx = 25;
-        bg.speedy = 25;
+        bg.speedx = 25.0;
+        bg.speedy = 25.0;
     } else {
+        // Normal warp effect scaling with level
         bg.freqx = 10.0;
         bg.freqy = 10.0;
         bg.ampx = 2.0;
         bg.ampy = 2.0;
-        bg.speedx = 0.15 * (@as(f32, @floatFromInt(level)) + 2);
-        bg.speedy = 0.15 * (@as(f32, @floatFromInt(level)) + 2);
+        bg.speedx = 0.15 * (@as(f32, @floatFromInt(level)) + 2.0);
+        bg.speedy = 0.15 * (@as(f32, @floatFromInt(level)) + 2.0);
     }
 
+    // Update all shader uniforms
     ray.SetShaderValue(bg.shader, bg.freqxloc, &bg.freqx, ray.SHADER_UNIFORM_FLOAT);
     ray.SetShaderValue(bg.shader, bg.freqyloc, &bg.freqy, ray.SHADER_UNIFORM_FLOAT);
     ray.SetShaderValue(bg.shader, bg.ampxloc, &bg.ampx, ray.SHADER_UNIFORM_FLOAT);
@@ -311,9 +344,11 @@ fn preshade() void {
     ray.SetShaderValue(bg.shader, bg.speedxloc, &bg.speedx, ray.SHADER_UNIFORM_FLOAT);
     ray.SetShaderValue(bg.shader, bg.speedyloc, &bg.speedy, ray.SHADER_UNIFORM_FLOAT);
 
-    var size: [2]f32 = undefined;
-    size[0] = @as(f32, @floatFromInt(Window.OGWIDTH));
-    size[1] = @as(f32, @floatFromInt(Window.OGHEIGHT));
+    // Set screen size for shader
+    const size = [2]f32{
+        @floatFromInt(Window.OGWIDTH),
+        @floatFromInt(Window.OGHEIGHT),
+    };
     ray.SetShaderValue(bg.shader, bg.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
 }
 
@@ -321,6 +356,7 @@ fn background() void {
     ray.ClearBackground(ray.BLACK);
     ray.BeginShaderMode(bg.shader);
 
+    // Define source rectangle (entire texture)
     const src = ray.Rectangle{
         .x = 0,
         .y = 0,
@@ -328,6 +364,7 @@ fn background() void {
         .height = @floatFromInt(bg.texture[bg.index].height),
     };
 
+    // Define target rectangle (entire window)
     const tgt = ray.Rectangle{
         .x = 0,
         .y = 0,
@@ -335,110 +372,128 @@ fn background() void {
         .height = @floatFromInt(Window.OGHEIGHT),
     };
 
+    // Draw background texture with shader applied
     ray.DrawTexturePro(bg.texture[bg.index], src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
+
     ray.EndShaderMode();
 }
 
 fn player() void {
     if (game.state.piece.current) |p| {
-        const drawX: i32 = game.state.piece.x * window.cellsize;
-        const drawY: i32 = game.state.piece.y * window.cellsize;
+        // Calculate base position in pixels
+        const baseX = game.state.piece.x * window.cellsize;
+        const baseY = game.state.piece.y * window.cellsize;
 
-        var fdrawx: f32 = @floatFromInt(drawX);
-        var fdrawy: f32 = @floatFromInt(drawY);
+        // Start with base position
+        var drawX: f32 = @floatFromInt(baseX);
+        var drawY: f32 = @floatFromInt(baseY);
 
+        // Apply animation if active
         if (slide.active) {
             const elapsed_time = std.time.milliTimestamp() - slide.start_time;
             const duration: f32 = @floatFromInt(slide.duration);
-            const ratio: f32 = std.math.clamp(@as(f32, @floatFromInt(elapsed_time)) / duration, 0.0, 1.0);
+            const progress: f32 = std.math.clamp(@as(f32, @floatFromInt(elapsed_time)) / duration, 0.0, 1.0);
 
-            // interpolate between source and target (pixel coordinates)
-            fdrawx = std.math.lerp(@as(f32, @floatFromInt(slide.sourcex)), @as(f32, @floatFromInt(slide.targetx)), ratio);
-            fdrawy = std.math.lerp(@as(f32, @floatFromInt(slide.sourcey)), @as(f32, @floatFromInt(slide.targety)), ratio);
+            // Smoothly interpolate between source and target positions
+            drawX = std.math.lerp(@as(f32, @floatFromInt(slide.sourcex)), @as(f32, @floatFromInt(slide.targetx)), progress);
+            drawY = std.math.lerp(@as(f32, @floatFromInt(slide.sourcey)), @as(f32, @floatFromInt(slide.targety)), progress);
 
-            // stop animation when done
+            // End animation when complete
             if (elapsed_time >= slide.duration) {
                 slide.active = false;
             }
         } else {
-            // If the piece teleported (e.g. hard‑drop) make sure the next
-            // movement animates from the current cell.
+            // Update position tracking for next animation
             last_piece_x = game.state.piece.x;
             last_piece_y = game.state.piece.y;
         }
 
-        const xdx: i32 = @intFromFloat(fdrawx);
-        const ydx: i32 = @intFromFloat(fdrawy);
-        // draw the piece at the interpolated position
-        piece(xdx, ydx, p.shape[game.state.piece.r], p.color);
+        // Convert back to integer coordinates for drawing
+        const finalX = @as(i32, @intFromFloat(drawX));
+        const finalY = @as(i32, @intFromFloat(drawY));
 
-        // draw ghost
-        const color = .{ p.color[0], p.color[1], p.color[2], 60 };
-        piece(xdx, game.ghosty() * window.cellsize, p.shape[game.state.piece.r], color);
+        // Draw the active piece
+        piece(finalX, finalY, p.shape[game.state.piece.r], p.color);
+
+        // Draw ghost piece (semi-transparent preview at landing position)
+        const ghostColor = .{ p.color[0], p.color[1], p.color[2], 60 };
+        piece(finalX, game.ghosty() * window.cellsize, p.shape[game.state.piece.r], ghostColor);
     }
 }
 
 fn drawcells() void {
-    // find the active animatedcells
+    // Draw grid cells with animations
     inline for (game.state.grid.cells) |row| {
         for (row) |cell| {
             if (cell) |cptr| {
+                // Update animation
                 cptr.lerp(std.time.milliTimestamp());
-                const drawX: i32 = @as(i32, @intFromFloat(cptr.position[0]));
-                const drawY: i32 = @as(i32, @intFromFloat(cptr.position[1]));
+
+                // Get current position
+                const drawX = @as(i32, @intFromFloat(cptr.position[0]));
+                const drawY = @as(i32, @intFromFloat(cptr.position[1]));
+
+                // Draw the cell
                 drawbox(drawX, drawY, cptr.color, cptr.scale);
-            } else {}
+            }
         }
     }
 
+    // Draw unattached cells (for animations like line clears)
     game.state.grid.unattached.lerpall();
-    inline for (game.state.grid.unattached.cells) |a| {
-        if (a) |cptr| {
-            const drawX: i32 = @as(i32, @intFromFloat(cptr.position[0]));
-            const drawY: i32 = @as(i32, @intFromFloat(cptr.position[1]));
+    inline for (game.state.grid.unattached.cells) |cell| {
+        if (cell) |cptr| {
+            const drawX = @as(i32, @intFromFloat(cptr.position[0]));
+            const drawY = @as(i32, @intFromFloat(cptr.position[1]));
             drawbox(drawX, drawY, cptr.color, cptr.scale);
         }
     }
 }
 
-// draw a piece
+// Draw a tetromino piece
 fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
-    // Use default scale of 1.0 for player pieces
     const scale: f32 = 1.0;
+
     for (shape, 0..) |row, i| {
         for (row, 0..) |cell, j| {
             if (cell) {
-                const xs: i32 = @as(i32, @intCast(i)) * window.cellsize;
-                const ys: i32 = @as(i32, @intCast(j)) * window.cellsize;
-                drawbox(x + xs, y + ys, color, scale);
+                const cellX = @as(i32, @intCast(i)) * window.cellsize;
+                const cellY = @as(i32, @intCast(j)) * window.cellsize;
+                drawbox(x + cellX, y + cellY, color, scale);
             }
         }
     }
 }
-// draw a rounded box with scale factor applied
+
+// Draw a rounded box with scale factor applied
 fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32) void {
+    // Calculate scaled dimensions
     const cellsize_scaled = @as(f32, @floatFromInt(window.cellsize)) * scale;
     const padding_scaled = @as(f32, @floatFromInt(window.cellpadding)) * scale;
     const width_scaled = cellsize_scaled - 2 * padding_scaled;
-    const height_scaled = width_scaled;
 
-    // Calculate center point of the cell
-    const center_x = @as(f32, @floatFromInt(window.gridoffsetx + x)) + @as(f32, @floatFromInt(window.cellsize)) / 2.0;
-    const center_y = @as(f32, @floatFromInt(window.gridoffsety + y)) + @as(f32, @floatFromInt(window.cellsize)) / 2.0;
+    // Calculate center of cell in screen coordinates
+    const center_x = @as(f32, @floatFromInt(window.gridoffsetx + x)) +
+        @as(f32, @floatFromInt(window.cellsize)) / 2.0;
+    const center_y = @as(f32, @floatFromInt(window.gridoffsety + y)) +
+        @as(f32, @floatFromInt(window.cellsize)) / 2.0;
 
-    // Calculate top-left corner based on center and scaled size
+    // Calculate top-left drawing position
     const rect_x = center_x - width_scaled / 2.0;
-    const rect_y = center_y - height_scaled / 2.0;
+    const rect_y = center_y - width_scaled / 2.0; // Width used for height to ensure square
 
+    // Draw rounded rectangle
     ray.DrawRectangleRounded(ray.Rectangle{
         .x = rect_x,
         .y = rect_y,
         .width = width_scaled,
-        .height = height_scaled,
-    }, 0.4, 20, ray.Color{
-        .r = color[0],
-        .g = color[1],
-        .b = color[2],
-        .a = color[3],
-    });
+        .height = width_scaled, // Same as width for perfect square
+    }, 0.4, // Roundness
+        20, // Segments
+        ray.Color{
+            .r = color[0],
+            .g = color[1],
+            .b = color[2],
+            .a = color[3],
+        });
 }
