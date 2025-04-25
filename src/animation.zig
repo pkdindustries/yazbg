@@ -1,32 +1,21 @@
 const std = @import("std");
 
 // Pool size for animated objects
-const MAX_POOL = 1024;
 const MAX_ANIMATED = 500;
 
 pub const AnimationPool = struct {
     const Self = @This();
     allocator: std.mem.Allocator,
-    pool: []Animated,
-    freelist: std.ArrayList(usize),
+    pool: std.heap.MemoryPool(Animated),
     inuse: usize = 0,
 
     pub fn init(allocator: std.mem.Allocator) !*Self {
         std.debug.print("init animation pool\n", .{});
         const pool = try allocator.create(Self);
 
-        // Allocate the pool of Animated objects
-        pool.pool = try allocator.alloc(Animated, MAX_POOL);
-        errdefer allocator.free(pool.pool);
-
-        // Initialize free list with all indices
-        pool.freelist = std.ArrayList(usize).init(allocator);
-        errdefer pool.freelist.deinit();
-
-        try pool.freelist.ensureTotalCapacity(MAX_POOL);
-        for (0..MAX_POOL) |i| {
-            try pool.freelist.append(i);
-        }
+        // Initialize memory pool for Animated objects
+        pool.pool = std.heap.MemoryPool(Animated).init(allocator);
+        errdefer pool.pool.deinit();
 
         pool.allocator = allocator;
         pool.inuse = 0;
@@ -36,28 +25,24 @@ pub const AnimationPool = struct {
 
     pub fn deinit(self: *Self) void {
         std.debug.print("deinit animation pool\n", .{});
-        self.freelist.deinit();
-        self.allocator.free(self.pool);
+        self.pool.deinit();
         self.allocator.destroy(self);
     }
 
     pub fn create(self: *Self, gridx: usize, gridy: usize, color: [4]u8) ?*Animated {
-        if (self.freelist.items.len == 0) {
-            std.debug.print("WARNING: Animation pool exhausted!\n", .{});
+        const cell = self.pool.create() catch {
+            std.debug.print("WARNING: Animation pool allocation failed!\n", .{});
             return null;
-        }
+        };
 
-        const index = self.freelist.pop();
         self.inuse += 1;
 
-        const cell = &self.pool[index.?]; // Unwrap - we just checked items.len > 0
         const p: [2]f32 = .{
             @as(f32, @floatFromInt(gridx * 35)),
             @as(f32, @floatFromInt(gridy * 35)),
         };
 
         cell.* = Animated{
-            .pool_index = index.?,
             .source = p,
             .position = p,
             .target = p,
@@ -73,18 +58,7 @@ pub const AnimationPool = struct {
     }
 
     pub fn release(self: *Self, cell: *Animated) void {
-        // Check if this index is already in free list by iterating
-        // (std.ArrayList doesn't have a contains method)
-        for (self.freelist.items) |idx| {
-            if (idx == cell.pool_index) {
-                return; // Already in the free list
-            }
-        }
-
-        self.freelist.append(cell.pool_index) catch {
-            std.debug.print("ERROR: Failed to append to free_list\n", .{});
-            return;
-        };
+        self.pool.destroy(cell);
         self.inuse -= 1;
     }
 };
@@ -145,7 +119,6 @@ pub const UnattachedCell = struct {
 pub const Animated = struct {
     const Self = @This();
     id: i128 = 0,
-    pool_index: usize = 0, // Track index in the pool for release
     color: [4]u8 = undefined,
     color_source: [4]u8 = undefined,
     color_target: [4]u8 = undefined,
@@ -324,7 +297,7 @@ test "animation pool" {
     // Release one cell back to the pool
     pool.release(cell2);
 
-    // Get another cell, should reuse the released slot
+    // Get another cell, this time with different coordinates
     const cell4 = pool.create(3, 3, .{ 255, 255, 0, 255 }) orelse unreachable;
     try testing.expect(cell4.position[0] == 105.0);
 
