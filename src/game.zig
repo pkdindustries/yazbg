@@ -170,7 +170,6 @@ pub fn checkmove(x: i32, y: i32) bool {
 pub fn harddrop() void {
     if (frozen()) return;
 
-    std.debug.print("game.drop\n", .{});
     var y = state.piece.y;
     while (checkmove(state.piece.x, y + 1)) : (y += 1) {}
     state.piece.y = y;
@@ -184,8 +183,8 @@ pub fn harddrop() void {
                     if (gx >= 0 and gx < Grid.WIDTH and gy >= 0 and gy < Grid.HEIGHT) {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
-                        const ac = anim.init(state.alloc, ix, iy, piece.color) catch |err| {
-                            std.debug.print("failed to allocate cell: {}\n", .{err});
+                        const ac = state.grid.createCell(ix, iy, piece.color) orelse {
+                            std.debug.print("failed to get animation cell from pool\n", .{});
                             return;
                         };
                         state.grid.cells[iy][ix] = ac;
@@ -197,7 +196,6 @@ pub fn harddrop() void {
 
     state.lastmove_ms = state.current_time_ms;
     const cleared = state.grid.clear();
-    std.debug.print("game.drop done {}\n", .{cleared});
     if (cleared > 0) {
         events.push(.{ .Clear = @as(u8, @intCast(cleared)) }, events.Source.Game);
     }
@@ -317,7 +315,6 @@ pub fn process(queue: *events.EventQueue) void {
         switch (rec.event) {
             .DropInterval => |ms| {
                 state.dropinterval_ms = ms;
-                std.debug.print("process game.dropinterval {}\n", .{ms});
             },
             .MoveLeft => left(),
             .MoveRight => right(),

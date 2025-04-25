@@ -1,13 +1,15 @@
 const std = @import("std");
 const anim = @import("animation.zig");
 const Animated = anim.Animated;
-const Unattached = anim.UnattachedAnimating;
+const Unattached = anim.UnattachedCell;
+const AnimationPool = anim.AnimationPool;
 
 pub const Grid = struct {
     const Self = @This();
     pub const WIDTH = 10;
     pub const HEIGHT = 20;
     allocator: std.mem.Allocator = undefined,
+    animpool: *AnimationPool = undefined,
     unattached: *Unattached = undefined,
     cells: [HEIGHT][WIDTH]?*Animated = undefined,
     cleartimer: i64 = 0,
@@ -15,9 +17,14 @@ pub const Grid = struct {
     pub fn init(allocator: std.mem.Allocator) !*Self {
         std.debug.print("init grid\n", .{});
         const gc = try allocator.create(Self);
+
+        // Initialize the animation pool
+        const pool = try AnimationPool.init(allocator);
+
         gc.* = Self{
             .allocator = allocator,
-            .unattached = try Unattached.init(allocator),
+            .animpool = pool,
+            .unattached = try Unattached.init(pool),
         };
 
         for (gc.cells, 0..) |line, i| {
@@ -30,15 +37,22 @@ pub const Grid = struct {
 
     pub fn deinit(self: *Self) void {
         std.debug.print("deinit grid\n", .{});
+
+        // Release all cells back to the pool
         for (self.cells, 0..) |line, i| {
             for (line, 0..) |cell, j| {
                 if (cell) |cptr| {
-                    self.allocator.destroy(cptr);
+                    self.animpool.release(cptr);
                     self.cells[i][j] = null;
                 }
             }
         }
+
+        // Deinit unattached animations first (will release cells to the pool)
         self.unattached.deinit();
+
+        // Finally deinit the pool itself
+        self.animpool.deinit();
         self.allocator.destroy(self);
     }
 
@@ -105,6 +119,10 @@ pub const Grid = struct {
         return count;
     }
 
+    pub fn createCell(self: *Self, gridx: usize, gridy: usize, color: [4]u8) ?*Animated {
+        return self.animpool.create(gridx, gridy, color);
+    }
+
     pub fn print(self: *Self) void {
         std.debug.print("\n", .{});
         for (self.cells) |line| {
@@ -126,12 +144,12 @@ test "init" {
     var gpa = GPA{};
     const g = try Grid.init(gpa.allocator());
     defer g.deinit();
-    g.cells[0][0] = try Animated.init(gpa.allocator(), 0, 0, .{ 255, 255, 255, 255 });
+    g.cells[0][0] = g.createCell(0, 0, .{ 255, 255, 255, 255 });
 
     if (g.cells[0][0]) |cptr| {
         std.debug.print("0 0 {any}\n", .{cptr.*});
         g.cells[0][0] = null;
-        gpa.allocator().destroy(cptr);
+        // No need to destroy, just set to null and the pool will reuse it later
     }
 }
 
@@ -144,7 +162,7 @@ test "rm" {
 
     // fill line 0
     for (g.cells[0], 0..) |_, i| {
-        g.cells[0][i] = try Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
+        g.cells[0][i] = g.createCell(i, 0, .{ 255, 255, 255, 255 });
     }
 
     g.print();
@@ -165,12 +183,12 @@ test "shift" {
 
     // fill line 0
     for (g.cells[0], 0..) |_, i| {
-        g.cells[0][i] = try Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
+        g.cells[0][i] = g.createCell(i, 0, .{ 255, 255, 255, 255 });
     }
 
     // fill line 1
     for (g.cells[1], 0..) |_, i| {
-        g.cells[1][i] = try Animated.init(gpa.allocator(), i, 1, .{ 255, 255, 255, 255 });
+        g.cells[1][i] = g.createCell(i, 1, .{ 255, 255, 255, 255 });
     }
 
     g.print();
@@ -199,15 +217,15 @@ test "clear" {
 
     // fill line 0
     for (g.cells[19], 0..) |_, i| {
-        g.cells[19][i] = try Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
+        g.cells[19][i] = g.createCell(i, 0, .{ 255, 255, 255, 255 });
     }
 
-    g.cells[18][0] = try Animated.init(gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
-    g.cells[17][0] = try Animated.init(gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
-    g.cells[17][1] = try Animated.init(gpa.allocator(), 0, 18, .{ 255, 255, 255, 255 });
+    g.cells[18][0] = g.createCell(0, 18, .{ 255, 255, 255, 255 });
+    g.cells[17][0] = g.createCell(0, 18, .{ 255, 255, 255, 255 });
+    g.cells[17][1] = g.createCell(0, 18, .{ 255, 255, 255, 255 });
 
     for (g.cells[16], 0..) |_, i| {
-        g.cells[16][i] = try Animated.init(gpa.allocator(), i, 0, .{ 255, 255, 255, 255 });
+        g.cells[16][i] = g.createCell(i, 0, .{ 255, 255, 255, 255 });
     }
     g.print();
     _ = g.clear();
