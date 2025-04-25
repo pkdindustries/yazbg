@@ -5,14 +5,27 @@ const target = builtin.target;
 const game = @import("game.zig");
 const events = @import("events.zig");
 
-var errsound = ray.Sound{};
-var clacksound = ray.Sound{};
-var clicksound = ray.Sound{};
-var clearsound = ray.Sound{};
-var levelupsound = ray.Sound{};
-var wooshsound = ray.Sound{};
-var winsound = ray.Sound{};
-var gameover = ray.Sound{};
+const MAX_SOUNDS = 8;
+const MAX_INSTANCES = 10;
+
+const SoundType = enum {
+    error_sound,
+    clack,
+    click,
+    clear,
+    level,
+    woosh,
+    win,
+    gameover,
+};
+
+const SoundBank = struct {
+    base: ray.Sound,
+    instances: [MAX_INSTANCES]ray.Sound,
+    current: usize = 0,
+};
+
+var sounds: [MAX_SOUNDS]SoundBank = undefined;
 var soundvolume: f32 = 0.5;
 var musicvolume: f32 = 0.15;
 
@@ -33,32 +46,32 @@ pub fn process(queue: *events.EventQueue) void {
     for (queue.items()) |rec| {
         // debug: print event, source, and timestamp
         switch (rec.event) {
-            .Error => playerror(),
-            .Clear => playclear(),
-            .Win => playwin(),
+            .Error => playSound(.error_sound),
+            .Clear => playSound(.clear),
+            .Win => playSound(.win),
             .LevelUp => |_| {
                 // level up jingle and switch to the next track
-                playlevel();
+                playSound(.level);
                 nextmusic();
             },
-            .GameOver => playgameover(),
-            .Reset => reset(),
-            .MoveLeft => playclick(),
-            .MoveRight => playclick(),
-            .MoveDown => playclick(),
-            .Rotate => playwoosh(),
-            .HardDrop => playwoosh(),
-            .SwapPiece => playclick(),
-            .Pause => playclick(),
-            .Kick => playclack(),
-            .Lock => playclack(),
+            .GameOver => playSound(.gameover),
+            .Reset => resetmusic(),
+            .MoveLeft => playSound(.click),
+            .MoveRight => playSound(.click),
+            .MoveDown => playSound(.click),
+            .Rotate => playSound(.woosh),
+            .HardDrop => playSound(.woosh),
+            .SwapPiece => playSound(.click),
+            .Pause => playSound(.click),
+            .Kick => playSound(.clack),
+            .Lock => playSound(.clack),
             else => {},
         }
     }
 }
 
 /// Reset music to first level
-pub fn reset() void {
+pub fn resetmusic() void {
     std.debug.print("resetting music\n", .{});
     ray.StopMusicStream(songs[songindex]);
     songindex = 0;
@@ -70,16 +83,30 @@ pub fn init() !void {
     std.debug.print("init audio\n", .{});
     ray.InitAudioDevice();
     if (ray.IsAudioDeviceReady() and target.os.tag != .linux) {
-        errsound = ray.LoadSound("resources/sfx/deny.mp3");
-        clacksound = ray.LoadSound("resources/sfx/clack.mp3");
-        clicksound = ray.LoadSound("resources/sfx/click.mp3");
-        clearsound = ray.LoadSound("resources/sfx/clear.mp3");
-        levelupsound = ray.LoadSound("resources/sfx/level.mp3");
-        wooshsound = ray.LoadSound("resources/sfx/woosh.mp3");
-        winsound = ray.LoadSound("resources/sfx/win.mp3");
-        gameover = ray.LoadSound("resources/sfx/gameover.mp3");
+        // Load base sounds
+        const sound_files = [_][*:0]const u8{
+            "resources/sfx/deny.mp3",
+            "resources/sfx/clack.mp3",
+            "resources/sfx/click.mp3",
+            "resources/sfx/clear.mp3",
+            "resources/sfx/level.mp3",
+            "resources/sfx/woosh.mp3",
+            "resources/sfx/win.mp3",
+            "resources/sfx/gameover.mp3",
+        };
 
-        // load musc into songs
+        // Initialize sound banks
+        for (sound_files, 0..) |file, i| {
+            sounds[i].base = ray.LoadSound(file);
+
+            // Create aliases for concurrent playback
+            for (0..MAX_INSTANCES) |j| {
+                sounds[i].instances[j] = ray.LoadSoundAlias(sounds[i].base);
+            }
+            sounds[i].current = 0;
+        }
+
+        // load music into songs
         for (music, 0..) |m, i| {
             songs[i] = ray.LoadMusicStream(m);
         }
@@ -89,48 +116,33 @@ pub fn init() !void {
 
 pub fn deinit() void {
     std.debug.print("deinit sfx\n", .{});
-    ray.UnloadSound(errsound);
-    ray.UnloadSound(clacksound);
-    ray.UnloadSound(clicksound);
-    ray.UnloadSound(clearsound);
-    ray.UnloadSound(levelupsound);
-    ray.UnloadSound(wooshsound);
-    ray.UnloadSound(winsound);
+
+    // Unload all sound instances and their base sounds
+    for (&sounds) |*bank| {
+        // Unload aliases first
+        for (bank.instances) |instance| {
+            ray.UnloadSoundAlias(instance);
+        }
+        // Then unload base sound
+        ray.UnloadSound(bank.base);
+    }
+
+    // Unload music
     for (songs) |s| {
         ray.UnloadMusicStream(s);
     }
     ray.CloseAudioDevice();
 }
 
-pub fn playwin() void {
-    ray.PlaySound(winsound);
-}
+fn playSound(sound_type: SoundType) void {
+    const index = @intFromEnum(sound_type);
+    var bank = &sounds[index];
 
-pub fn playwoosh() void {
-    ray.PlaySound(wooshsound);
-}
+    // Play the current sound instance
+    ray.PlaySound(bank.instances[bank.current]);
 
-pub fn playlevel() void {
-    ray.PlaySound(levelupsound);
-}
-pub fn playerror() void {
-    ray.PlaySound(errsound);
-}
-
-pub fn playclack() void {
-    ray.PlaySound(clacksound);
-}
-
-pub fn playclick() void {
-    ray.PlaySound(clicksound);
-}
-
-pub fn playclear() void {
-    ray.PlaySound(clearsound);
-}
-
-pub fn playgameover() void {
-    ray.PlaySound(gameover);
+    // Move to the next instance for the next playback
+    bank.current = (bank.current + 1) % MAX_INSTANCES;
 }
 
 pub fn playmusic() void {
