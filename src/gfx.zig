@@ -227,7 +227,7 @@ pub fn init() !void {
     static = ray.LoadShader(null, "resources/shader/static.fs");
     statictimeloc = ray.GetShaderLocation(static, "time");
     // font init
-    window.font = ray.LoadFont("resources/font/nasa.otf");
+    window.font = ray.LoadFont("resources/font/space.ttf");
     ray.GenTextureMipmaps(&window.font.texture);
     ray.SetTextureFilter(window.font.texture, ray.TEXTURE_FILTER_TRILINEAR);
     // load each of the images into an array of textures
@@ -427,15 +427,15 @@ fn roundedfillboxscaled(x: i32, y: i32, color: [4]u8, scale: f32) void {
     const padding_scaled = @as(f32, @floatFromInt(window.cellpadding)) * scale;
     const width_scaled = cellsize_scaled - 2 * padding_scaled;
     const height_scaled = width_scaled;
-    
+
     // Calculate center point of the cell
     const center_x = @as(f32, @floatFromInt(window.gridoffsetx + x)) + @as(f32, @floatFromInt(window.cellsize)) / 2.0;
     const center_y = @as(f32, @floatFromInt(window.gridoffsety + y)) + @as(f32, @floatFromInt(window.cellsize)) / 2.0;
-    
+
     // Calculate top-left corner based on center and scaled size
     const rect_x = center_x - width_scaled / 2.0;
     const rect_y = center_y - height_scaled / 2.0;
-    
+
     ray.DrawRectangleRounded(ray.Rectangle{
         .x = rect_x,
         .y = rect_y,

@@ -106,13 +106,13 @@ pub fn draw(ctx: DrawContext, static_shader: ray.Shader) void {
     }
 
     // Preview of next piece ------------------------------------------------------
-    ray.DrawTextEx(ctx.font, "next", ray.Vector2{ .x = 520, .y = 30 }, 40, 2, ray.GRAY);
+    ray.DrawTextEx(ctx.font, "NEXT", ray.Vector2{ .x = 520, .y = 30 }, 40, 2, ray.GRAY);
     if (ctx.next_piece) |np| {
         piece(&ctx, ctx.og_width - 250, 35, np.shape[0], np.color);
     }
 
     // Held piece -----------------------------------------------------------------
-    ray.DrawTextEx(ctx.font, "held", ray.Vector2{ .x = 23, .y = 30 }, 40, 2, ray.GRAY);
+    ray.DrawTextEx(ctx.font, "HELD", ray.Vector2{ .x = 23, .y = 30 }, 40, 2, ray.GRAY);
     if (ctx.held_piece) |hp| {
         piece(&ctx, 35 - ctx.gridoffsetx, 35, hp.shape[0], hp.color);
     }
@@ -120,7 +120,7 @@ pub fn draw(ctx: DrawContext, static_shader: ray.Shader) void {
     // Pause overlay --------------------------------------------------------------
     if (state.paused) {
         ray.BeginShaderMode(static_shader);
-        ray.DrawRectangle(0, 0, ctx.og_width, ctx.og_height, ray.Color{ .r = 0, .g = 0, .b = 0, .a = 210 });
+        ray.DrawRectangle(0, 0, ctx.og_width, ctx.og_height, ray.Color{ .r = 0, .g = 0, .b = 0, .a = 100 });
         ray.EndShaderMode();
 
         if (std.fmt.bufPrintZ(&textbuf, "PAUSED", .{})) |paused_txt| {
@@ -138,7 +138,7 @@ pub fn draw(ctx: DrawContext, static_shader: ray.Shader) void {
 
         if (std.fmt.bufPrintZ(&textbuf, "GAME OVER", .{})) |over_txt| {
             scramblefx(over_txt, 1);
-            ray.DrawTextEx(ctx.font, over_txt, ray.Vector2{ .x = 145, .y = 290 }, 60, 3, ray.RED);
+            ray.DrawTextEx(ctx.font, over_txt, ray.Vector2{ .x = 165, .y = 290 }, 70, 3, ray.RED);
             ray.DrawText("r to restart", 255, 350, 20, ray.WHITE);
             ray.DrawText("esc to exit", 255, 375, 20, ray.WHITE);
         } else |err| {

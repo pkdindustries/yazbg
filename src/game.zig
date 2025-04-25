@@ -72,7 +72,7 @@ pub fn reset() void {
 pub fn nextpiece() void {
     state.piece.current = state.piece.next;
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
-    state.piece.x = 3;
+    state.piece.x = 4;
     state.piece.y = 0;
     state.piece.r = 0;
     state.piece.swapped = false;

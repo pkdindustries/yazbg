@@ -59,6 +59,8 @@ pub const Animated = struct {
     const Self = @This();
     id: i128 = 0,
     color: [4]u8 = undefined,
+    color_source: [4]u8 = undefined,
+    color_target: [4]u8 = undefined,
     source: [2]f32 = undefined,
     target: [2]f32 = undefined,
     position: [2]f32 = undefined,
@@ -88,7 +90,9 @@ pub const Animated = struct {
             .source = p,
             .position = p,
             .target = p,
+            .color_source = color,
             .color = color,
+            .color_target = color,
             .source_scale = 1.0,
             .target_scale = 1.0,
             .scale = 1.0,
@@ -116,6 +120,7 @@ pub const Animated = struct {
         self.position = self.target;
         self.source_scale = self.target_scale;
         self.scale = self.target_scale;
+        self.color = self.color_target;
         self.animating = false;
     }
 
@@ -172,7 +177,7 @@ pub const Animated = struct {
             std.math.lerp(self.source[0], self.target[0], t),
             std.math.lerp(self.source[1], self.target[1], t),
         };
-        
+
         // Lerp the scale
         self.scale = std.math.lerp(self.source_scale, self.target_scale, t);
     }
