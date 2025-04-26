@@ -336,38 +336,20 @@ pub fn reset() void {
 
 // Explode all cells in a given row with flying animation
 fn explodeRow(row: usize) void {
-    // Calculate center of the grid as explosion origin point
-    const center_x: f32 = @floatFromInt((Grid.WIDTH / 2) * window.cellsize);
-    const center_y: f32 = @floatFromInt((Grid.HEIGHT / 2) * window.cellsize);
-    
     // Create exploding animation for each cell in row
     for (0..Grid.WIDTH) |x| {
         if (visual_cells[row][x]) |cell| {
-            // Get cell position
-            const x_pos = @as(i32, @intCast(x)) * window.cellsize;
-            const y_pos = @as(i32, @intCast(row)) * window.cellsize;
+            // Set random end position for explosion with much wider range
+            const xr: i32 = -2000 + @as(i32, @intFromFloat(std.crypto.random.float(f32) * 4000));
+            const yr: i32 = -2000 + @as(i32, @intFromFloat(std.crypto.random.float(f32) * 4000));
             
-            // Calculate vector from center to current cell
-            const dir_x: f32 = @as(f32, @floatFromInt(x_pos)) - center_x;
-            const dir_y: f32 = @as(f32, @floatFromInt(y_pos)) - center_y;
-            
-            // Add randomness to the explosion direction
-            const rand_factor = 0.5;
-            const randomized_x = dir_x + @as(f32, @floatFromInt(window.cellsize)) * (std.crypto.random.float(f32) * 2.0 - 1.0) * rand_factor;
-            const randomized_y = dir_y + @as(f32, @floatFromInt(window.cellsize)) * (std.crypto.random.float(f32) * 2.0 - 1.0) * rand_factor;
-            
-            // Scale the vector for explosive effect - cells fly outward from center
-            const explosion_power: f32 = 5.0 + std.crypto.random.float(f32) * 3.0;
-            const target_x = @as(f32, @floatFromInt(x_pos)) + randomized_x * explosion_power;
-            const target_y = @as(f32, @floatFromInt(y_pos)) + randomized_y * explosion_power;
-
             // Set animation properties
-            cell.target[0] = target_x;
-            cell.target[1] = target_y;
-            cell.target_scale = 0.1 + std.crypto.random.float(f32) * 0.2; // Size variation
+            cell.target[0] = @as(f32, @floatFromInt(xr));
+            cell.target[1] = @as(f32, @floatFromInt(yr));
+            cell.target_scale = 0.2; // Shrink cells as they fly away
             cell.color_target = .{ 0, 0, 0, 0 }; // Fade out to transparent
-            cell.duration = 600 + @as(i64, @intFromFloat(std.crypto.random.float(f32) * 500.0));
-            cell.mode = .easeout;
+            cell.duration = 1000;
+            cell.mode = .easein;
             cell.start();
 
             // Move to unattached for cleanup

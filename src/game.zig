@@ -62,23 +62,16 @@ pub fn reset() void {
     state.lastmove_ms = 0;
     state.piece = .{};
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
-    
+
     // Emit GridReset event before destroying the old grid
     events.push(.GridReset, events.Source.Game);
-    
+
     state.grid.deinit();
     state.grid = Grid.init(state.alloc) catch @panic("OOM");
-    
+
     nextpiece();
     state.gameover = false;
     state.paused = false;
-}
-
-// set a row to random x,y
-pub fn linesplat(_: usize) void {
-    // Animation logic moved to gfx.zig, Grid no longer handles animations
-    // Instead, emit a GameOver event for gfx to handle the visual effect
-    events.push(.GameOver, events.Source.Game);
 }
 
 pub fn nextpiece() void {
@@ -93,9 +86,6 @@ pub fn nextpiece() void {
         events.push(.Spawn, events.Source.Game);
     }
     if (!checkmove(state.piece.x, state.piece.y)) {
-        for (0..Grid.HEIGHT) |r| {
-            linesplat(r);
-        }
         state.piece.current = null;
         state.gameover = true;
         events.push(.GameOver, events.Source.Game);
@@ -170,7 +160,7 @@ pub fn harddrop() void {
     // Collect blocks for the PieceLocked event
     var blocks: [4]events.CellDataPos = undefined;
     var block_count: usize = 0;
-    
+
     if (state.piece.current) |piece| {
         const shape = piece.shape[state.piece.r];
         for (shape, 0..) |row, i| {
@@ -181,7 +171,7 @@ pub fn harddrop() void {
                     if (gx >= 0 and gx < Grid.WIDTH and gy >= 0 and gy < Grid.HEIGHT) {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
-                        
+
                         // Store block position and color for event
                         if (block_count < blocks.len) {
                             blocks[block_count] = .{
@@ -191,7 +181,7 @@ pub fn harddrop() void {
                             };
                             block_count += 1;
                         }
-                        
+
                         // Occupy cell in grid
                         state.grid.occupy(iy, ix, piece.color);
                     }
@@ -199,7 +189,7 @@ pub fn harddrop() void {
             }
         }
     }
-    
+
     // Emit PieceLocked event with block data before updating grid
     events.push(.{ .PieceLocked = .{ .blocks = blocks, .count = block_count } }, events.Source.Game);
 
