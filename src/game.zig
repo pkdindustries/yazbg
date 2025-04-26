@@ -155,8 +155,8 @@ pub fn checkmove(x: i32, y: i32) bool {
 
                     const ix = @as(usize, @intCast(gx));
                     const iy = @as(usize, @intCast(gy));
-                    // cell is already occupied via newcells
-                    if (state.grid.cells[iy][ix]) |_| {
+                    // cell is already occupied via cells_data
+                    if (state.grid.cells_data[iy][ix] != null) {
                         return false;
                     }
                 }
@@ -183,11 +183,7 @@ pub fn harddrop() void {
                     if (gx >= 0 and gx < Grid.WIDTH and gy >= 0 and gy < Grid.HEIGHT) {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
-                        const ac = state.grid.createCell(ix, iy, piece.color) orelse {
-                            std.debug.print("failed to get animation cell from pool\n", .{});
-                            return;
-                        };
-                        state.grid.cells[iy][ix] = ac;
+                        state.grid.occupy(iy, ix, piece.color);
                     }
                 }
             }
