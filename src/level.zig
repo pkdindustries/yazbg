@@ -16,7 +16,6 @@ pub const Progression = struct {
 pub var progression: Progression = .{};
 
 fn handleReset() void {
-    std.debug.print("resetting progression\n", .{});
     progression = .{};
     // inform subscribers of reset drop interval
     events.push(.{ .DropInterval = progression.dropinterval_ms }, events.Source.Level);
@@ -38,7 +37,11 @@ fn handleClear(lines: u8) void {
     std.debug.print("clearing {d} lines\n", .{lines});
     const cleared = @as(i32, lines);
     // Score: 1000 * (lines^2)
-    progression.score += 1000 * cleared * cleared;
+    const line_score = 1000 * cleared * cleared;
+    progression.score += line_score;
+    // Send score update event
+    events.push(.{ .ScoreUpdate = line_score }, events.Source.Level);
+
     progression.cleared += cleared;
     // Tetris bonus
     if (cleared > 3) {
@@ -50,7 +53,11 @@ fn handleClear(lines: u8) void {
     if (progression.clearedthislevel > 6) {
         progression.level += 1;
 
-        progression.score += 1000 * progression.level;
+        const level_bonus = 1000 * progression.level;
+        progression.score += level_bonus;
+        // Send score update for level bonus
+        events.push(.{ .ScoreUpdate = level_bonus }, events.Source.Level);
+
         progression.dropinterval_ms -= 150;
         progression.clearedthislevel = 0;
         if (progression.dropinterval_ms <= 100) {

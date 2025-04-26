@@ -10,6 +10,8 @@ pub const Event = union(enum) {
     LevelUp: u8,
     /// New drop interval in milliseconds; emitted by level progression logic when reset or level up
     DropInterval: i64,
+    /// Score update event; emitted by level progression logic when score changes
+    ScoreUpdate: i32,
     GameOver,
 
     // Gameplay lifecycle events (pure game‑logic → graphics/audio/UI)

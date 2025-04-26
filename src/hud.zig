@@ -33,18 +33,17 @@ pub fn process(queue: *events.EventQueue) void {
             // Gameplay progression
             // -----------------------------------------------------------------
             .Clear => |raw_lines| {
-                std.debug.print("process clear\n", .{});
-
                 const lines: i32 = @intCast(raw_lines);
                 state.lines += lines;
-                // Basic Tetris‑style scoring: 1000 × (lines²)
-                state.score += 1000 * lines * lines;
+                // Score is now handled by level.zig and received via ScoreUpdate events
             },
             .LevelUp => |_| {
                 std.debug.print("process level up\n", .{});
                 state.level += 1;
-                // Bonus points on level up.
-                state.score += 1000 * state.level;
+                // Score bonus is now handled by level.zig and received via ScoreUpdate events
+            },
+            .ScoreUpdate => |points| {
+                state.score += points;
             },
 
             // -----------------------------------------------------------------

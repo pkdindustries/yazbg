@@ -214,7 +214,6 @@ pub fn process(queue: *events.EventQueue) void {
 
 /// Reset graphics to first level state
 pub fn reset() void {
-    std.debug.print("resetting graphics\n", .{});
     bg.index = 0;
     level = 0;
     bg.load();

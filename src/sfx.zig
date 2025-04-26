@@ -74,7 +74,6 @@ pub fn process(queue: *events.EventQueue) void {
 
 /// Reset music to first level
 pub fn resetmusic() void {
-    std.debug.print("resetting music\n", .{});
     ray.StopMusicStream(songs[songindex]);
     songindex = 0;
     playmusic();
