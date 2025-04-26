@@ -445,32 +445,26 @@ fn player() void {
 }
 
 fn drawcells() void {
-    // Draw grid cells with animations
-    inline for (game.state.grid.cells) |row| {
-        for (row) |cell| {
-            if (cell) |cptr| {
-                // Update animation
-                cptr.lerp(std.time.milliTimestamp());
-
-                // Get current position
-                const drawX = @as(i32, @intFromFloat(cptr.position[0]));
-                const drawY = @as(i32, @intFromFloat(cptr.position[1]));
-
-                // Draw the cell
-                drawbox(drawX, drawY, cptr.color, cptr.scale);
+    // This function needs to be reimplemented as part of checkpoint #5
+    // We'll replace this with a temporary version that draws cells directly from cells_data
+    
+    const Grid = @import("grid.zig").Grid;
+    
+    // Draw static cells from data (temporary implementation)
+    for (0..Grid.HEIGHT) |y| {
+        for (0..Grid.WIDTH) |x| {
+            if (game.state.grid.cells_data[y][x]) |cell_data| {
+                const drawX = @as(i32, @intCast(x)) * window.cellsize;
+                const drawY = @as(i32, @intCast(y)) * window.cellsize;
+                
+                // Draw the cell with the data color
+                const rgba = cell_data.toRgba();
+                drawbox(drawX, drawY, rgba, 1.0);
             }
         }
     }
-
-    // Draw unattached cells (for animations like line clears)
-    game.state.grid.unattached.lerpall();
-    inline for (game.state.grid.unattached.cells) |cell| {
-        if (cell) |cptr| {
-            const drawX = @as(i32, @intFromFloat(cptr.position[0]));
-            const drawY = @as(i32, @intFromFloat(cptr.position[1]));
-            drawbox(drawX, drawY, cptr.color, cptr.scale);
-        }
-    }
+    
+    // TODO: In checkpoint #5, we'll implement animation management here
 }
 
 // Draw a tetromino piece

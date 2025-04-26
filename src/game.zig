@@ -75,21 +75,10 @@ pub fn reset() void {
 }
 
 // set a row to random x,y
-pub fn linesplat(row: usize) void {
-    inline for (state.grid.cells[row], 0..) |ac, i| {
-        if (ac) |cptr| {
-            const xr: i32 = state.rng.random().intRangeAtMost(i32, -2000, 2000);
-            const yr: i32 = state.rng.random().intRangeAtMost(i32, -2000, 2000);
-            cptr.target[0] = @as(f32, @floatFromInt(xr));
-            cptr.target[1] = @as(f32, @floatFromInt(yr));
-            cptr.target_scale = 0.2; // Shrink cells as they fly away
-            cptr.duration = 1000;
-            cptr.mode = .easein;
-            state.grid.unattached.add(cptr);
-            state.grid.cells[row][i] = null;
-            cptr.start();
-        }
-    }
+pub fn linesplat(_: usize) void {
+    // Animation logic moved to gfx.zig, Grid no longer handles animations
+    // Instead, emit a GameOver event for gfx to handle the visual effect
+    events.push(.GameOver, events.Source.Game);
 }
 
 pub fn nextpiece() void {

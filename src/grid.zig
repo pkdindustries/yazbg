@@ -1,8 +1,4 @@
 const std = @import("std");
-const anim_mod = @import("animation.zig");
-const Animated = anim_mod.Animated;
-const Unattached = anim_mod.UnattachedCell;
-const AnimationPool = anim_mod.AnimationPool;
 const cell_mod = @import("cell.zig");
 const CellData = cell_mod.CellData;
 
@@ -11,28 +7,18 @@ pub const Grid = struct {
     pub const WIDTH = 10;
     pub const HEIGHT = 20;
     allocator: std.mem.Allocator = undefined,
-    animpool: *AnimationPool = undefined,
-    unattached: *Unattached = undefined,
-    cells: [HEIGHT][WIDTH]?*Animated = undefined,
     cells_data: [HEIGHT][WIDTH]?CellData = undefined,
-    cleartimer: i64 = 0,
 
     pub fn init(allocator: std.mem.Allocator) !*Self {
         std.debug.print("init grid\n", .{});
         const gc = try allocator.create(Self);
 
-        // Initialize the animation pool
-        const pool = try AnimationPool.init(allocator);
-
         gc.* = Self{
             .allocator = allocator,
-            .animpool = pool,
-            .unattached = try Unattached.init(pool),
         };
 
-        for (gc.cells, 0..) |line, i| {
-            for (line, 0..) |_, j| {
-                gc.cells[i][j] = null;
+        for (0..HEIGHT) |i| {
+            for (0..WIDTH) |j| {
                 gc.cells_data[i][j] = null;
             }
         }
@@ -41,22 +27,6 @@ pub const Grid = struct {
 
     pub fn deinit(self: *Self) void {
         std.debug.print("deinit grid\n", .{});
-
-        // Release all cells back to the pool
-        for (self.cells, 0..) |line, i| {
-            for (line, 0..) |grid_cell, j| {
-                if (grid_cell) |cptr| {
-                    self.animpool.release(cptr);
-                    self.cells[i][j] = null;
-                }
-            }
-        }
-
-        // Deinit unattached animations first (will release cells to the pool)
-        self.unattached.deinit();
-
-        // Finally deinit the pool itself
-        self.animpool.deinit();
         self.allocator.destroy(self);
     }
 
@@ -67,18 +37,8 @@ pub const Grid = struct {
         // Emit LineClearing event before modifying the grid
         events.push(.{ .LineClearing = .{ .y = line } }, events.Source.Game);
         
-        inline for (self.cells[line], 0..) |grid_cell, i| {
-            // Handle animation cells
-            if (grid_cell) |cptr| {
-                cptr.target[1] = 800;
-                cptr.mode = .easein;
-                cptr.duration = 250;
-                self.unattached.add(cptr);
-                self.cells[line][i] = null;
-                self.cleartimer = std.time.milliTimestamp() + 100;
-            }
-            
-            // Clear data cells
+        // Clear data cells
+        for (0..WIDTH) |i| {
             self.cells_data[line][i] = null;
         }
     }
@@ -96,21 +56,10 @@ pub const Grid = struct {
         events.push(.{ .RowsShiftedDown = .{ .start_y = line, .count = 1 } }, events.Source.Game);
 
         // Move each cell in the row down by one row
-        inline for (self.cells[line], 0..) |grid_cell, i| {
-            // Shift animated cells down
-            self.cells[line + 1][i] = grid_cell;
-            self.cells[line][i] = null;
-            
+        for (0..WIDTH) |i| {
             // Shift data cells down
             self.cells_data[line + 1][i] = self.cells_data[line][i];
             self.cells_data[line][i] = null;
-            
-            // Update animation coordinates
-            if (grid_cell) |cptr| {
-                cptr.duration = 200;
-                cptr.mode = .easeinout;
-                cptr.setcoords(i, line + 1);
-            }
         }
     }
 
@@ -143,30 +92,14 @@ pub const Grid = struct {
         return count;
     }
 
-    pub fn createCell(self: *Self, gridx: usize, gridy: usize, color: [4]u8) ?*Animated {
-        return self.animpool.create(gridx, gridy, color);
-    }
-    
-    /// Occupy a cell with a color in both animation and data tables
+    /// Occupy a cell with a color in data table
     pub fn occupy(self: *Self, gridy: usize, gridx: usize, color: [4]u8) void {
-        // Create animated cell
-        const animated = self.createCell(gridx, gridy, color);
-        if (animated) |animated_cell| {
-            self.cells[gridy][gridx] = animated_cell;
-        }
-        
         // Create logical cell data
         self.cells_data[gridy][gridx] = CellData.fromRgba(color);
     }
     
-    /// Remove a cell from both animation and data tables
+    /// Remove a cell from data table
     pub fn vacate(self: *Self, gridy: usize, gridx: usize) void {
-        // Remove from animation table
-        if (self.cells[gridy][gridx]) |cell_ptr| {
-            self.animpool.release(cell_ptr);
-            self.cells[gridy][gridx] = null;
-        }
-        
         // Remove from data table
         self.cells_data[gridy][gridx] = null;
     }
@@ -174,22 +107,7 @@ pub const Grid = struct {
     pub fn print(self: *Self) void {
         std.debug.print("\n", .{});
         
-        // Print animated cells
-        std.debug.print("Animation cells:\n", .{});
-        for (self.cells) |line| {
-            for (line) |grid_cell| {
-                if (grid_cell) |cptr| {
-                    _ = cptr;
-                    std.debug.print("+", .{});
-                } else {
-                    std.debug.print("-", .{});
-                }
-            }
-            std.debug.print("\n", .{});
-        }
-        
         // Print data cells
-        std.debug.print("Data cells:\n", .{});
         for (self.cells_data) |line| {
             for (line) |cell_data| {
                 if (cell_data != null) {
@@ -210,16 +128,10 @@ test "init" {
     defer g.deinit();
     g.occupy(0, 0, .{ 255, 255, 255, 255 });
 
-    // Print both tables to verify they match
+    // Print the grid
     g.print();
 
-    if (g.cells[0][0]) |cptr| {
-        std.debug.print("0 0 {any}\n", .{cptr.*});
-        g.cells[0][0] = null;
-        // No need to destroy, just set to null and the pool will reuse it later
-    }
-
-    // Also verify that cells_data has the color
+    // Verify that cells_data has the color
     if (g.cells_data[0][0]) |cell_data| {
         const rgba = cell_data.toRgba();
         std.debug.print("cells_data[0][0] color: {any}\n", .{rgba});
@@ -247,8 +159,8 @@ test "rm" {
     g.print();
     g.removeline(0);
     // assert empty grid
-    for (g.cells[0]) |grid_cell| {
-        try std.testing.expect(grid_cell == null);
+    for (g.cells_data[0]) |cell_data| {
+        try std.testing.expect(cell_data == null);
     }
     g.print();
 }
@@ -278,8 +190,8 @@ test "shift" {
     try std.testing.expect(g.checkline(0) == true);
 
     // assert line 1 is empty
-    for (g.cells[1]) |grid_cell| {
-        try std.testing.expect(grid_cell == null);
+    for (g.cells_data[1]) |cell_data| {
+        try std.testing.expect(cell_data == null);
     }
 
     try std.testing.expect(g.checkline(2) == true);
