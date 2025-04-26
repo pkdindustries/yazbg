@@ -178,7 +178,6 @@ pub fn frame() void {
 
 pub fn process(queue: *events.EventQueue) void {
     const now = std.time.milliTimestamp();
-    // Process and debug-print each event
     for (queue.items()) |rec| {
         switch (rec.event) {
             .LevelUp => |newlevel| {
