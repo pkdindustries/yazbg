@@ -1,6 +1,6 @@
 const std = @import("std");
-const cell_mod = @import("cell.zig");
-const CellData = cell_mod.CellData;
+const cells = @import("cell.zig");
+const CellData = cells.CellData;
 const events = @import("events.zig");
 
 pub const Grid = struct {

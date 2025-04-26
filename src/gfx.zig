@@ -120,19 +120,15 @@ var level: u8 = 0;
 var static: ray.Shader = undefined;
 var statictimeloc: i32 = 0;
 
-const Slide = struct {
+// Animated player piece blocks
+const PlayerPiece = struct {
+    blocks: [4]?*animation.Animated = [_]?*animation.Animated{null} ** 4,
+    ghost_blocks: [4]?*animation.Animated = [_]?*animation.Animated{null} ** 4,
     active: bool = false,
-    start_time: i64 = 0,
     duration: i64 = 50, // ms
-    sourcex: i32 = 0,
-    sourcey: i32 = 0,
-    targetx: i32 = 0,
-    targety: i32 = 0,
 };
 
-var slide: Slide = .{};
-var last_piece_x: i32 = 0;
-var last_piece_y: i32 = 0;
+var player_piece: PlayerPiece = .{};
 
 pub fn frame() void {
     // Handle window resizing
@@ -167,10 +163,10 @@ pub fn frame() void {
             // Apply static effect shader to game elements
             ray.BeginShaderMode(static);
             {
-                // Draw player piece and ghost
+                // Process player piece animations and update ghost
                 player();
 
-                // Draw grid cells
+                // Draw grid cells and player piece
                 drawcells();
             }
             ray.EndShaderMode();
@@ -232,8 +228,24 @@ pub fn process(queue: *events.EventQueue) void {
             .MoveDown => startSlide(0, -1),
             // Drop interval tweaked by the level subsystem.
             .DropInterval => |ms| dropIntervalMs = ms,
-            .Spawn => slide.active = false,
+            .Spawn => {
+                player_piece.active = false; // Force a re-creation of player blocks
+            },
+            .Rotate => {
+                // Reset player piece animation on rotation
+                player_piece.active = false;
+            },
 
+            // Handle player piece events
+            .HardDrop => {
+                // For hard drop, immediately deactivate player piece animation
+                player_piece.active = false;
+            },
+            .Hold, .SwapPiece => {
+                // When holding or swapping, deactivate player piece animation
+                player_piece.active = false;
+            },
+            
             // New event handlers for checkpoint #3
             .PieceLocked => |piece_data| {
                 std.debug.print("PieceLocked event: received {d} blocks\n", .{piece_data.count});
@@ -250,6 +262,15 @@ pub fn process(queue: *events.EventQueue) void {
                         cell.start();
                     }
                 }
+                
+                // Clean up player piece animations since piece is now locked
+                for (&player_piece.blocks) |*block_ptr| {
+                    if (block_ptr.*) |block| {
+                        anim_pool.release(block);
+                        block_ptr.* = null;
+                    }
+                }
+                player_piece.active = false;
             },
             .LineClearing => |row_data| {
                 const y = row_data.y;
@@ -332,6 +353,24 @@ pub fn reset() void {
             }
         }
     }
+    
+    // Clean up player piece animations
+    for (&player_piece.blocks) |*block_ptr| {
+        if (block_ptr.*) |block| {
+            anim_pool.release(block);
+            block_ptr.* = null;
+        }
+    }
+    
+    // Clean up ghost piece animations
+    for (&player_piece.ghost_blocks) |*block_ptr| {
+        if (block_ptr.*) |block| {
+            anim_pool.release(block);
+            block_ptr.* = null;
+        }
+    }
+    
+    player_piece.active = false;
 }
 
 // Explode all cells in a given row with flying animation
@@ -360,12 +399,20 @@ fn explodeRow(row: usize) void {
 }
 
 fn startSlide(dx: i32, dy: i32) void {
-    slide.active = true;
-    slide.start_time = std.time.milliTimestamp();
-    slide.targetx = game.state.piece.x * window.cellsize;
-    slide.targety = game.state.piece.y * window.cellsize;
-    slide.sourcex = slide.targetx + dx * window.cellsize;
-    slide.sourcey = slide.targety + dy * window.cellsize;
+    if (game.state.piece.current == null) return;
+    
+    player_piece.active = true;
+    
+    // Calculate target positions for the new piece position
+    const targetX = game.state.piece.x * window.cellsize;
+    const targetY = game.state.piece.y * window.cellsize;
+    
+    // Calculate source positions (where the animation starts)
+    const sourceX = targetX + dx * window.cellsize;
+    const sourceY = targetY + dy * window.cellsize;
+    
+    // Update player piece animations
+    updatePlayerPieceAnimations(sourceX, sourceY, targetX, targetY);
 }
 
 pub fn init() !void {
@@ -430,6 +477,22 @@ pub fn deinit() void {
     }
     ray.UnloadTexture(window.texture.texture);
     ray.UnloadFont(window.font);
+    
+    // Clean up player piece animations
+    for (&player_piece.blocks) |*block_ptr| {
+        if (block_ptr.*) |block| {
+            anim_pool.release(block);
+            block_ptr.* = null;
+        }
+    }
+    
+    // Clean up ghost piece animations
+    for (&player_piece.ghost_blocks) |*block_ptr| {
+        if (block_ptr.*) |block| {
+            anim_pool.release(block);
+            block_ptr.* = null;
+        }
+    }
 
     // Clean up animation resources (step 5 migration)
     unattached.deinit();
@@ -533,52 +596,60 @@ fn background() void {
 }
 
 fn player() void {
-    if (game.state.piece.current) |p| {
-        // Calculate base position in pixels
-        const baseX = game.state.piece.x * window.cellsize;
-        const baseY = game.state.piece.y * window.cellsize;
-
-        // Start with base position
-        var drawX: f32 = @floatFromInt(baseX);
-        var drawY: f32 = @floatFromInt(baseY);
-
-        // Apply animation if active
-        if (slide.active) {
-            const elapsed_time = std.time.milliTimestamp() - slide.start_time;
-            const duration: f32 = @floatFromInt(slide.duration);
-            const progress: f32 = std.math.clamp(@as(f32, @floatFromInt(elapsed_time)) / duration, 0.0, 1.0);
-
-            // Smoothly interpolate between source and target positions
-            drawX = std.math.lerp(@as(f32, @floatFromInt(slide.sourcex)), @as(f32, @floatFromInt(slide.targetx)), progress);
-            drawY = std.math.lerp(@as(f32, @floatFromInt(slide.sourcey)), @as(f32, @floatFromInt(slide.targety)), progress);
-
-            // End animation when complete
-            if (elapsed_time >= slide.duration) {
-                slide.active = false;
+    if (game.state.piece.current) |_| {
+        // If we don't have animated player blocks yet, create them
+        if (!player_piece.active) {
+            // Calculate base position in pixels
+            const baseX = game.state.piece.x * window.cellsize;
+            const baseY = game.state.piece.y * window.cellsize;
+            
+            // Initialize player piece at current position (no animation)
+            updatePlayerPieceAnimations(baseX, baseY, baseX, baseY);
+            
+            // Set blocks to not animate (instant positioning)
+            for (player_piece.blocks) |block_opt| {
+                if (block_opt) |block| {
+                    block.animating = false;
+                }
             }
-        } else {
-            // Update position tracking for next animation
-            last_piece_x = game.state.piece.x;
-            last_piece_y = game.state.piece.y;
         }
-
-        // Convert back to integer coordinates for drawing
-        const finalX = @as(i32, @intFromFloat(drawX));
-        const finalY = @as(i32, @intFromFloat(drawY));
-
-        // Draw the active piece
-        piece(finalX, finalY, p.shape[game.state.piece.r], p.color);
-
-        // Draw ghost piece (semi-transparent preview at landing position)
-        const ghostColor = .{ p.color[0], p.color[1], p.color[2], 60 };
-        piece(finalX, game.ghosty() * window.cellsize, p.shape[game.state.piece.r], ghostColor);
+        
+        // Update ghost piece
+        updateGhostPiece();
+        
+        // Update player piece blocks animation
+        for (player_piece.blocks) |block_opt| {
+            if (block_opt) |block| {
+                if (block.animating) {
+                    const now = std.time.milliTimestamp();
+                    block.lerp(now);
+                    
+                    // If all animations are done, mark player piece as inactive
+                    if (!block.animating) {
+                        player_piece.active = false;
+                    }
+                }
+            }
+        }
+        
+        // Draw the player piece and ghost piece using the animated blocks
+        // (these are now handled in drawcells)
     }
 }
 
 fn drawcells() void {
     // Draw grid cells from visual_cells array (step 5 implementation)
 
-    // First draw attached animations in the grid
+    // First draw the ghost piece (so it appears behind everything)
+    for (player_piece.ghost_blocks) |block_opt| {
+        if (block_opt) |block| {
+            const drawX = @as(i32, @intFromFloat(block.position[0]));
+            const drawY = @as(i32, @intFromFloat(block.position[1]));
+            drawbox(drawX, drawY, block.color, block.scale);
+        }
+    }
+
+    // Draw attached animations in the grid
     for (0..Grid.HEIGHT) |y| {
         for (0..Grid.WIDTH) |x| {
             if (visual_cells[y][x]) |cell| {
@@ -589,7 +660,16 @@ fn drawcells() void {
         }
     }
 
-    // Then draw any unattached animations
+    // Draw the player piece (on top of grid cells)
+    for (player_piece.blocks) |block_opt| {
+        if (block_opt) |block| {
+            const drawX = @as(i32, @intFromFloat(block.position[0]));
+            const drawY = @as(i32, @intFromFloat(block.position[1]));
+            drawbox(drawX, drawY, block.color, block.scale);
+        }
+    }
+
+    // Draw any unattached animations (effects) on top of everything
     for (unattached.cells) |cell_opt| {
         if (cell_opt) |cell| {
             const drawX = @as(i32, @intFromFloat(cell.position[0]));
@@ -599,7 +679,99 @@ fn drawcells() void {
     }
 }
 
-// Draw a tetromino piece
+// Update player piece animations
+fn updatePlayerPieceAnimations(sourceX: i32, sourceY: i32, targetX: i32, targetY: i32) void {
+    if (game.state.piece.current) |current_piece| {
+        const shape = current_piece.shape[game.state.piece.r];
+        var block_index: usize = 0;
+        
+        // Release any existing blocks first
+        for (&player_piece.blocks) |*block_ptr| {
+            if (block_ptr.*) |block| {
+                anim_pool.release(block);
+                block_ptr.* = null;
+            }
+        }
+        
+        // Create new animated blocks for the player piece
+        for (shape, 0..) |row, i| {
+            for (row, 0..) |cell, j| {
+                if (cell and block_index < player_piece.blocks.len) {
+                    const gridX = i;
+                    const gridY = j;
+                    
+                    // Create a new animated block
+                    if (anim_pool.create(0, 0, current_piece.color)) |block| {
+                        // Calculate positions
+                        const cellSourceX = @as(f32, @floatFromInt(sourceX + @as(i32, @intCast(gridX)) * window.cellsize));
+                        const cellSourceY = @as(f32, @floatFromInt(sourceY + @as(i32, @intCast(gridY)) * window.cellsize));
+                        const cellTargetX = @as(f32, @floatFromInt(targetX + @as(i32, @intCast(gridX)) * window.cellsize));
+                        const cellTargetY = @as(f32, @floatFromInt(targetY + @as(i32, @intCast(gridY)) * window.cellsize));
+                        
+                        // Set animation properties
+                        block.source = .{ cellSourceX, cellSourceY };
+                        block.position = .{ cellSourceX, cellSourceY };
+                        block.target = .{ cellTargetX, cellTargetY };
+                        block.duration = player_piece.duration;
+                        block.mode = .easeinout;
+                        block.start();
+                        
+                        // Store the block
+                        player_piece.blocks[block_index] = block;
+                        block_index += 1;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Create animations for ghost piece
+fn updateGhostPiece() void {
+    if (game.state.piece.current) |current_piece| {
+        const shape = current_piece.shape[game.state.piece.r];
+        const ghostY = game.ghosty() * window.cellsize;
+        const playerX = game.state.piece.x * window.cellsize;
+        var block_index: usize = 0;
+        
+        // Release any existing ghost blocks first
+        for (&player_piece.ghost_blocks) |*block_ptr| {
+            if (block_ptr.*) |block| {
+                anim_pool.release(block);
+                block_ptr.* = null;
+            }
+        }
+        
+        // Create ghost blocks
+        for (shape, 0..) |row, i| {
+            for (row, 0..) |cell, j| {
+                if (cell and block_index < player_piece.ghost_blocks.len) {
+                    const gridX = i;
+                    const gridY = j;
+                    
+                    // Create semi-transparent ghost block
+                    const ghostColor = .{ current_piece.color[0], current_piece.color[1], current_piece.color[2], 60 };
+                    if (anim_pool.create(0, 0, ghostColor)) |block| {
+                        // Set position directly (no animation for ghost)
+                        const cellX = @as(f32, @floatFromInt(playerX + @as(i32, @intCast(gridX)) * window.cellsize));
+                        const cellY = @as(f32, @floatFromInt(ghostY + @as(i32, @intCast(gridY)) * window.cellsize));
+                        
+                        block.source = .{ cellX, cellY };
+                        block.position = .{ cellX, cellY };
+                        block.target = .{ cellX, cellY };
+                        block.animating = false;
+                        
+                        // Store the block
+                        player_piece.ghost_blocks[block_index] = block;
+                        block_index += 1;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Draw a tetromino piece (legacy version, will be replaced)
 fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
     const scale: f32 = 1.0;
 
