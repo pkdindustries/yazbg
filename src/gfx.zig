@@ -180,6 +180,7 @@ pub fn process(queue: *events.EventQueue) void {
     const now = std.time.milliTimestamp();
     for (queue.items()) |rec| {
         switch (rec.event) {
+            // Original event handlers
             .LevelUp => |newlevel| {
                 bg.next();
                 level = newlevel;
@@ -199,13 +200,37 @@ pub fn process(queue: *events.EventQueue) void {
                 warp_end_ms = now + 300;
             },
             .Reset => reset(),
-
             .MoveLeft => startSlide(1, 0),
             .MoveRight => startSlide(-1, 0),
             .MoveDown => startSlide(0, -1),
             // Drop interval tweaked by the level subsystem.
             .DropInterval => |ms| dropIntervalMs = ms,
             .Spawn => slide.active = false,
+            
+            // New event handlers for checkpoint #3
+            .PieceLocked => |piece_data| {
+                // Compatibility shim: spawn animations for the locked piece blocks
+                // This will be implemented fully in checkpoint #5
+                // For now, we're just acknowledging the event
+                _ = piece_data;
+            },
+            .LineClearing => |row_data| {
+                // Compatibility shim: start row fade animation
+                // This will be implemented fully in checkpoint #5
+                // For now, we're just acknowledging the event
+                _ = row_data;
+                
+                // Note: Clear events should still work during transition
+            },
+            .RowsShiftedDown => |shift_data| {
+                // Compatibility shim: handle rows shifted down
+                // This will be implemented fully in checkpoint #5
+                _ = shift_data;
+            },
+            .GridReset => {
+                // Compatibility shim: handle grid reset
+                // This will be implemented fully in checkpoint #5
+            },
             else => {},
         }
     }
