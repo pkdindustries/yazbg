@@ -61,7 +61,12 @@ pub const Grid = struct {
     }
 
     fn removeline(self: *Self, line: usize) void {
+        const events = @import("events.zig");
         std.debug.print("removeline {d}\n", .{line});
+        
+        // Emit LineClearing event before modifying the grid
+        events.push(.{ .LineClearing = .{ .y = line } }, events.Source.Game);
+        
         inline for (self.cells[line], 0..) |grid_cell, i| {
             // Handle animation cells
             if (grid_cell) |cptr| {
@@ -80,10 +85,15 @@ pub const Grid = struct {
 
     // shift a single line down
     fn shiftrow(self: *Self, line: usize) void {
+        const events = @import("events.zig");
+        
         // Check if the line is within bounds
         if (line >= HEIGHT - 1) {
             return; // Cannot shift the last row down
         }
+        
+        // Emit RowsShiftedDown event before modifying the grid
+        events.push(.{ .RowsShiftedDown = .{ .start_y = line, .count = 1 } }, events.Source.Game);
 
         // Move each cell in the row down by one row
         inline for (self.cells[line], 0..) |grid_cell, i| {

@@ -1,5 +1,12 @@
 const std = @import("std");
 
+/// Position and color data for cell events
+pub const CellDataPos = struct {
+    x: usize,
+    y: usize,
+    color: [4]u8,
+};
+
 // All side‑effects that the pure game logic might request.
 // Renderer/audio layer subscribes and performs real work.
 pub const Event = union(enum) {
@@ -17,6 +24,21 @@ pub const Event = union(enum) {
     // Gameplay lifecycle events (pure game‑logic → graphics/audio/UI)
     Spawn, // a new active piece appeared
     Lock, // the piece was fixed to the grid
+    /// Emitted when a piece is locked onto the grid with block positions and colors
+    PieceLocked: struct {
+        blocks: []const CellDataPos,
+    },
+    /// Emitted when a line is being cleared
+    LineClearing: struct {
+        y: usize,
+    },
+    /// Emitted when rows are shifted down after clearing
+    RowsShiftedDown: struct {
+        start_y: usize,
+        count: usize,
+    },
+    /// Emitted when the grid is reset
+    GridReset,
     Hold, // player used the hold feature
     Kick, // piece was kicked (rotated) into the grid
     AutoDrop, // automatic dropping of piece based on timing
