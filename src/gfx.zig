@@ -211,8 +211,13 @@ pub fn process(queue: *events.EventQueue) void {
             .PieceLocked => |piece_data| {
                 // Compatibility shim: spawn animations for the locked piece blocks
                 // This will be implemented fully in checkpoint #5
-                // For now, we're just acknowledging the event
-                _ = piece_data;
+                std.debug.print("PieceLocked event: received {d} blocks\n", .{piece_data.count});
+                for (piece_data.blocks[0..piece_data.count], 0..) |block, i| {
+                    std.debug.print("  Block {d}: pos=({d},{d}), color=({d},{d},{d},{d})\n", .{
+                        i, block.x, block.y, 
+                        block.color[0], block.color[1], block.color[2], block.color[3]
+                    });
+                }
             },
             .LineClearing => |row_data| {
                 // Compatibility shim: start row fade animation

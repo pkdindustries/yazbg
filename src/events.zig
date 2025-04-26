@@ -26,7 +26,8 @@ pub const Event = union(enum) {
     Lock, // the piece was fixed to the grid
     /// Emitted when a piece is locked onto the grid with block positions and colors
     PieceLocked: struct {
-        blocks: []const CellDataPos,
+        blocks: [4]CellDataPos,
+        count: usize,
     },
     /// Emitted when a line is being cleared
     LineClearing: struct {

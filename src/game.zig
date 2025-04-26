@@ -201,7 +201,7 @@ pub fn harddrop() void {
     }
     
     // Emit PieceLocked event with block data before updating grid
-    events.push(.{ .PieceLocked = .{ .blocks = blocks[0..block_count] } }, events.Source.Game);
+    events.push(.{ .PieceLocked = .{ .blocks = blocks, .count = block_count } }, events.Source.Game);
 
     state.lastmove_ms = state.current_time_ms;
     const cleared = state.grid.clear();
