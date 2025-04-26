@@ -217,9 +217,9 @@ pub fn process(queue: *events.EventQueue) void {
                 }
             },
             .Reset => reset(),
-            .MoveLeft => startSlide(1, 0),
-            .MoveRight => startSlide(-1, 0),
-            .MoveDown => startSlide(0, -1),
+            .MoveLeft => player.startSlide(1, 0),
+            .MoveRight => player.startSlide(-1, 0),
+            .MoveDown => player.startSlide(0, -1),
             // Drop interval tweaked by the level subsystem.
             .DropInterval => |ms| dropIntervalMs = ms,
             .Spawn => {
@@ -375,10 +375,6 @@ fn explodeRow(row: usize) void {
             visual_cells[row][x] = null;
         }
     }
-}
-
-fn startSlide(dx: i32, dy: i32) void {
-    player.startSlide(dx, dy);
 }
 
 pub fn init() !void {
