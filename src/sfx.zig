@@ -29,33 +29,38 @@ var sounds: [MAX_SOUNDS]SoundBank = undefined;
 var soundvolume: f32 = 0.5;
 var musicvolume: f32 = 0.15;
 
-var music: [3][*:0]const u8 = .{
+const MUSIC_PATHS = [_][*:0]const u8{
     "resources/music/level0.mp3",
     "resources/music/level1.mp3",
     "resources/music/newbit.mp3",
 };
-var songs: [3]ray.Music = undefined;
+
+const SOUND_PATHS = [_][*:0]const u8{
+    "resources/sfx/deny.mp3",
+    "resources/sfx/clack.mp3",
+    "resources/sfx/click.mp3",
+    "resources/sfx/clear.mp3",
+    "resources/sfx/level.mp3",
+    "resources/sfx/woosh.mp3",
+    "resources/sfx/win.mp3",
+    "resources/sfx/gameover.mp3",
+};
+
+var songs: [MUSIC_PATHS.len]ray.Music = undefined;
 var songindex: usize = 0;
 
-// -----------------------------------------------------------------------------
-// Event handling
-// -----------------------------------------------------------------------------
-
-/// Consume all queued events and translate them into concrete audio calls.
 pub fn process(queue: *events.EventQueue) void {
     for (queue.items()) |rec| {
-        // debug: print event, source, and timestamp
         switch (rec.event) {
             .Error => playSound(.error_sound),
             .Clear => playSound(.clear),
             .Win => playSound(.win),
             .LevelUp => |_| {
-                // level up jingle and switch to the next track
                 playSound(.level);
-                nextmusic();
+                nextMusic();
             },
             .GameOver => playSound(.gameover),
-            .Reset => resetmusic(),
+            .Reset => resetMusic(),
             .MoveLeft => playSound(.click),
             .MoveRight => playSound(.click),
             .MoveDown => playSound(.click),
@@ -66,38 +71,26 @@ pub fn process(queue: *events.EventQueue) void {
             .Kick => playSound(.clack),
             .Lock => playSound(.clack),
             .MuteAudio => mute(),
-            .NextMusic => nextmusic(),
+            .NextMusic => nextMusic(),
             else => {},
         }
     }
 }
 
 /// Reset music to first level
-pub fn resetmusic() void {
+pub fn resetMusic() void {
     ray.StopMusicStream(songs[songindex]);
     songindex = 0;
-    playmusic();
+    playMusic();
 }
 
 pub fn init() !void {
-    // audio
     std.debug.print("init audio\n", .{});
     ray.InitAudioDevice();
-    if (ray.IsAudioDeviceReady() and target.os.tag != .linux) {
-        // Load base sounds
-        const sound_files = [_][*:0]const u8{
-            "resources/sfx/deny.mp3",
-            "resources/sfx/clack.mp3",
-            "resources/sfx/click.mp3",
-            "resources/sfx/clear.mp3",
-            "resources/sfx/level.mp3",
-            "resources/sfx/woosh.mp3",
-            "resources/sfx/win.mp3",
-            "resources/sfx/gameover.mp3",
-        };
 
+    if (ray.IsAudioDeviceReady() and target.os.tag != .linux) {
         // Initialize sound banks
-        for (sound_files, 0..) |file, i| {
+        for (SOUND_PATHS, 0..) |file, i| {
             sounds[i].base = ray.LoadSound(file);
 
             // Create aliases for concurrent playback
@@ -107,12 +100,12 @@ pub fn init() !void {
             sounds[i].current = 0;
         }
 
-        // load music into songs
-        for (music, 0..) |m, i| {
-            songs[i] = ray.LoadMusicStream(m);
+        // Load music
+        for (MUSIC_PATHS, 0..) |path, i| {
+            songs[i] = ray.LoadMusicStream(path);
         }
     }
-    playmusic();
+    playMusic();
 }
 
 pub fn deinit() void {
@@ -146,36 +139,29 @@ fn playSound(sound_type: SoundType) void {
     bank.current = (bank.current + 1) % MAX_INSTANCES;
 }
 
-pub fn playmusic() void {
+pub fn playMusic() void {
     ray.SetMusicVolume(songs[songindex], musicvolume);
     ray.PlayMusicStream(songs[songindex]);
 }
 
-pub fn nextmusic() void {
+pub fn nextMusic() void {
     ray.StopMusicStream(songs[songindex]);
-    songindex = songindex + 1;
-    if (songindex >= music.len) {
-        songindex = 0;
-    }
-    playmusic();
+    songindex = (songindex + 1) % MUSIC_PATHS.len;
+    playMusic();
 }
 
-// toggle mute
 pub fn mute() void {
-    if (musicvolume > 0.0) {
-        musicvolume = 0.0;
-    } else {
-        musicvolume = 0.15;
-    }
-    updatemusic();
-}
-pub fn randommusic() void {
-    ray.StopMusicStream(songs[songindex]);
-    songindex = game.state.rng.random().intRangeAtMost(usize, 0, music.len - 1);
-    playmusic();
+    musicvolume = if (musicvolume > 0.0) 0.0 else 0.15;
+    updateMusic();
 }
 
-pub fn updatemusic() void {
+pub fn randomMusic() void {
+    ray.StopMusicStream(songs[songindex]);
+    songindex = game.state.rng.random().intRangeAtMost(usize, 0, MUSIC_PATHS.len - 1);
+    playMusic();
+}
+
+pub fn updateMusic() void {
     ray.SetMusicVolume(songs[songindex], musicvolume);
     ray.UpdateMusicStream(songs[songindex]);
 }

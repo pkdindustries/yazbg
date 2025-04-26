@@ -32,7 +32,7 @@ pub fn main() !void {
         // update clock
         game.tick(std.time.milliTimestamp());
         // keep music fed
-        sfx.updatemusic();
+        sfx.updateMusic();
 
         switch (ray.GetKeyPressed()) {
             ray.KEY_P => events.push(.Pause, events.Source.Input),
