@@ -3,6 +3,8 @@ const ray = @import("raylib.zig");
 const game = @import("game.zig");
 const hud = @import("hud.zig");
 const events = @import("events.zig");
+const animation = @import("animation.zig");
+const Grid = @import("grid.zig").Grid;
 
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
@@ -71,6 +73,11 @@ pub const Background = struct {
 var window = Window{};
 var bg = Background{};
 
+// Animation management structures from grid (step 5 of migration)
+var anim_pool: *animation.AnimationPool = undefined;
+var unattached: *animation.UnattachedCell = undefined;
+var visual_cells: [Grid.HEIGHT][Grid.WIDTH]?*animation.Animated = undefined;
+
 // Window dragging state and logic - currently disabled in frame()
 var drag_active: bool = false;
 fn updatedrag() void {
@@ -133,6 +140,21 @@ pub fn frame() void {
 
     // Update shader uniforms
     preshade();
+
+    // Update animations
+    unattached.lerpall();
+
+    // Update cell animations
+    const now = std.time.milliTimestamp();
+    for (0..Grid.HEIGHT) |y| {
+        for (0..Grid.WIDTH) |x| {
+            if (visual_cells[y][x]) |cell| {
+                if (cell.animating) {
+                    cell.lerp(now);
+                }
+            }
+        }
+    }
 
     ray.BeginDrawing();
     {
@@ -198,6 +220,11 @@ pub fn process(queue: *events.EventQueue) void {
                 // to highlight the end of the run.
                 bg.next();
                 warp_end_ms = now + 300;
+
+                // Create the line splat effect for all rows
+                for (0..Grid.HEIGHT) |y| {
+                    explodeRow(y);
+                }
             },
             .Reset => reset(),
             .MoveLeft => startSlide(1, 0),
@@ -206,35 +233,84 @@ pub fn process(queue: *events.EventQueue) void {
             // Drop interval tweaked by the level subsystem.
             .DropInterval => |ms| dropIntervalMs = ms,
             .Spawn => slide.active = false,
-            
+
             // New event handlers for checkpoint #3
             .PieceLocked => |piece_data| {
-                // Compatibility shim: spawn animations for the locked piece blocks
-                // This will be implemented fully in checkpoint #5
                 std.debug.print("PieceLocked event: received {d} blocks\n", .{piece_data.count});
-                for (piece_data.blocks[0..piece_data.count], 0..) |block, i| {
-                    std.debug.print("  Block {d}: pos=({d},{d}), color=({d},{d},{d},{d})\n", .{
-                        i, block.x, block.y, 
-                        block.color[0], block.color[1], block.color[2], block.color[3]
-                    });
+
+                // Create animations for each block in the piece
+                for (piece_data.blocks[0..piece_data.count]) |block| {
+                    // Create a new animation cell
+                    if (visual_cells[block.y][block.x]) |existing| {
+                        anim_pool.release(existing);
+                    }
+
+                    if (anim_pool.create(block.x, block.y, block.color)) |cell| {
+                        visual_cells[block.y][block.x] = cell;
+                        cell.start();
+                    }
                 }
             },
             .LineClearing => |row_data| {
-                // Compatibility shim: start row fade animation
-                // This will be implemented fully in checkpoint #5
-                // For now, we're just acknowledging the event
-                _ = row_data;
-                
-                // Note: Clear events should still work during transition
+                const y = row_data.y;
+
+                // Simply remove cells in the cleared row - no animation
+                for (0..Grid.WIDTH) |x| {
+                    if (visual_cells[y][x]) |cell| {
+                        // Release the cell back to the pool
+                        anim_pool.release(cell);
+                        visual_cells[y][x] = null;
+                    }
+                }
             },
             .RowsShiftedDown => |shift_data| {
-                // Compatibility shim: handle rows shifted down
-                // This will be implemented fully in checkpoint #5
-                _ = shift_data;
+                const start_y = shift_data.start_y;
+                const target_y = start_y + 1; // The row where we're moving cells to
+
+                // The grid is shifting cells from start_y down to start_y+1
+                // Move the visual cells to match
+                for (0..Grid.WIDTH) |x| {
+                    // If there's a cell at the source row
+                    if (visual_cells[start_y][x]) |cell| {
+                        // Release any existing cell at the target row
+                        if (visual_cells[target_y][x]) |existing| {
+                            anim_pool.release(existing);
+                        }
+
+                        // Instead of just setting coordinates, animate the cell moving down
+                        // Keep the source position
+                        cell.source[0] = cell.position[0];
+                        cell.source[1] = cell.position[1];
+
+                        // Set the target position
+                        const x_pos = @as(i32, @intCast(x)) * window.cellsize;
+                        const y_pos = @as(i32, @intCast(target_y)) * window.cellsize;
+                        cell.target[0] = @floatFromInt(x_pos);
+                        cell.target[1] = @floatFromInt(y_pos);
+
+                        // Make the animation smooth
+                        cell.duration = 150; // ms
+                        cell.mode = .easeout;
+                        cell.start();
+
+                        // Update visual_cells references
+                        visual_cells[target_y][x] = cell;
+                        visual_cells[start_y][x] = null;
+                    }
+                }
+
+                std.debug.print("Shifted row {d} down to {d}\n", .{ start_y, target_y });
             },
             .GridReset => {
-                // Compatibility shim: handle grid reset
-                // This will be implemented fully in checkpoint #5
+                // Clear all animations
+                for (0..Grid.HEIGHT) |y| {
+                    for (0..Grid.WIDTH) |x| {
+                        if (visual_cells[y][x]) |cell| {
+                            anim_pool.release(cell);
+                            visual_cells[y][x] = null;
+                        }
+                    }
+                }
             },
             else => {},
         }
@@ -246,6 +322,59 @@ pub fn reset() void {
     bg.index = 0;
     level = 0;
     bg.load();
+
+    // Clear visual cells (step 5 migration)
+    for (0..Grid.HEIGHT) |y| {
+        for (0..Grid.WIDTH) |x| {
+            if (visual_cells[y][x]) |cell| {
+                anim_pool.release(cell);
+                visual_cells[y][x] = null;
+            }
+        }
+    }
+}
+
+// Explode all cells in a given row with flying animation
+fn explodeRow(row: usize) void {
+    // Calculate center of the grid as explosion origin point
+    const center_x: f32 = @floatFromInt((Grid.WIDTH / 2) * window.cellsize);
+    const center_y: f32 = @floatFromInt((Grid.HEIGHT / 2) * window.cellsize);
+    
+    // Create exploding animation for each cell in row
+    for (0..Grid.WIDTH) |x| {
+        if (visual_cells[row][x]) |cell| {
+            // Get cell position
+            const x_pos = @as(i32, @intCast(x)) * window.cellsize;
+            const y_pos = @as(i32, @intCast(row)) * window.cellsize;
+            
+            // Calculate vector from center to current cell
+            const dir_x: f32 = @as(f32, @floatFromInt(x_pos)) - center_x;
+            const dir_y: f32 = @as(f32, @floatFromInt(y_pos)) - center_y;
+            
+            // Add randomness to the explosion direction
+            const rand_factor = 0.5;
+            const randomized_x = dir_x + @as(f32, @floatFromInt(window.cellsize)) * (std.crypto.random.float(f32) * 2.0 - 1.0) * rand_factor;
+            const randomized_y = dir_y + @as(f32, @floatFromInt(window.cellsize)) * (std.crypto.random.float(f32) * 2.0 - 1.0) * rand_factor;
+            
+            // Scale the vector for explosive effect - cells fly outward from center
+            const explosion_power: f32 = 5.0 + std.crypto.random.float(f32) * 3.0;
+            const target_x = @as(f32, @floatFromInt(x_pos)) + randomized_x * explosion_power;
+            const target_y = @as(f32, @floatFromInt(y_pos)) + randomized_y * explosion_power;
+
+            // Set animation properties
+            cell.target[0] = target_x;
+            cell.target[1] = target_y;
+            cell.target_scale = 0.1 + std.crypto.random.float(f32) * 0.2; // Size variation
+            cell.color_target = .{ 0, 0, 0, 0 }; // Fade out to transparent
+            cell.duration = 600 + @as(i64, @intFromFloat(std.crypto.random.float(f32) * 500.0));
+            cell.mode = .easeout;
+            cell.start();
+
+            // Move to unattached for cleanup
+            unattached.add(cell);
+            visual_cells[row][x] = null;
+        }
+    }
 }
 
 fn startSlide(dx: i32, dy: i32) void {
@@ -297,6 +426,17 @@ pub fn init() !void {
     }
 
     bg.load();
+
+    // Initialize animation system (step 5 migration)
+    anim_pool = try animation.AnimationPool.init(game.state.alloc);
+    unattached = try animation.UnattachedCell.init(anim_pool);
+
+    // Initialize visual cells array
+    for (0..Grid.HEIGHT) |y| {
+        for (0..Grid.WIDTH) |x| {
+            visual_cells[y][x] = null;
+        }
+    }
 }
 
 pub fn deinit() void {
@@ -308,6 +448,10 @@ pub fn deinit() void {
     }
     ray.UnloadTexture(window.texture.texture);
     ray.UnloadFont(window.font);
+
+    // Clean up animation resources (step 5 migration)
+    unattached.deinit();
+    anim_pool.deinit();
 }
 
 // These global functions now call the Background struct methods
@@ -450,26 +594,27 @@ fn player() void {
 }
 
 fn drawcells() void {
-    // This function needs to be reimplemented as part of checkpoint #5
-    // We'll replace this with a temporary version that draws cells directly from cells_data
-    
-    const Grid = @import("grid.zig").Grid;
-    
-    // Draw static cells from data (temporary implementation)
+    // Draw grid cells from visual_cells array (step 5 implementation)
+
+    // First draw attached animations in the grid
     for (0..Grid.HEIGHT) |y| {
         for (0..Grid.WIDTH) |x| {
-            if (game.state.grid.cells_data[y][x]) |cell_data| {
-                const drawX = @as(i32, @intCast(x)) * window.cellsize;
-                const drawY = @as(i32, @intCast(y)) * window.cellsize;
-                
-                // Draw the cell with the data color
-                const rgba = cell_data.toRgba();
-                drawbox(drawX, drawY, rgba, 1.0);
+            if (visual_cells[y][x]) |cell| {
+                const drawX = @as(i32, @intFromFloat(cell.position[0]));
+                const drawY = @as(i32, @intFromFloat(cell.position[1]));
+                drawbox(drawX, drawY, cell.color, cell.scale);
             }
         }
     }
-    
-    // TODO: In checkpoint #5, we'll implement animation management here
+
+    // Then draw any unattached animations
+    for (unattached.cells) |cell_opt| {
+        if (cell_opt) |cell| {
+            const drawX = @as(i32, @intFromFloat(cell.position[0]));
+            const drawY = @as(i32, @intFromFloat(cell.position[1]));
+            drawbox(drawX, drawY, cell.color, cell.scale);
+        }
+    }
 }
 
 // Draw a tetromino piece

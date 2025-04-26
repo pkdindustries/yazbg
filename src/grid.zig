@@ -1,6 +1,7 @@
 const std = @import("std");
 const cell_mod = @import("cell.zig");
 const CellData = cell_mod.CellData;
+const events = @import("events.zig");
 
 pub const Grid = struct {
     const Self = @This();
@@ -31,12 +32,11 @@ pub const Grid = struct {
     }
 
     fn removeline(self: *Self, line: usize) void {
-        const events = @import("events.zig");
         std.debug.print("removeline {d}\n", .{line});
-        
+
         // Emit LineClearing event before modifying the grid
         events.push(.{ .LineClearing = .{ .y = line } }, events.Source.Game);
-        
+
         // Clear data cells
         for (0..WIDTH) |i| {
             self.cells_data[line][i] = null;
@@ -45,13 +45,11 @@ pub const Grid = struct {
 
     // shift a single line down
     fn shiftrow(self: *Self, line: usize) void {
-        const events = @import("events.zig");
-        
         // Check if the line is within bounds
         if (line >= HEIGHT - 1) {
             return; // Cannot shift the last row down
         }
-        
+
         // Emit RowsShiftedDown event before modifying the grid
         events.push(.{ .RowsShiftedDown = .{ .start_y = line, .count = 1 } }, events.Source.Game);
 
@@ -97,7 +95,7 @@ pub const Grid = struct {
         // Create logical cell data
         self.cells_data[gridy][gridx] = CellData.fromRgba(color);
     }
-    
+
     /// Remove a cell from data table
     pub fn vacate(self: *Self, gridy: usize, gridx: usize) void {
         // Remove from data table
@@ -106,7 +104,7 @@ pub const Grid = struct {
 
     pub fn print(self: *Self) void {
         std.debug.print("\n", .{});
-        
+
         // Print data cells
         for (self.cells_data) |line| {
             for (line) |cell_data| {
