@@ -3,8 +3,10 @@ const ray = @import("raylib.zig");
 const game = @import("game.zig");
 const hud = @import("hud.zig");
 const events = @import("events.zig");
-const animation = @import("animation.zig");
 const Grid = @import("grid.zig").Grid;
+const CellLayer = @import("cellrenderer.zig").CellLayer;
+const AnimationState = @import("cellrenderer.zig").AnimationState;
+const Animator = @import("animator.zig").Animator;
 
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
@@ -98,11 +100,11 @@ pub const Window = struct {
 };
 
 pub const Background = struct {
-    texture: [9]ray.Texture2D = undefined,
-    index: u32 = 0,
+    index: usize = 0,
     shader: ray.Shader = undefined,
+    texture: [8]ray.Texture2D = undefined,
 
-    // Shader locations
+    // Shader uniform locations
     secondsloc: i32 = 0,
     freqxloc: i32 = 0,
     freqyloc: i32 = 0,
@@ -117,24 +119,24 @@ pub const Background = struct {
     freqy: f32 = 10.0,
     ampx: f32 = 2.0,
     ampy: f32 = 2.0,
-    speedx: f32 = 0.25,
-    speedy: f32 = 0.25,
-
-    const paths = [_][*:0]const u8{
-        "resources/texture/bluestars.png",
-        "resources/texture/nebula.png",
-        "resources/texture/starfield.png",
-        "resources/texture/console.png",
-        "resources/texture/bokefall.png",
-        "resources/texture/nebula2.png",
-        "resources/texture/warpgate.png",
-        "resources/texture/starfield2.png",
-        "resources/texture/starmap.png",
-    };
+    speedx: f32 = 0.15,
+    speedy: f32 = 0.15,
 
     pub fn init(self: *Background) !void {
-        // Load and setup background warp shader
+        // Load background textures
+        self.texture[0] = ray.LoadTexture("resources/texture/starfield.png");
+        self.texture[1] = ray.LoadTexture("resources/texture/starfield2.png");
+        self.texture[2] = ray.LoadTexture("resources/texture/nebula.png");
+        self.texture[3] = ray.LoadTexture("resources/texture/nebula2.png");
+        self.texture[4] = ray.LoadTexture("resources/texture/bluestars.png");
+        self.texture[5] = ray.LoadTexture("resources/texture/bokefall.png");
+        self.texture[6] = ray.LoadTexture("resources/texture/starmap.png");
+        self.texture[7] = ray.LoadTexture("resources/texture/warpgate.png");
+
+        // Load warp effect shader
         self.shader = ray.LoadShader(null, "resources/shader/warp.fs");
+
+        // Get uniform locations
         self.secondsloc = ray.GetShaderLocation(self.shader, "seconds");
         self.freqxloc = ray.GetShaderLocation(self.shader, "freqX");
         self.freqyloc = ray.GetShaderLocation(self.shader, "freqY");
@@ -143,60 +145,33 @@ pub const Background = struct {
         self.speedxloc = ray.GetShaderLocation(self.shader, "speedX");
         self.speedyloc = ray.GetShaderLocation(self.shader, "speedY");
         self.sizeloc = ray.GetShaderLocation(self.shader, "size");
-
-        // Load background textures
-        for (paths, 0..) |path, i| {
-            var texture = ray.LoadTexture(path);
-            ray.GenTextureMipmaps(&texture);
-            ray.SetTextureFilter(texture, ray.TEXTURE_FILTER_TRILINEAR);
-            self.texture[i] = texture;
-        }
-
-        self.load();
     }
 
     pub fn deinit(self: *Background) void {
+        // Unload all textures
+        for (self.texture) |texture| {
+            ray.UnloadTexture(texture);
+        }
+
+        // Unload the shader
         ray.UnloadShader(self.shader);
-        for (self.texture) |t| {
-            ray.UnloadTexture(t);
-        }
     }
 
-    // Update current texture filtering
-    pub fn load(self: *Background) void {
-        ray.GenTextureMipmaps(&self.texture[self.index]);
-        ray.SetTextureFilter(self.texture[self.index], ray.TEXTURE_FILTER_TRILINEAR);
-    }
-
-    // Cycle to next background texture
     pub fn next(self: *Background) void {
-        self.index += 1;
-        if (self.index >= paths.len) {
-            self.index = 0;
-        }
-        self.load();
+        self.index = (self.index + 1) % self.texture.len;
     }
 
-    // Draw background with shader applied
+    pub fn load(self: *Background) void {
+        _ = self; // This is just for semantic clarity - textures are already loaded
+    }
+
     pub fn draw(self: *Background) void {
-        ray.ClearBackground(ray.BLACK);
+        // Apply the warp shader when drawing the background
         ray.BeginShaderMode(self.shader);
 
-        // Define source rectangle (entire texture)
-        const src = ray.Rectangle{
-            .x = 0,
-            .y = 0,
-            .width = @floatFromInt(self.texture[self.index].width),
-            .height = @floatFromInt(self.texture[self.index].height),
-        };
-
-        // Define target rectangle (entire window)
-        const tgt = ray.Rectangle{
-            .x = 0,
-            .y = 0,
-            .width = @floatFromInt(Window.OGWIDTH),
-            .height = @floatFromInt(Window.OGHEIGHT),
-        };
+        // Source and destination rectangles
+        const src = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(self.texture[self.index].width), .height = @floatFromInt(self.texture[self.index].height) };
+        const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(Window.OGWIDTH), .height = @floatFromInt(Window.OGHEIGHT) };
 
         // Draw background texture with shader applied
         ray.DrawTexturePro(self.texture[self.index], src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
@@ -207,16 +182,12 @@ pub const Background = struct {
 var window = Window{};
 var background = Background{};
 
-// Animation management structures from grid
-var anim_pool: *animation.AnimationPool = undefined;
-var unattached_cells: *animation.UnattachedAnimatedCell = undefined;
-var grid_cells: [Grid.HEIGHT][Grid.WIDTH]?*animation.AnimatedCell = undefined;
-
 // Graphics state variables
 // Effect timer for visual effects like warp
 var warp_end_ms: i64 = 0;
 var dropIntervalMs: i64 = 0;
 var level: u8 = 0;
+var animator: Animator = undefined;
 
 // Static effect shader
 var static: ray.Shader = undefined;
@@ -283,235 +254,18 @@ const PlayerPiece = struct {
 
             // Draw ghost piece (semi-transparent preview at landing position)
             const ghostColor = .{ p.color[0], p.color[1], p.color[2], 60 };
-            drawpiece(finalX, game.ghosty() * window.cellsize, p.shape[game.state.piece.r], ghostColor);
+            drawpiece(finalX, ghosty() * window.cellsize, p.shape[game.state.piece.r], ghostColor);
         }
+    }
+    pub fn ghosty() i32 {
+        // Calculate the ghost position based on the current piece position
+        var y = game.state.piece.y;
+        while (game.checkmove(game.state.piece.x, y + 1)) : (y += 1) {}
+        return y;
     }
 };
 
 var player: PlayerPiece = .{};
-
-pub fn frame() void {
-    // Handle window resizing
-    window.updateScale();
-
-    //window drag, if we want to fuck with an undecorated window
-    //window.updateDrag();
-
-    // Update shader uniforms
-    preshade();
-
-    // Update animations
-    unattached_cells.lerpall();
-
-    // Update cell animations
-    const now = std.time.milliTimestamp();
-    for (0..Grid.HEIGHT) |y| {
-        for (0..Grid.WIDTH) |x| {
-            if (grid_cells[y][x]) |cell| {
-                if (cell.animating) {
-                    cell.lerp(now);
-                }
-            }
-        }
-    }
-
-    ray.BeginDrawing();
-    {
-        // Draw to render texture at original resolution
-        ray.BeginTextureMode(window.texture);
-        {
-            // Draw background with warp effect
-            background.draw();
-
-            // Apply static effect shader to game elements
-            ray.BeginShaderMode(static);
-            {
-                // Draw player piece and ghost
-                player.draw();
-
-                // Draw grid cells
-                drawcells();
-            }
-            ray.EndShaderMode();
-
-            // Draw HUD elements
-            hud.draw(.{
-                .gridoffsetx = window.gridoffsetx,
-                .gridoffsety = window.gridoffsety,
-                .cellsize = window.cellsize,
-                .cellpadding = window.cellpadding,
-                .font = window.font,
-                .og_width = Window.OGWIDTH,
-                .og_height = Window.OGHEIGHT,
-                .next_piece = game.state.piece.next,
-                .held_piece = game.state.piece.held,
-            }, static);
-        }
-        ray.EndTextureMode();
-
-        // Scale render texture to actual window size
-        window.drawScaled();
-    }
-    ray.EndDrawing();
-}
-
-pub fn process(queue: *events.EventQueue) void {
-    const now = std.time.milliTimestamp();
-    for (queue.items()) |rec| {
-        switch (rec.event) {
-            // Original event handlers
-            .LevelUp => |newlevel| {
-                background.next();
-                level = newlevel;
-            },
-            .NextBackground => background.next(),
-            .Clear => |lines| {
-                // Prolong the background warp effect proportionally to the number
-                // of lines removed so it is visible even when the grid animation
-                // finishes very quickly.
-                const extra_ms: i64 = 120 * @as(i64, @intCast(lines));
-                if (warp_end_ms < now + extra_ms) warp_end_ms = now + extra_ms;
-            },
-            .GameOver => {
-                // Immediately intensify the warp and pick a contrasting background
-                // to highlight the end of the run.
-                background.next();
-                warp_end_ms = now + 300;
-
-                // Create the line splat effect for all rows
-                for (0..Grid.HEIGHT) |y| {
-                    explodeRow(y);
-                }
-            },
-            .Reset => reset(),
-            .MoveLeft => player.move(1, 0),
-            .MoveRight => player.move(-1, 0),
-            .MoveDown => player.move(0, -1),
-            // Drop interval tweaked by the level subsystem.
-            .DropInterval => |ms| dropIntervalMs = ms,
-            .Spawn => player.active = false,
-
-            // New event handlers for checkpoint #3
-            .PieceLocked => |piece_data| {
-
-                // Create animations for each block in the piece
-                for (piece_data.blocks[0..piece_data.count]) |block| {
-                    // Create a new animation cell
-                    if (grid_cells[block.y][block.x]) |existing| {
-                        anim_pool.release(existing);
-                    }
-
-                    if (anim_pool.create(block.x, block.y, block.color)) |cell| {
-                        grid_cells[block.y][block.x] = cell;
-                        cell.start();
-                    }
-                }
-            },
-            .LineClearing => |row_data| {
-                const y = row_data.y;
-
-                // Simply remove cells in the cleared row - no animation
-                for (0..Grid.WIDTH) |x| {
-                    if (grid_cells[y][x]) |cell| {
-                        // Release the cell back to the pool
-                        anim_pool.release(cell);
-                        grid_cells[y][x] = null;
-                    }
-                }
-            },
-            .RowsShiftedDown => |shift_data| {
-                const start_y = shift_data.start_y;
-                const target_y = start_y + 1; // The row where we're moving cells to
-
-                // The grid is shifting cells from start_y down to start_y+1
-                // Move the visual cells to match
-                for (0..Grid.WIDTH) |x| {
-                    // If there's a cell at the source row
-                    if (grid_cells[start_y][x]) |cell| {
-                        // Release any existing cell at the target row
-                        if (grid_cells[target_y][x]) |existing| {
-                            anim_pool.release(existing);
-                        }
-
-                        // Instead of just setting coordinates, animate the cell moving down
-                        // Keep the source position
-                        cell.source[0] = cell.position[0];
-                        cell.source[1] = cell.position[1];
-
-                        // Set the target position
-                        const x_pos = @as(i32, @intCast(x)) * window.cellsize;
-                        const y_pos = @as(i32, @intCast(target_y)) * window.cellsize;
-                        cell.target[0] = @floatFromInt(x_pos);
-                        cell.target[1] = @floatFromInt(y_pos);
-
-                        // Make the animation smooth
-                        cell.duration = 150; // ms
-                        cell.mode = .easeout;
-                        cell.start();
-
-                        // Update visual_cells references
-                        grid_cells[target_y][x] = cell;
-                        grid_cells[start_y][x] = null;
-                    }
-                }
-            },
-            .GridReset => {
-                // Clear all animations
-                for (0..Grid.HEIGHT) |y| {
-                    for (0..Grid.WIDTH) |x| {
-                        if (grid_cells[y][x]) |cell| {
-                            anim_pool.release(cell);
-                            grid_cells[y][x] = null;
-                        }
-                    }
-                }
-            },
-            else => {},
-        }
-    }
-}
-
-/// Reset graphics to first level state
-pub fn reset() void {
-    background.index = 0;
-    level = 0;
-    background.load();
-
-    // Clear visual cells
-    for (0..Grid.HEIGHT) |y| {
-        for (0..Grid.WIDTH) |x| {
-            if (grid_cells[y][x]) |cell| {
-                anim_pool.release(cell);
-                grid_cells[y][x] = null;
-            }
-        }
-    }
-}
-
-// Explode all cells in a given row with flying animation
-fn explodeRow(row: usize) void {
-    // Create exploding animation for each cell in row
-    for (0..Grid.WIDTH) |x| {
-        if (grid_cells[row][x]) |cell| {
-            // Set random end position for explosion with much wider range
-            const xr: i32 = -2000 + @as(i32, @intFromFloat(std.crypto.random.float(f32) * 4000));
-            const yr: i32 = -2000 + @as(i32, @intFromFloat(std.crypto.random.float(f32) * 4000));
-
-            // Set animation properties
-            cell.target[0] = @as(f32, @floatFromInt(xr));
-            cell.target[1] = @as(f32, @floatFromInt(yr));
-            cell.target_scale = 0.2; // Shrink cells as they fly away
-            cell.color_target = .{ 0, 0, 0, 0 }; // Fade out to transparent
-            cell.duration = 1000;
-            cell.mode = .easein;
-            cell.start();
-
-            // Move to unattached for cleanup
-            unattached_cells.add(cell);
-            grid_cells[row][x] = null;
-        }
-    }
-}
 
 pub fn init() !void {
     std.debug.print("init gfx\n", .{});
@@ -526,16 +280,8 @@ pub fn init() !void {
     // Initialize background
     try background.init();
 
-    // Initialize animation system
-    anim_pool = try animation.AnimationPool.init(game.state.alloc);
-    unattached_cells = try animation.UnattachedAnimatedCell.init(anim_pool);
-
-    // Initialize visual cells array
-    for (0..Grid.HEIGHT) |y| {
-        for (0..Grid.WIDTH) |x| {
-            grid_cells[y][x] = null;
-        }
-    }
+    // Initialize animator
+    animator = try Animator.init(game.state.alloc, game.state.cells);
 }
 
 pub fn deinit() void {
@@ -550,9 +296,8 @@ pub fn deinit() void {
     // Clean up background resources
     background.deinit();
 
-    // Clean up animation resources
-    unattached_cells.deinit();
-    anim_pool.deinit();
+    // Clean up animator resources
+    animator.deinit();
 }
 
 // These global functions now call the Background struct methods
@@ -608,25 +353,20 @@ fn preshade() void {
     ray.SetShaderValue(background.shader, background.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
 }
 
-fn drawcells() void {
-
-    // grid
-    for (0..Grid.HEIGHT) |y| {
-        for (0..Grid.WIDTH) |x| {
-            if (grid_cells[y][x]) |cell| {
-                const drawX = @as(i32, @intFromFloat(cell.position[0]));
-                const drawY = @as(i32, @intFromFloat(cell.position[1]));
-                drawbox(drawX, drawY, cell.color, cell.scale);
-            }
-        }
-    }
-
-    // flying stuff
-    for (unattached_cells.cells) |cell_opt| {
-        if (cell_opt) |cell| {
-            const drawX = @as(i32, @intFromFloat(cell.position[0]));
-            const drawY = @as(i32, @intFromFloat(cell.position[1]));
-            drawbox(drawX, drawY, cell.color, cell.scale);
+fn drawcells(layer: *CellLayer) void {
+    // Iterate through all cells in the layer
+    for (layer.cells, 0..) |cell, idx| {
+        if (cell.anim_state) |anim| {
+            // Draw animated cell
+            const drawX = @as(i32, @intFromFloat(anim.position[0]));
+            const drawY = @as(i32, @intFromFloat(anim.position[1]));
+            drawbox(drawX, drawY, anim.color, anim.scale);
+        } else if (cell.data) |logic| {
+            // Draw static cell based on logical data
+            const coords = layer.coordsFromIdx(idx);
+            const drawX = @as(i32, @intCast(coords.x)) * window.cellsize;
+            const drawY = @as(i32, @intCast(coords.y)) * window.cellsize;
+            drawbox(drawX, drawY, logic.toRgba(), 1.0);
         }
     }
 }
@@ -677,4 +417,219 @@ fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32) void {
             .b = color[2],
             .a = color[3],
         });
+}
+
+pub fn frame() void {
+    // Handle window resizing
+    window.updateScale();
+
+    //window drag, if we want to fuck with an undecorated window
+    //window.updateDrag();
+
+    // Update shader uniforms
+    preshade();
+
+    // Update animations
+    animator.step(0); // dt parameter isn't used since we're using timestamps
+
+    ray.BeginDrawing();
+    {
+        // Draw to render texture at original resolution
+        ray.BeginTextureMode(window.texture);
+        {
+            // Draw background with warp effect
+            background.draw();
+
+            // Apply static effect shader to game elements
+            ray.BeginShaderMode(static);
+            {
+                // Draw player piece and ghost
+                player.draw();
+
+                // Draw grid cells
+                drawcells(game.state.cells);
+            }
+            ray.EndShaderMode();
+
+            // Draw HUD elements
+            hud.draw(.{
+                .gridoffsetx = window.gridoffsetx,
+                .gridoffsety = window.gridoffsety,
+                .cellsize = window.cellsize,
+                .cellpadding = window.cellpadding,
+                .font = window.font,
+                .og_width = Window.OGWIDTH,
+                .og_height = Window.OGHEIGHT,
+                .next_piece = game.state.piece.next,
+                .held_piece = game.state.piece.held,
+            }, static);
+        }
+        ray.EndTextureMode();
+
+        // Scale render texture to actual window size
+        window.drawScaled();
+    }
+    ray.EndDrawing();
+}
+
+// Explode all cells in a given row with flying animation
+fn explodeRow(row: usize) void {
+    // Create exploding animation for each cell in row
+    for (0..Grid.WIDTH) |x| {
+        const idx = game.state.cells.index(x, row);
+        const cell_ptr = &game.state.cells.cells[idx];
+
+        if (cell_ptr.data != null) {
+            // Set random end position for explosion with much wider range
+            const xr: f32 = -2000.0 + std.crypto.random.float(f32) * 4000.0;
+            const yr: f32 = -2000.0 + std.crypto.random.float(f32) * 4000.0;
+
+            // Get current position
+            const x_pos = @as(f32, @floatFromInt(x * @as(usize, @intCast(window.cellsize))));
+            const y_pos = @as(f32, @floatFromInt(row * @as(usize, @intCast(window.cellsize))));
+
+            // Get current color
+            const color = cell_ptr.data.?.toRgba();
+
+            // Set up animation
+            const anim_state = AnimationState{
+                .source = .{ x_pos, y_pos },
+                .target = .{ xr, yr },
+                .position = .{ x_pos, y_pos },
+                .scale = 1.0,
+                .color_source = color,
+                .color_target = .{ 0, 0, 0, 0 },
+                .color = color,
+                .startedat = std.time.milliTimestamp(),
+                .duration = 1000,
+                .mode = .easein,
+                .animating = true,
+            };
+
+            // Start animation
+            animator.startAnimation(idx, anim_state) catch {};
+        }
+    }
+}
+
+pub fn process(queue: *events.EventQueue) void {
+    const now = std.time.milliTimestamp();
+    for (queue.items()) |rec| {
+        switch (rec.event) {
+            // Original event handlers
+            .LevelUp => |newlevel| {
+                background.next();
+                level = newlevel;
+            },
+            .NextBackground => background.next(),
+            .Clear => |lines| {
+                // Prolong the background warp effect proportionally to the number
+                // of lines removed so it is visible even when the grid animation
+                // finishes very quickly.
+                const extra_ms: i64 = 120 * @as(i64, @intCast(lines));
+                if (warp_end_ms < now + extra_ms) warp_end_ms = now + extra_ms;
+            },
+            .GameOver => {
+                // Immediately intensify the warp and pick a contrasting background
+                // to highlight the end of the run.
+                background.next();
+                warp_end_ms = now + 300;
+
+                // Create the line splat effect for all rows
+                for (0..Grid.HEIGHT) |y| {
+                    explodeRow(y);
+                }
+            },
+            .Reset => reset(),
+            .MoveLeft => player.move(1, 0),
+            .MoveRight => player.move(-1, 0),
+            .MoveDown => player.move(0, -1),
+            // Drop interval tweaked by the level subsystem.
+            .DropInterval => |ms| dropIntervalMs = ms,
+            .Spawn => player.active = false,
+            .Debug => {
+                const active_count = animator.countActiveAnimations();
+                std.debug.print("Active animations: {}\n", .{active_count});
+                const total_count = game.state.cells.countTotalAnimations();
+                std.debug.print("Total animations: {}\n", .{total_count});
+            },
+            .LineClearing => |row_data| {
+                const y = row_data.y;
+
+                for (0..Grid.WIDTH) |x| {
+                    const idx = game.state.cells.index(x, y);
+                    animator.stopAnimation(idx);
+                }
+            },
+            .RowsShiftedDown => |shift_data| {
+                const start_y = shift_data.start_y;
+                const target_y = start_y + 1; // The row where we're moving cells to
+
+                // Animate cells shifting down
+                for (0..Grid.WIDTH) |x| {
+                    const source_idx = game.state.cells.index(x, start_y);
+                    const target_idx = game.state.cells.index(x, target_y);
+
+                    // Only animate if there was data at the source position
+                    // Check the target cell because the logical pos has already been moved
+                    // by the grid.shiftrow() function
+                    if (game.state.cells.ptr(x, target_y).data != null) {
+                        // Get source and target positions
+                        const source_x = @as(f32, @floatFromInt(x * @as(usize, @intCast(window.cellsize))));
+                        const source_y = @as(f32, @floatFromInt(start_y * @as(usize, @intCast(window.cellsize))));
+                        const target_y_pos = @as(f32, @floatFromInt(target_y * @as(usize, @intCast(window.cellsize))));
+                        const color = game.state.cells.ptr(x, target_y).data.?.toRgba();
+
+                        // Set up movement animation
+                        const anim_state = AnimationState{
+                            .source = .{ source_x, source_y },
+                            .target = .{ source_x, target_y_pos },
+                            .position = .{ source_x, source_y },
+                            .scale = 1.0,
+                            .color_source = color,
+                            .color_target = color,
+                            .color = color,
+                            .startedat = std.time.milliTimestamp(),
+                            .duration = 150,
+                            .mode = .easeout,
+                            .animating = true,
+                        };
+
+                        animator.stopAnimation(target_idx);
+
+                        // Start animation at the target position
+                        animator.startAnimation(target_idx, anim_state) catch {};
+
+                        // Clear the animation at the source position
+                        animator.stopAnimation(source_idx);
+                    }
+                }
+            },
+            .GridReset => {
+                // Stop all animations
+                var idx: usize = 0;
+                while (idx < animator.indices.items.len) {
+                    animator.stopAnimation(animator.indices.items[idx]);
+                    idx += 1;
+                }
+                animator.indices.clearRetainingCapacity();
+            },
+            else => {},
+        }
+    }
+}
+
+/// Reset graphics to first level state
+pub fn reset() void {
+    background.index = 0;
+    level = 0;
+    background.load();
+
+    // Clear all animations
+    var idx: usize = 0;
+    while (idx < animator.indices.items.len) {
+        animator.stopAnimation(animator.indices.items[idx]);
+        idx += 1;
+    }
+    animator.indices.clearRetainingCapacity();
 }

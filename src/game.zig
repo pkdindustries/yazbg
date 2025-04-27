@@ -1,14 +1,15 @@
 const std = @import("std");
 
-const anim = @import("animation.zig").AnimatedCell;
 const Grid = @import("grid.zig").Grid;
 const shapes = @import("pieces.zig");
 const events = @import("events.zig");
+const CellLayer = @import("cellrenderer.zig").CellLayer;
 
 pub const YAZBG = struct {
     alloc: std.mem.Allocator = undefined,
     rng: std.Random.DefaultPrng = undefined,
     grid: *Grid = undefined,
+    cells: *CellLayer = undefined,
     gameover: bool = false,
     paused: bool = false,
     // time of the last successful move (milliseconds, monotonic clock)
@@ -47,7 +48,10 @@ pub fn init(allocator: std.mem.Allocator) !void {
         std.crypto.random.bytes(std.mem.asBytes(&seed)); // No `try` needed
         break :blk seed;
     });
-    state.grid = Grid.init(state.alloc) catch @panic("OOM");
+
+    state.cells = try CellLayer.init(allocator, Grid.WIDTH, Grid.HEIGHT);
+    state.grid = try Grid.init(state.cells);
+
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
     nextpiece();
 }
@@ -55,6 +59,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
 pub fn deinit() void {
     std.debug.print("deinit game\n", .{});
     state.grid.deinit();
+    state.cells.deinit();
 }
 
 pub fn reset() void {
@@ -63,11 +68,11 @@ pub fn reset() void {
     state.piece = .{};
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
 
-    // Emit GridReset event before destroying the old grid
+    // Emit GridReset event before clearing the grid
     events.push(.GridReset, events.Source.Game);
 
-    state.grid.deinit();
-    state.grid = Grid.init(state.alloc) catch @panic("OOM");
+    // Clear logical data in the grid instead of recreating it
+    state.grid.clearall();
 
     nextpiece();
     state.gameover = false;
@@ -117,37 +122,8 @@ pub fn pause() void {
     std.debug.print("game.paused {}\n", .{state.paused});
 }
 
-pub fn ghosty() i32 {
-    var y = state.piece.y;
-    while (checkmove(state.piece.x, y + 1)) : (y += 1) {}
-    return y;
-}
-
 pub fn checkmove(x: i32, y: i32) bool {
-    if (state.piece.current) |piece| {
-        const shape = piece.shape[state.piece.r];
-        for (shape, 0..) |row, j| {
-            for (row, 0..) |cell, i| {
-                if (cell) {
-                    const gx = x + @as(i32, @intCast(j));
-                    const gy = y + @as(i32, @intCast(i));
-                    // cell is out of bounds
-
-                    if (gx < 0 or gx >= Grid.WIDTH or gy < 0 or gy >= Grid.HEIGHT) {
-                        return false;
-                    }
-
-                    const ix = @as(usize, @intCast(gx));
-                    const iy = @as(usize, @intCast(gy));
-                    // cell is already occupied via cells_data only
-                    if (state.grid.cells_data[iy][ix] != null) {
-                        return false;
-                    }
-                }
-            }
-        }
-    }
-    return true;
+    return state.grid.checkmove(state.piece.current, x, y, state.piece.r);
 }
 
 // drop the piece to the bottom, clear lines and return num cleared

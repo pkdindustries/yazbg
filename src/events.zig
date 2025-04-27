@@ -55,6 +55,7 @@ pub const Event = union(enum) {
     NextBackground,
     MuteAudio,
     NextMusic,
+    Debug,
 };
 
 pub const Source = enum {

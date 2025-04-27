@@ -46,6 +46,7 @@ pub fn main() !void {
             ray.KEY_B => events.push(.NextBackground, events.Source.Input),
             ray.KEY_M => events.push(.MuteAudio, events.Source.Input),
             ray.KEY_N => events.push(.NextMusic, events.Source.Input),
+            ray.KEY_L => events.push(.Debug, events.Source.Input),
             else => {},
         }
 
