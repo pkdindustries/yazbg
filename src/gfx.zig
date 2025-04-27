@@ -5,7 +5,6 @@ const hud = @import("hud.zig");
 const events = @import("events.zig");
 const animation = @import("animation.zig");
 const Grid = @import("grid.zig").Grid;
-const playerpiece = @import("player.zig");
 
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
@@ -121,8 +120,19 @@ var level: u8 = 0;
 var static: ray.Shader = undefined;
 var statictimeloc: i32 = 0;
 
-// Player piece animation
-var player: playerpiece.PlayerPiece = undefined;
+const Slide = struct {
+    active: bool = false,
+    start_time: i64 = 0,
+    duration: i64 = 50, // ms
+    sourcex: i32 = 0,
+    sourcey: i32 = 0,
+    targetx: i32 = 0,
+    targety: i32 = 0,
+};
+
+var slide: Slide = .{};
+var last_piece_x: i32 = 0;
+var last_piece_y: i32 = 0;
 
 pub fn frame() void {
     // Handle window resizing
@@ -157,10 +167,10 @@ pub fn frame() void {
             // Apply static effect shader to game elements
             ray.BeginShaderMode(static);
             {
-                // Process player piece animations and update ghost
-                player.update();
+                // Draw player piece and ghost
+                player();
 
-                // Draw grid cells and player piece
+                // Draw grid cells
                 drawcells();
             }
             ray.EndShaderMode();
@@ -217,28 +227,12 @@ pub fn process(queue: *events.EventQueue) void {
                 }
             },
             .Reset => reset(),
-            .MoveLeft => player.startSlide(1, 0),
-            .MoveRight => player.startSlide(-1, 0),
-            .MoveDown => player.startSlide(0, -1),
+            .MoveLeft => startSlide(1, 0),
+            .MoveRight => startSlide(-1, 0),
+            .MoveDown => startSlide(0, -1),
             // Drop interval tweaked by the level subsystem.
             .DropInterval => |ms| dropIntervalMs = ms,
-            .Spawn => {
-                player.active = false; // Force a re-creation of player blocks
-            },
-            .Rotate => {
-                // Reset player piece animation on rotation
-                player.active = false;
-            },
-
-            // Handle player piece events
-            .HardDrop => {
-                // For hard drop, immediately deactivate player piece animation
-                player.active = false;
-            },
-            .Hold, .SwapPiece => {
-                // When holding or swapping, deactivate player piece animation
-                player.active = false;
-            },
+            .Spawn => slide.active = false,
 
             // New event handlers for checkpoint #3
             .PieceLocked => |piece_data| {
@@ -256,15 +250,6 @@ pub fn process(queue: *events.EventQueue) void {
                         cell.start();
                     }
                 }
-
-                // Clean up player piece animations since piece is now locked
-                for (&player.blocks) |*block_ptr| {
-                    if (block_ptr.*) |block| {
-                        anim_pool.release(block);
-                        block_ptr.* = null;
-                    }
-                }
-                player.active = false;
             },
             .LineClearing => |row_data| {
                 const y = row_data.y;
@@ -347,9 +332,6 @@ pub fn reset() void {
             }
         }
     }
-
-    // Clean up player piece animations
-    player.cleanup();
 }
 
 // Explode all cells in a given row with flying animation
@@ -375,6 +357,15 @@ fn explodeRow(row: usize) void {
             visual_cells[row][x] = null;
         }
     }
+}
+
+fn startSlide(dx: i32, dy: i32) void {
+    slide.active = true;
+    slide.start_time = std.time.milliTimestamp();
+    slide.targetx = game.state.piece.x * window.cellsize;
+    slide.targety = game.state.piece.y * window.cellsize;
+    slide.sourcex = slide.targetx + dx * window.cellsize;
+    slide.sourcey = slide.targety + dy * window.cellsize;
 }
 
 pub fn init() !void {
@@ -428,9 +419,6 @@ pub fn init() !void {
             visual_cells[y][x] = null;
         }
     }
-
-    // Initialize player piece animation
-    player = playerpiece.PlayerPiece.init(anim_pool, window.cellsize);
 }
 
 pub fn deinit() void {
@@ -442,9 +430,6 @@ pub fn deinit() void {
     }
     ray.UnloadTexture(window.texture.texture);
     ray.UnloadFont(window.font);
-
-    // Clean up player piece animations
-    player.cleanup();
 
     // Clean up animation resources (step 5 migration)
     unattached.deinit();
@@ -547,45 +532,84 @@ fn background() void {
     ray.EndShaderMode();
 }
 
+fn player() void {
+    if (game.state.piece.current) |p| {
+        // Calculate base position in pixels
+        const baseX = game.state.piece.x * window.cellsize;
+        const baseY = game.state.piece.y * window.cellsize;
+
+        // Start with base position
+        var drawX: f32 = @floatFromInt(baseX);
+        var drawY: f32 = @floatFromInt(baseY);
+
+        // Apply animation if active
+        if (slide.active) {
+            const elapsed_time = std.time.milliTimestamp() - slide.start_time;
+            const duration: f32 = @floatFromInt(slide.duration);
+            const progress: f32 = std.math.clamp(@as(f32, @floatFromInt(elapsed_time)) / duration, 0.0, 1.0);
+
+            // Smoothly interpolate between source and target positions
+            drawX = std.math.lerp(@as(f32, @floatFromInt(slide.sourcex)), @as(f32, @floatFromInt(slide.targetx)), progress);
+            drawY = std.math.lerp(@as(f32, @floatFromInt(slide.sourcey)), @as(f32, @floatFromInt(slide.targety)), progress);
+
+            // End animation when complete
+            if (elapsed_time >= slide.duration) {
+                slide.active = false;
+            }
+        } else {
+            // Update position tracking for next animation
+            last_piece_x = game.state.piece.x;
+            last_piece_y = game.state.piece.y;
+        }
+
+        // Convert back to integer coordinates for drawing
+        const finalX = @as(i32, @intFromFloat(drawX));
+        const finalY = @as(i32, @intFromFloat(drawY));
+
+        // Draw the active piece
+        piece(finalX, finalY, p.shape[game.state.piece.r], p.color);
+
+        // Draw ghost piece (semi-transparent preview at landing position)
+        const ghostColor = .{ p.color[0], p.color[1], p.color[2], 60 };
+        piece(finalX, game.ghosty() * window.cellsize, p.shape[game.state.piece.r], ghostColor);
+    }
+}
+
 fn drawcells() void {
     // Draw grid cells from visual_cells array (step 5 implementation)
 
-    // Function to draw an animated block
-    const drawAnimatedBlock = struct {
-        fn draw(block: *animation.Animated) void {
-            const drawX = @as(i32, @intFromFloat(block.position[0]));
-            const drawY = @as(i32, @intFromFloat(block.position[1]));
-            drawbox(drawX, drawY, block.color, block.scale);
-        }
-    }.draw;
-
-    // First draw the ghost piece (so it appears behind everything)
-    for (player.ghost_blocks) |block_opt| {
-        if (block_opt) |block| {
-            drawAnimatedBlock(block);
-        }
-    }
-
-    // Draw attached animations in the grid
+    // First draw attached animations in the grid
     for (0..Grid.HEIGHT) |y| {
         for (0..Grid.WIDTH) |x| {
             if (visual_cells[y][x]) |cell| {
-                drawAnimatedBlock(cell);
+                const drawX = @as(i32, @intFromFloat(cell.position[0]));
+                const drawY = @as(i32, @intFromFloat(cell.position[1]));
+                drawbox(drawX, drawY, cell.color, cell.scale);
             }
         }
     }
 
-    // Draw the player piece (on top of grid cells)
-    for (player.blocks) |block_opt| {
-        if (block_opt) |block| {
-            drawAnimatedBlock(block);
-        }
-    }
-
-    // Draw any unattached animations (effects) on top of everything
+    // Then draw any unattached animations
     for (unattached.cells) |cell_opt| {
         if (cell_opt) |cell| {
-            drawAnimatedBlock(cell);
+            const drawX = @as(i32, @intFromFloat(cell.position[0]));
+            const drawY = @as(i32, @intFromFloat(cell.position[1]));
+            drawbox(drawX, drawY, cell.color, cell.scale);
+        }
+    }
+}
+
+// Draw a tetromino piece
+fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
+    const scale: f32 = 1.0;
+
+    for (shape, 0..) |row, i| {
+        for (row, 0..) |cell, j| {
+            if (cell) {
+                const cellX = @as(i32, @intCast(i)) * window.cellsize;
+                const cellY = @as(i32, @intCast(j)) * window.cellsize;
+                drawbox(x + cellX, y + cellY, color, scale);
+            }
         }
     }
 }
