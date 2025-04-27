@@ -30,9 +30,12 @@ var soundvolume: f32 = 0.5;
 var musicvolume: f32 = 0.15;
 
 const MUSIC_PATHS = [_][*:0]const u8{
+    "resources/music/fast.mp3",
+    "resources/music/grievous.mp3",
     "resources/music/level0.mp3",
-    "resources/music/level1.mp3",
+    "resources/music/lieu.mp3",
     "resources/music/newbit.mp3",
+    "resources/music/wonder.mp3",
 };
 
 const SOUND_PATHS = [_][*:0]const u8{

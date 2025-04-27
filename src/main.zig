@@ -70,7 +70,7 @@ pub fn main() !void {
         // performance stats
         const frametime_elapsed = timer.lap();
         const total_elapsed = gamelogic_elapsed + frametime_elapsed;
-        if (gamelogic_elapsed > 2 * MS or frametime_elapsed > 17 * MS) {
+        if (gamelogic_elapsed > 2 * MS or frametime_elapsed > 20 * MS) {
             std.debug.print("frame {}ms, game {}ms, total {}ms\n", .{ frametime_elapsed / MS, gamelogic_elapsed / MS, total_elapsed / MS });
         }
     }
