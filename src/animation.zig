@@ -6,7 +6,7 @@ const MAX_ANIMATED = 500;
 pub const AnimationPool = struct {
     const Self = @This();
     allocator: std.mem.Allocator,
-    pool: std.heap.MemoryPool(Animated),
+    pool: std.heap.MemoryPool(AnimatedCell),
     inuse: usize = 0,
 
     pub fn init(allocator: std.mem.Allocator) !*Self {
@@ -14,7 +14,7 @@ pub const AnimationPool = struct {
         const pool = try allocator.create(Self);
 
         // Initialize memory pool for Animated objects
-        pool.pool = std.heap.MemoryPool(Animated).init(allocator);
+        pool.pool = std.heap.MemoryPool(AnimatedCell).init(allocator);
         errdefer pool.pool.deinit();
 
         pool.allocator = allocator;
@@ -29,7 +29,7 @@ pub const AnimationPool = struct {
         self.allocator.destroy(self);
     }
 
-    pub fn create(self: *Self, gridx: usize, gridy: usize, color: [4]u8) ?*Animated {
+    pub fn create(self: *Self, gridx: usize, gridy: usize, color: [4]u8) ?*AnimatedCell {
         const cell = self.pool.create() catch {
             std.debug.print("WARNING: Animation pool allocation failed!\n", .{});
             return null;
@@ -42,7 +42,7 @@ pub const AnimationPool = struct {
             @as(f32, @floatFromInt(gridy * 35)),
         };
 
-        cell.* = Animated{
+        cell.* = AnimatedCell{
             .source = p,
             .position = p,
             .target = p,
@@ -57,16 +57,16 @@ pub const AnimationPool = struct {
         return cell;
     }
 
-    pub fn release(self: *Self, cell: *Animated) void {
+    pub fn release(self: *Self, cell: *AnimatedCell) void {
         self.pool.destroy(cell);
         self.inuse -= 1;
     }
 };
 
-pub const UnattachedCell = struct {
+pub const UnattachedAnimatedCell = struct {
     const Self = @This();
     pool: *AnimationPool,
-    cells: [MAX_ANIMATED]?*Animated = undefined,
+    cells: [MAX_ANIMATED]?*AnimatedCell = undefined,
 
     pub fn init(pool: *AnimationPool) !*Self {
         std.debug.print("init unattached\n", .{});
@@ -89,7 +89,7 @@ pub const UnattachedCell = struct {
         self.pool.allocator.destroy(self);
     }
 
-    pub fn add(self: *Self, cell: *Animated) void {
+    pub fn add(self: *Self, cell: *AnimatedCell) void {
         cell.start();
         // find a free slot
         for (self.cells, 0..) |c, i| {
@@ -116,7 +116,7 @@ pub const UnattachedCell = struct {
     }
 };
 
-pub const Animated = struct {
+pub const AnimatedCell = struct {
     const Self = @This();
     id: i128 = 0,
     color: [4]u8 = undefined,
@@ -139,31 +139,6 @@ pub const Animated = struct {
         easein,
         easeout,
     } = .easeinout,
-
-    // Legacy init function for tests and compatibility
-    pub fn init(allocator: std.mem.Allocator, gridx: usize, gridy: usize, color: [4]u8) !*Self {
-        // This is a fallback for tests, should not be used in production code
-        std.debug.print("WARNING: Using legacy Animated.init, should use pool.create!\n", .{});
-        const cell = try allocator.create(Self);
-        const p: [2]f32 = .{
-            @as(f32, @floatFromInt(gridx * 35)),
-            @as(f32, @floatFromInt(gridy * 35)),
-        };
-
-        cell.* = Self{
-            .source = p,
-            .position = p,
-            .target = p,
-            .color_source = color,
-            .color = color,
-            .color_target = color,
-            .source_scale = 1.0,
-            .target_scale = 1.0,
-            .scale = 1.0,
-        };
-
-        return cell;
-    }
 
     pub fn setcoords(self: *Self, x: usize, y: usize) void {
         const drawx: f32 = @floatFromInt(x * 35);
@@ -250,7 +225,7 @@ pub const Animated = struct {
 const testing = std.testing;
 // test init
 test "lerp function" {
-    var anim: Animated = undefined;
+    var anim: AnimatedCell = undefined;
     anim.animating = true;
     anim.startedat = 0;
     anim.duration = 1000;
@@ -302,7 +277,7 @@ test "animation pool" {
     try testing.expect(cell4.position[0] == 105.0);
 
     // Test UnattachedAnimating
-    const unattached = try UnattachedCell.init(pool);
+    const unattached = try UnattachedAnimatedCell.init(pool);
     defer unattached.deinit();
 
     // Add an animated cell to unattached

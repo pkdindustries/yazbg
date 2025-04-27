@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const anim = @import("animation.zig").Animated;
+const anim = @import("animation.zig").AnimatedCell;
 const Grid = @import("grid.zig").Grid;
 const shapes = @import("pieces.zig");
 const events = @import("events.zig");

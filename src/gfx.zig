@@ -17,6 +17,64 @@ pub const Window = struct {
     gridoffsety: i32 = 50,
     cellsize: i32 = 35,
     cellpadding: i32 = 2,
+    drag_active: bool = false,
+
+    // Handle window resizing
+    pub fn updateScale(self: *Window) void {
+        if (ray.IsWindowResized()) {
+            var width = ray.GetScreenWidth();
+            var height = @divTrunc(width * Window.OGHEIGHT, Window.OGWIDTH);
+            const maxheight = ray.GetMonitorHeight(0) - 100; // Assuming the primary monitor
+            if (height > maxheight) {
+                height = maxheight;
+                width = @divTrunc(height * Window.OGWIDTH, Window.OGHEIGHT);
+            }
+            self.width = width;
+            self.height = height;
+            std.debug.print("window resized to {}x{}\n", .{ self.width, self.height });
+            ray.GenTextureMipmaps(&self.texture.texture);
+            ray.SetWindowSize(width, height);
+        }
+    }
+
+    // Update window drag state and position
+    pub fn updateDrag(self: *Window) void {
+        const DRAG_BAR_HEIGHT: f32 = 600.0;
+
+        // Begin a new drag if the left button was just pressed inside the bar
+        if (!self.drag_active and ray.IsMouseButtonPressed(ray.MOUSE_BUTTON_LEFT)) {
+            const mouse = ray.GetMousePosition();
+            if (mouse.y < DRAG_BAR_HEIGHT) {
+                self.drag_active = true;
+                _ = ray.GetMouseDelta();
+            }
+        }
+
+        // Update the window position while the drag is active
+        if (self.drag_active) {
+            const delta = ray.GetMouseDelta();
+
+            if (delta.x != 0 or delta.y != 0) {
+                var win_pos = ray.GetWindowPosition();
+                win_pos.x += delta.x;
+                win_pos.y += delta.y;
+                ray.SetWindowPosition(@as(i32, @intFromFloat(win_pos.x)), @as(i32, @intFromFloat(win_pos.y)));
+            }
+
+            // Stop the drag once the button is released
+            if (!ray.IsMouseButtonDown(ray.MOUSE_BUTTON_LEFT)) {
+                self.drag_active = false;
+            }
+        }
+    }
+
+    // Draw the scaled render texture to fit the current window size
+    pub fn drawScaled(self: *Window) void {
+        // Scale render texture to actual window size
+        const src = ray.Rectangle{ .x = 0, .y = 0, .width = Window.OGWIDTH, .height = -Window.OGHEIGHT };
+        const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(self.width), .height = @floatFromInt(self.height) };
+        ray.DrawTexturePro(self.texture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
+    }
 };
 
 pub const Background = struct {
@@ -68,47 +126,41 @@ pub const Background = struct {
         }
         self.load();
     }
+
+    // Draw background with shader applied
+    pub fn draw(self: *Background) void {
+        ray.ClearBackground(ray.BLACK);
+        ray.BeginShaderMode(self.shader);
+
+        // Define source rectangle (entire texture)
+        const src = ray.Rectangle{
+            .x = 0,
+            .y = 0,
+            .width = @floatFromInt(self.texture[self.index].width),
+            .height = @floatFromInt(self.texture[self.index].height),
+        };
+
+        // Define target rectangle (entire window)
+        const tgt = ray.Rectangle{
+            .x = 0,
+            .y = 0,
+            .width = @floatFromInt(Window.OGWIDTH),
+            .height = @floatFromInt(Window.OGHEIGHT),
+        };
+
+        // Draw background texture with shader applied
+        ray.DrawTexturePro(self.texture[self.index], src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
+        ray.EndShaderMode();
+    }
 };
 
 var window = Window{};
 var bg = Background{};
 
-// Animation management structures from grid (step 5 of migration)
+// Animation management structures from grid
 var anim_pool: *animation.AnimationPool = undefined;
-var unattached: *animation.UnattachedCell = undefined;
-var visual_cells: [Grid.HEIGHT][Grid.WIDTH]?*animation.Animated = undefined;
-
-// Window dragging state and logic - currently disabled in frame()
-var drag_active: bool = false;
-fn updatedrag() void {
-    const DRAG_BAR_HEIGHT: f32 = 600.0;
-
-    // Begin a new drag if the left button was just pressed inside the bar
-    if (!drag_active and ray.IsMouseButtonPressed(ray.MOUSE_BUTTON_LEFT)) {
-        const mouse = ray.GetMousePosition();
-        if (mouse.y < DRAG_BAR_HEIGHT) {
-            drag_active = true;
-            _ = ray.GetMouseDelta();
-        }
-    }
-
-    // Update the window position while the drag is active
-    if (drag_active) {
-        const delta = ray.GetMouseDelta();
-
-        if (delta.x != 0 or delta.y != 0) {
-            var win_pos = ray.GetWindowPosition();
-            win_pos.x += delta.x;
-            win_pos.y += delta.y;
-            ray.SetWindowPosition(@as(i32, @intFromFloat(win_pos.x)), @as(i32, @intFromFloat(win_pos.y)));
-        }
-
-        // Stop the drag once the button is released
-        if (!ray.IsMouseButtonDown(ray.MOUSE_BUTTON_LEFT)) {
-            drag_active = false;
-        }
-    }
-}
+var unattached_cells: *animation.UnattachedAnimatedCell = undefined;
+var grid_cells: [Grid.HEIGHT][Grid.WIDTH]?*animation.AnimatedCell = undefined;
 
 // Graphics state variables
 // Effect timer for visual effects like warp
@@ -120,7 +172,7 @@ var level: u8 = 0;
 var static: ray.Shader = undefined;
 var statictimeloc: i32 = 0;
 
-const Slide = struct {
+const PlayerPiece = struct {
     active: bool = false,
     start_time: i64 = 0,
     duration: i64 = 50, // ms
@@ -128,27 +180,84 @@ const Slide = struct {
     sourcey: i32 = 0,
     targetx: i32 = 0,
     targety: i32 = 0,
+    last_piece_x: i32 = 0,
+    last_piece_y: i32 = 0,
+
+    // Start a slide animation for the player piece
+    pub fn move(self: *PlayerPiece, dx: i32, dy: i32) void {
+        self.active = true;
+        self.start_time = std.time.milliTimestamp();
+        self.targetx = game.state.piece.x * window.cellsize;
+        self.targety = game.state.piece.y * window.cellsize;
+        self.sourcex = self.targetx + dx * window.cellsize;
+        self.sourcey = self.targety + dy * window.cellsize;
+    }
+
+    // Draw the player piece and ghost preview
+    pub fn draw(self: *PlayerPiece) void {
+        if (game.state.piece.current) |p| {
+            // Calculate base position in pixels
+            const baseX = game.state.piece.x * window.cellsize;
+            const baseY = game.state.piece.y * window.cellsize;
+
+            // Start with base position
+            var drawX: f32 = @floatFromInt(baseX);
+            var drawY: f32 = @floatFromInt(baseY);
+
+            // Apply animation if active
+            if (self.active) {
+                const elapsed_time = std.time.milliTimestamp() - self.start_time;
+                const duration: f32 = @floatFromInt(self.duration);
+                const progress: f32 = std.math.clamp(@as(f32, @floatFromInt(elapsed_time)) / duration, 0.0, 1.0);
+
+                // Smoothly interpolate between source and target positions
+                drawX = std.math.lerp(@as(f32, @floatFromInt(self.sourcex)), @as(f32, @floatFromInt(self.targetx)), progress);
+                drawY = std.math.lerp(@as(f32, @floatFromInt(self.sourcey)), @as(f32, @floatFromInt(self.targety)), progress);
+
+                // End animation when complete
+                if (elapsed_time >= self.duration) {
+                    self.active = false;
+                }
+            } else {
+                // Update position tracking for next animation
+                self.last_piece_x = game.state.piece.x;
+                self.last_piece_y = game.state.piece.y;
+            }
+
+            // Convert back to integer coordinates for drawing
+            const finalX = @as(i32, @intFromFloat(drawX));
+            const finalY = @as(i32, @intFromFloat(drawY));
+
+            // Draw the active piece
+            drawpiece(finalX, finalY, p.shape[game.state.piece.r], p.color);
+
+            // Draw ghost piece (semi-transparent preview at landing position)
+            const ghostColor = .{ p.color[0], p.color[1], p.color[2], 60 };
+            drawpiece(finalX, game.ghosty() * window.cellsize, p.shape[game.state.piece.r], ghostColor);
+        }
+    }
 };
 
-var slide: Slide = .{};
-var last_piece_x: i32 = 0;
-var last_piece_y: i32 = 0;
+var player: PlayerPiece = .{};
 
 pub fn frame() void {
     // Handle window resizing
-    updatescale();
+    window.updateScale();
+
+    //window drag, if we want to fuck with an undecorated window
+    //window.updateDrag();
 
     // Update shader uniforms
     preshade();
 
     // Update animations
-    unattached.lerpall();
+    unattached_cells.lerpall();
 
     // Update cell animations
     const now = std.time.milliTimestamp();
     for (0..Grid.HEIGHT) |y| {
         for (0..Grid.WIDTH) |x| {
-            if (visual_cells[y][x]) |cell| {
+            if (grid_cells[y][x]) |cell| {
                 if (cell.animating) {
                     cell.lerp(now);
                 }
@@ -162,13 +271,13 @@ pub fn frame() void {
         ray.BeginTextureMode(window.texture);
         {
             // Draw background with warp effect
-            background();
+            bg.draw();
 
             // Apply static effect shader to game elements
             ray.BeginShaderMode(static);
             {
                 // Draw player piece and ghost
-                player();
+                player.draw();
 
                 // Draw grid cells
                 drawcells();
@@ -191,9 +300,7 @@ pub fn frame() void {
         ray.EndTextureMode();
 
         // Scale render texture to actual window size
-        const src = ray.Rectangle{ .x = 0, .y = 0, .width = Window.OGWIDTH, .height = -Window.OGHEIGHT };
-        const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(window.width), .height = @floatFromInt(window.height) };
-        ray.DrawTexturePro(window.texture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
+        window.drawScaled();
     }
     ray.EndDrawing();
 }
@@ -227,26 +334,25 @@ pub fn process(queue: *events.EventQueue) void {
                 }
             },
             .Reset => reset(),
-            .MoveLeft => startSlide(1, 0),
-            .MoveRight => startSlide(-1, 0),
-            .MoveDown => startSlide(0, -1),
+            .MoveLeft => player.move(1, 0),
+            .MoveRight => player.move(-1, 0),
+            .MoveDown => player.move(0, -1),
             // Drop interval tweaked by the level subsystem.
             .DropInterval => |ms| dropIntervalMs = ms,
-            .Spawn => slide.active = false,
+            .Spawn => player.active = false,
 
             // New event handlers for checkpoint #3
             .PieceLocked => |piece_data| {
-                std.debug.print("PieceLocked event: received {d} blocks\n", .{piece_data.count});
 
                 // Create animations for each block in the piece
                 for (piece_data.blocks[0..piece_data.count]) |block| {
                     // Create a new animation cell
-                    if (visual_cells[block.y][block.x]) |existing| {
+                    if (grid_cells[block.y][block.x]) |existing| {
                         anim_pool.release(existing);
                     }
 
                     if (anim_pool.create(block.x, block.y, block.color)) |cell| {
-                        visual_cells[block.y][block.x] = cell;
+                        grid_cells[block.y][block.x] = cell;
                         cell.start();
                     }
                 }
@@ -256,10 +362,10 @@ pub fn process(queue: *events.EventQueue) void {
 
                 // Simply remove cells in the cleared row - no animation
                 for (0..Grid.WIDTH) |x| {
-                    if (visual_cells[y][x]) |cell| {
+                    if (grid_cells[y][x]) |cell| {
                         // Release the cell back to the pool
                         anim_pool.release(cell);
-                        visual_cells[y][x] = null;
+                        grid_cells[y][x] = null;
                     }
                 }
             },
@@ -271,9 +377,9 @@ pub fn process(queue: *events.EventQueue) void {
                 // Move the visual cells to match
                 for (0..Grid.WIDTH) |x| {
                     // If there's a cell at the source row
-                    if (visual_cells[start_y][x]) |cell| {
+                    if (grid_cells[start_y][x]) |cell| {
                         // Release any existing cell at the target row
-                        if (visual_cells[target_y][x]) |existing| {
+                        if (grid_cells[target_y][x]) |existing| {
                             anim_pool.release(existing);
                         }
 
@@ -294,20 +400,18 @@ pub fn process(queue: *events.EventQueue) void {
                         cell.start();
 
                         // Update visual_cells references
-                        visual_cells[target_y][x] = cell;
-                        visual_cells[start_y][x] = null;
+                        grid_cells[target_y][x] = cell;
+                        grid_cells[start_y][x] = null;
                     }
                 }
-
-                std.debug.print("Shifted row {d} down to {d}\n", .{ start_y, target_y });
             },
             .GridReset => {
                 // Clear all animations
                 for (0..Grid.HEIGHT) |y| {
                     for (0..Grid.WIDTH) |x| {
-                        if (visual_cells[y][x]) |cell| {
+                        if (grid_cells[y][x]) |cell| {
                             anim_pool.release(cell);
-                            visual_cells[y][x] = null;
+                            grid_cells[y][x] = null;
                         }
                     }
                 }
@@ -323,12 +427,12 @@ pub fn reset() void {
     level = 0;
     bg.load();
 
-    // Clear visual cells (step 5 migration)
+    // Clear visual cells
     for (0..Grid.HEIGHT) |y| {
         for (0..Grid.WIDTH) |x| {
-            if (visual_cells[y][x]) |cell| {
+            if (grid_cells[y][x]) |cell| {
                 anim_pool.release(cell);
-                visual_cells[y][x] = null;
+                grid_cells[y][x] = null;
             }
         }
     }
@@ -338,7 +442,7 @@ pub fn reset() void {
 fn explodeRow(row: usize) void {
     // Create exploding animation for each cell in row
     for (0..Grid.WIDTH) |x| {
-        if (visual_cells[row][x]) |cell| {
+        if (grid_cells[row][x]) |cell| {
             // Set random end position for explosion with much wider range
             const xr: i32 = -2000 + @as(i32, @intFromFloat(std.crypto.random.float(f32) * 4000));
             const yr: i32 = -2000 + @as(i32, @intFromFloat(std.crypto.random.float(f32) * 4000));
@@ -353,19 +457,10 @@ fn explodeRow(row: usize) void {
             cell.start();
 
             // Move to unattached for cleanup
-            unattached.add(cell);
-            visual_cells[row][x] = null;
+            unattached_cells.add(cell);
+            grid_cells[row][x] = null;
         }
     }
-}
-
-fn startSlide(dx: i32, dy: i32) void {
-    slide.active = true;
-    slide.start_time = std.time.milliTimestamp();
-    slide.targetx = game.state.piece.x * window.cellsize;
-    slide.targety = game.state.piece.y * window.cellsize;
-    slide.sourcex = slide.targetx + dx * window.cellsize;
-    slide.sourcey = slide.targety + dy * window.cellsize;
 }
 
 pub fn init() !void {
@@ -409,14 +504,14 @@ pub fn init() !void {
 
     bg.load();
 
-    // Initialize animation system (step 5 migration)
+    // Initialize animation system
     anim_pool = try animation.AnimationPool.init(game.state.alloc);
-    unattached = try animation.UnattachedCell.init(anim_pool);
+    unattached_cells = try animation.UnattachedAnimatedCell.init(anim_pool);
 
     // Initialize visual cells array
     for (0..Grid.HEIGHT) |y| {
         for (0..Grid.WIDTH) |x| {
-            visual_cells[y][x] = null;
+            grid_cells[y][x] = null;
         }
     }
 }
@@ -431,8 +526,8 @@ pub fn deinit() void {
     ray.UnloadTexture(window.texture.texture);
     ray.UnloadFont(window.font);
 
-    // Clean up animation resources (step 5 migration)
-    unattached.deinit();
+    // Clean up animation resources
+    unattached_cells.deinit();
     anim_pool.deinit();
 }
 
@@ -443,23 +538,6 @@ pub fn loadbackground() void {
 
 pub fn nextbackground() void {
     bg.next();
-}
-
-pub fn updatescale() void {
-    if (ray.IsWindowResized()) {
-        var width = ray.GetScreenWidth();
-        var height = @divTrunc(width * Window.OGHEIGHT, Window.OGWIDTH);
-        const maxheight = ray.GetMonitorHeight(0) - 100; // Assuming the primary monitor
-        if (height > maxheight) {
-            height = maxheight;
-            width = @divTrunc(height * Window.OGWIDTH, Window.OGHEIGHT);
-        }
-        window.width = width;
-        window.height = height;
-        std.debug.print("window resized to {}x{}\n", .{ window.width, window.height });
-        ray.GenTextureMipmaps(&window.texture.texture);
-        ray.SetWindowSize(width, height);
-    }
 }
 
 // Update shader parameters before drawing
@@ -506,82 +584,12 @@ fn preshade() void {
     ray.SetShaderValue(bg.shader, bg.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
 }
 
-fn background() void {
-    ray.ClearBackground(ray.BLACK);
-    ray.BeginShaderMode(bg.shader);
-
-    // Define source rectangle (entire texture)
-    const src = ray.Rectangle{
-        .x = 0,
-        .y = 0,
-        .width = @floatFromInt(bg.texture[bg.index].width),
-        .height = @floatFromInt(bg.texture[bg.index].height),
-    };
-
-    // Define target rectangle (entire window)
-    const tgt = ray.Rectangle{
-        .x = 0,
-        .y = 0,
-        .width = @floatFromInt(Window.OGWIDTH),
-        .height = @floatFromInt(Window.OGHEIGHT),
-    };
-
-    // Draw background texture with shader applied
-    ray.DrawTexturePro(bg.texture[bg.index], src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
-
-    ray.EndShaderMode();
-}
-
-fn player() void {
-    if (game.state.piece.current) |p| {
-        // Calculate base position in pixels
-        const baseX = game.state.piece.x * window.cellsize;
-        const baseY = game.state.piece.y * window.cellsize;
-
-        // Start with base position
-        var drawX: f32 = @floatFromInt(baseX);
-        var drawY: f32 = @floatFromInt(baseY);
-
-        // Apply animation if active
-        if (slide.active) {
-            const elapsed_time = std.time.milliTimestamp() - slide.start_time;
-            const duration: f32 = @floatFromInt(slide.duration);
-            const progress: f32 = std.math.clamp(@as(f32, @floatFromInt(elapsed_time)) / duration, 0.0, 1.0);
-
-            // Smoothly interpolate between source and target positions
-            drawX = std.math.lerp(@as(f32, @floatFromInt(slide.sourcex)), @as(f32, @floatFromInt(slide.targetx)), progress);
-            drawY = std.math.lerp(@as(f32, @floatFromInt(slide.sourcey)), @as(f32, @floatFromInt(slide.targety)), progress);
-
-            // End animation when complete
-            if (elapsed_time >= slide.duration) {
-                slide.active = false;
-            }
-        } else {
-            // Update position tracking for next animation
-            last_piece_x = game.state.piece.x;
-            last_piece_y = game.state.piece.y;
-        }
-
-        // Convert back to integer coordinates for drawing
-        const finalX = @as(i32, @intFromFloat(drawX));
-        const finalY = @as(i32, @intFromFloat(drawY));
-
-        // Draw the active piece
-        piece(finalX, finalY, p.shape[game.state.piece.r], p.color);
-
-        // Draw ghost piece (semi-transparent preview at landing position)
-        const ghostColor = .{ p.color[0], p.color[1], p.color[2], 60 };
-        piece(finalX, game.ghosty() * window.cellsize, p.shape[game.state.piece.r], ghostColor);
-    }
-}
-
 fn drawcells() void {
-    // Draw grid cells from visual_cells array (step 5 implementation)
 
-    // First draw attached animations in the grid
+    // grid
     for (0..Grid.HEIGHT) |y| {
         for (0..Grid.WIDTH) |x| {
-            if (visual_cells[y][x]) |cell| {
+            if (grid_cells[y][x]) |cell| {
                 const drawX = @as(i32, @intFromFloat(cell.position[0]));
                 const drawY = @as(i32, @intFromFloat(cell.position[1]));
                 drawbox(drawX, drawY, cell.color, cell.scale);
@@ -589,8 +597,8 @@ fn drawcells() void {
         }
     }
 
-    // Then draw any unattached animations
-    for (unattached.cells) |cell_opt| {
+    // flying stuff
+    for (unattached_cells.cells) |cell_opt| {
         if (cell_opt) |cell| {
             const drawX = @as(i32, @intFromFloat(cell.position[0]));
             const drawY = @as(i32, @intFromFloat(cell.position[1]));
@@ -600,7 +608,7 @@ fn drawcells() void {
 }
 
 // Draw a tetromino piece
-fn piece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
+fn drawpiece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
     const scale: f32 = 1.0;
 
     for (shape, 0..) |row, i| {
