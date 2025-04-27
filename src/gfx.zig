@@ -205,7 +205,7 @@ pub const Background = struct {
 };
 
 var window = Window{};
-var bg = Background{};
+var background = Background{};
 
 // Animation management structures from grid
 var anim_pool: *animation.AnimationPool = undefined;
@@ -321,7 +321,7 @@ pub fn frame() void {
         ray.BeginTextureMode(window.texture);
         {
             // Draw background with warp effect
-            bg.draw();
+            background.draw();
 
             // Apply static effect shader to game elements
             ray.BeginShaderMode(static);
@@ -361,10 +361,10 @@ pub fn process(queue: *events.EventQueue) void {
         switch (rec.event) {
             // Original event handlers
             .LevelUp => |newlevel| {
-                bg.next();
+                background.next();
                 level = newlevel;
             },
-            .NextBackground => bg.next(),
+            .NextBackground => background.next(),
             .Clear => |lines| {
                 // Prolong the background warp effect proportionally to the number
                 // of lines removed so it is visible even when the grid animation
@@ -375,7 +375,7 @@ pub fn process(queue: *events.EventQueue) void {
             .GameOver => {
                 // Immediately intensify the warp and pick a contrasting background
                 // to highlight the end of the run.
-                bg.next();
+                background.next();
                 warp_end_ms = now + 300;
 
                 // Create the line splat effect for all rows
@@ -473,9 +473,9 @@ pub fn process(queue: *events.EventQueue) void {
 
 /// Reset graphics to first level state
 pub fn reset() void {
-    bg.index = 0;
+    background.index = 0;
     level = 0;
-    bg.load();
+    background.load();
 
     // Clear visual cells
     for (0..Grid.HEIGHT) |y| {
@@ -524,7 +524,7 @@ pub fn init() !void {
     statictimeloc = ray.GetShaderLocation(static, "time");
 
     // Initialize background
-    try bg.init();
+    try background.init();
 
     // Initialize animation system
     anim_pool = try animation.AnimationPool.init(game.state.alloc);
@@ -540,15 +540,15 @@ pub fn init() !void {
 
 pub fn deinit() void {
     std.debug.print("deinit gfx\n", .{});
-    
+
     // Unload the static shader
     ray.UnloadShader(static);
-    
+
     // Clean up window resources
     window.deinit();
-    
+
     // Clean up background resources
-    bg.deinit();
+    background.deinit();
 
     // Clean up animation resources
     unattached_cells.deinit();
@@ -557,11 +557,11 @@ pub fn deinit() void {
 
 // These global functions now call the Background struct methods
 pub fn loadbackground() void {
-    bg.load();
+    background.load();
 }
 
 pub fn nextbackground() void {
-    bg.next();
+    background.next();
 }
 
 // Update shader parameters before drawing
@@ -569,43 +569,43 @@ fn preshade() void {
     const current_time = @as(f32, @floatCast(ray.GetTime()));
 
     // Update time uniforms for both shaders
-    ray.SetShaderValue(bg.shader, bg.secondsloc, &current_time, ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(background.shader, background.secondsloc, &current_time, ray.SHADER_UNIFORM_FLOAT);
     ray.SetShaderValue(static, statictimeloc, &current_time, ray.SHADER_UNIFORM_FLOAT);
 
     // Set background warp parameters based on game state
     const now = std.time.milliTimestamp();
     if (warp_end_ms > now) {
         // Intense warp effect for special events
-        bg.freqx = 25.0;
-        bg.freqy = 25.0;
-        bg.ampx = 10.0;
-        bg.ampy = 10.0;
-        bg.speedx = 25.0;
-        bg.speedy = 25.0;
+        background.freqx = 25.0;
+        background.freqy = 25.0;
+        background.ampx = 10.0;
+        background.ampy = 10.0;
+        background.speedx = 25.0;
+        background.speedy = 25.0;
     } else {
         // Normal warp effect scaling with level
-        bg.freqx = 10.0;
-        bg.freqy = 10.0;
-        bg.ampx = 2.0;
-        bg.ampy = 2.0;
-        bg.speedx = 0.15 * (@as(f32, @floatFromInt(level)) + 2.0);
-        bg.speedy = 0.15 * (@as(f32, @floatFromInt(level)) + 2.0);
+        background.freqx = 10.0;
+        background.freqy = 10.0;
+        background.ampx = 2.0;
+        background.ampy = 2.0;
+        background.speedx = 0.15 * (@as(f32, @floatFromInt(level)) + 2.0);
+        background.speedy = 0.15 * (@as(f32, @floatFromInt(level)) + 2.0);
     }
 
     // Update all shader uniforms
-    ray.SetShaderValue(bg.shader, bg.freqxloc, &bg.freqx, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(bg.shader, bg.freqyloc, &bg.freqy, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(bg.shader, bg.ampxloc, &bg.ampx, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(bg.shader, bg.ampyloc, &bg.ampy, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(bg.shader, bg.speedxloc, &bg.speedx, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(bg.shader, bg.speedyloc, &bg.speedy, ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(background.shader, background.freqxloc, &background.freqx, ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(background.shader, background.freqyloc, &background.freqy, ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(background.shader, background.ampxloc, &background.ampx, ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(background.shader, background.ampyloc, &background.ampy, ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(background.shader, background.speedxloc, &background.speedx, ray.SHADER_UNIFORM_FLOAT);
+    ray.SetShaderValue(background.shader, background.speedyloc, &background.speedy, ray.SHADER_UNIFORM_FLOAT);
 
     // Set screen size for shader
     const size = [2]f32{
         @floatFromInt(Window.OGWIDTH),
         @floatFromInt(Window.OGHEIGHT),
     };
-    ray.SetShaderValue(bg.shader, bg.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
+    ray.SetShaderValue(background.shader, background.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
 }
 
 fn drawcells() void {
