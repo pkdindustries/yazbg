@@ -19,6 +19,26 @@ pub const Window = struct {
     cellpadding: i32 = 2,
     drag_active: bool = false,
 
+    pub fn init(self: *Window) !void {
+        // Initialize window
+        ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE | ray.FLAG_VSYNC_HINT);
+        ray.InitWindow(Window.OGWIDTH, Window.OGHEIGHT, "yazbg");
+
+        // Create render texture for resolution independence
+        self.texture = ray.LoadRenderTexture(Window.OGWIDTH, Window.OGHEIGHT);
+        ray.SetTextureFilter(self.texture.texture, ray.TEXTURE_FILTER_TRILINEAR);
+
+        // Initialize font
+        self.font = ray.LoadFont("resources/font/space.ttf");
+        ray.GenTextureMipmaps(&self.font.texture);
+        ray.SetTextureFilter(self.font.texture, ray.TEXTURE_FILTER_TRILINEAR);
+    }
+
+    pub fn deinit(self: *Window) void {
+        ray.UnloadTexture(self.texture.texture);
+        ray.UnloadFont(self.font);
+    }
+
     // Handle window resizing
     pub fn updateScale(self: *Window) void {
         if (ray.IsWindowResized()) {
@@ -111,6 +131,36 @@ pub const Background = struct {
         "resources/texture/starfield2.png",
         "resources/texture/starmap.png",
     };
+
+    pub fn init(self: *Background) !void {
+        // Load and setup background warp shader
+        self.shader = ray.LoadShader(null, "resources/shader/warp.fs");
+        self.secondsloc = ray.GetShaderLocation(self.shader, "seconds");
+        self.freqxloc = ray.GetShaderLocation(self.shader, "freqX");
+        self.freqyloc = ray.GetShaderLocation(self.shader, "freqY");
+        self.ampxloc = ray.GetShaderLocation(self.shader, "ampX");
+        self.ampyloc = ray.GetShaderLocation(self.shader, "ampY");
+        self.speedxloc = ray.GetShaderLocation(self.shader, "speedX");
+        self.speedyloc = ray.GetShaderLocation(self.shader, "speedY");
+        self.sizeloc = ray.GetShaderLocation(self.shader, "size");
+
+        // Load background textures
+        for (paths, 0..) |path, i| {
+            var texture = ray.LoadTexture(path);
+            ray.GenTextureMipmaps(&texture);
+            ray.SetTextureFilter(texture, ray.TEXTURE_FILTER_TRILINEAR);
+            self.texture[i] = texture;
+        }
+
+        self.load();
+    }
+
+    pub fn deinit(self: *Background) void {
+        ray.UnloadShader(self.shader);
+        for (self.texture) |t| {
+            ray.UnloadTexture(t);
+        }
+    }
 
     // Update current texture filtering
     pub fn load(self: *Background) void {
@@ -467,42 +517,14 @@ pub fn init() !void {
     std.debug.print("init gfx\n", .{});
 
     // Initialize window
-    ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE | ray.FLAG_VSYNC_HINT);
-    ray.InitWindow(Window.OGWIDTH, Window.OGHEIGHT, "yazbg");
-
-    // Create render texture for resolution independence
-    window.texture = ray.LoadRenderTexture(Window.OGWIDTH, Window.OGHEIGHT);
-    ray.SetTextureFilter(window.texture.texture, ray.TEXTURE_FILTER_TRILINEAR);
-
-    // Load and setup background warp shader
-    bg.shader = ray.LoadShader(null, "resources/shader/warp.fs");
-    bg.secondsloc = ray.GetShaderLocation(bg.shader, "seconds");
-    bg.freqxloc = ray.GetShaderLocation(bg.shader, "freqX");
-    bg.freqyloc = ray.GetShaderLocation(bg.shader, "freqY");
-    bg.ampxloc = ray.GetShaderLocation(bg.shader, "ampX");
-    bg.ampyloc = ray.GetShaderLocation(bg.shader, "ampY");
-    bg.speedxloc = ray.GetShaderLocation(bg.shader, "speedX");
-    bg.speedyloc = ray.GetShaderLocation(bg.shader, "speedY");
-    bg.sizeloc = ray.GetShaderLocation(bg.shader, "size");
+    try window.init();
 
     // Load static effect shader for game elements
     static = ray.LoadShader(null, "resources/shader/static.fs");
     statictimeloc = ray.GetShaderLocation(static, "time");
 
-    // Initialize font
-    window.font = ray.LoadFont("resources/font/space.ttf");
-    ray.GenTextureMipmaps(&window.font.texture);
-    ray.SetTextureFilter(window.font.texture, ray.TEXTURE_FILTER_TRILINEAR);
-
-    // Load background textures
-    for (Background.paths, 0..) |path, i| {
-        var texture = ray.LoadTexture(path);
-        ray.GenTextureMipmaps(&texture);
-        ray.SetTextureFilter(texture, ray.TEXTURE_FILTER_TRILINEAR);
-        bg.texture[i] = texture;
-    }
-
-    bg.load();
+    // Initialize background
+    try bg.init();
 
     // Initialize animation system
     anim_pool = try animation.AnimationPool.init(game.state.alloc);
@@ -518,13 +540,15 @@ pub fn init() !void {
 
 pub fn deinit() void {
     std.debug.print("deinit gfx\n", .{});
-    ray.UnloadShader(bg.shader);
+    
+    // Unload the static shader
     ray.UnloadShader(static);
-    for (bg.texture) |t| {
-        ray.UnloadTexture(t);
-    }
-    ray.UnloadTexture(window.texture.texture);
-    ray.UnloadFont(window.font);
+    
+    // Clean up window resources
+    window.deinit();
+    
+    // Clean up background resources
+    bg.deinit();
 
     // Clean up animation resources
     unattached_cells.deinit();
