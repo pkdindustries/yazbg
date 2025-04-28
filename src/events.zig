@@ -73,7 +73,7 @@ pub const TimestampedEvent = struct {
 
 /// Very small fixed‑size queue – enough for one frame.
 pub const EventQueue = struct {
-    const MAX = 64;
+    const MAX = 256;
     events: [MAX]TimestampedEvent = undefined,
     len: usize = 0,
 
