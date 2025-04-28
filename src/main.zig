@@ -42,6 +42,7 @@ pub fn main() !void {
             ray.KEY_RIGHT => events.push(.MoveRight, events.Source.Input),
             ray.KEY_DOWN => events.push(.MoveDown, events.Source.Input),
             ray.KEY_UP => events.push(.Rotate, events.Source.Input),
+            ray.KEY_Z => events.push(.RotateCCW, events.Source.Input),
             ray.KEY_C => events.push(.SwapPiece, events.Source.Input),
             ray.KEY_B => events.push(.NextBackground, events.Source.Input),
             ray.KEY_M => events.push(.MuteAudio, events.Source.Input),
@@ -79,7 +80,8 @@ pub fn main() !void {
 fn printkeys() void {
     std.debug.print("keys:\n", .{});
     std.debug.print("  left/right: move\n", .{});
-    std.debug.print("  up: rotate\n", .{});
+    std.debug.print("  up: rotate counter-clockwise\n", .{});
+    std.debug.print("  z: rotate clockwise\n", .{});
     std.debug.print("  down: drop\n", .{});
     std.debug.print("  space: hard drop\n", .{});
     std.debug.print("  c: swap piece\n", .{});

@@ -229,21 +229,26 @@ pub fn down() bool {
     return true;
 }
 
-// rotate piece clockwise
-pub fn rotate() void {
+// rotate piece (clockwise by default, counter-clockwise if ccw is true)
+pub fn rotate(ccw: bool) void {
     const oldr: u32 = state.piece.r;
-    state.piece.r = (state.piece.r + 1) % 4; // increment and wrap around the rotation
+    if (ccw) {
+        state.piece.r = (state.piece.r + 3) % 4; // counter-clockwise: -1 mod 4 = +3 mod 4
+    } else {
+        state.piece.r = (state.piece.r + 1) % 4; // clockwise: +1 mod 4
+    }
 
     // after rotation, the piece fits, return
     if (checkmove(state.piece.x, state.piece.y)) {
         state.lastmove_ms = state.current_time_ms;
-        events.push(.Rotate, events.Source.Game);
         return;
     }
 
     // try wall-kicks to fit the piece
     if (state.piece.current) |piece| {
-        const kickData = piece.kicks[finddirection(oldr, state.piece.r)];
+        // Use the appropriate kick data based on rotation direction
+        const kickIndex: u32 = if (ccw) 1 else 0;
+        const kickData = piece.kicks[kickIndex];
 
         // kick and check if the moved piece fits
         for (kickData) |kick| {
@@ -277,11 +282,11 @@ pub fn dropready() bool {
     return !frozen() and (state.current_time_ms - state.lastmove_ms >= state.dropinterval_ms);
 }
 
-// (0 for CW, 1 for CCW)
-fn finddirection(oldr: u32, newr: u32) u32 {
-    if (oldr > newr or (oldr == 0 and newr == 3) or (oldr == 3 and newr == 0)) return 1;
-    return 0;
-}
+// No longer needed as we directly determine the kick index based on rotation direction
+// fn finddirection(oldr: u32, newr: u32) u32 {
+//     if (oldr > newr or (oldr == 0 and newr == 3) or (oldr == 3 and newr == 0)) return 1;
+//     return 0;
+// }
 
 /// Handle progression events emitted by level (e.g., drop interval changes).
 pub fn process(queue: *events.EventQueue) void {
@@ -294,7 +299,8 @@ pub fn process(queue: *events.EventQueue) void {
             .MoveLeft => left(),
             .MoveRight => right(),
             .MoveDown => if (!down()) harddrop(),
-            .Rotate => rotate(),
+            .Rotate => rotate(true), // UP key now rotates CCW (standard convention)
+            .RotateCCW => rotate(false), // Z key now rotates CW
             .HardDrop => harddrop(),
             .AutoDrop => if (!down()) harddrop(),
             .SwapPiece => swappiece(),

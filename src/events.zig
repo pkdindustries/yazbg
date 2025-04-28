@@ -48,6 +48,7 @@ pub const Event = union(enum) {
     MoveRight,
     MoveDown,
     Rotate,
+    RotateCCW,
     HardDrop,
     SwapPiece,
     Pause,
