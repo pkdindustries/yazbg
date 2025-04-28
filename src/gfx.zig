@@ -553,21 +553,12 @@ pub fn process(queue: *events.EventQueue) void {
                 const total_count = game.state.cells.countTotalAnimations();
                 std.debug.print("Total animations: {}\n", .{total_count});
             },
-            .LineClearing => |row_data| {
-                const y = row_data.y;
-
-                for (0..Grid.WIDTH) |x| {
-                    const idx = game.state.cells.index(x, y);
-                    animator.stopAnimation(idx);
-                }
-            },
             .RowsShiftedDown => |shift_data| {
                 const start_y = shift_data.start_y;
                 const target_y = start_y + 1; // The row where we're moving cells to
 
                 // Animate cells shifting down
                 for (0..Grid.WIDTH) |x| {
-                    const source_idx = game.state.cells.index(x, start_y);
                     const target_idx = game.state.cells.index(x, target_y);
 
                     // Only animate if there was data at the source position
@@ -591,17 +582,13 @@ pub fn process(queue: *events.EventQueue) void {
                             .color = color,
                             .startedat = std.time.milliTimestamp(),
                             .duration = 150,
+                            .notbefore = std.time.milliTimestamp() + 100,
                             .mode = .easeout,
                             .animating = true,
                         };
 
-                        animator.stopAnimation(target_idx);
-
                         // Start animation at the target position
                         animator.startAnimation(target_idx, anim_state) catch {};
-
-                        // Clear the animation at the source position
-                        animator.stopAnimation(source_idx);
                     }
                 }
             },
