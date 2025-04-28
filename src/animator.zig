@@ -64,6 +64,19 @@ pub const Animator = struct {
                 }
 
                 const now = std.time.milliTimestamp();
+                
+                // Check if we should start the animation yet
+                if (now < anim.notbefore) {
+                    // Not time to start yet, keep in the animation list but don't update
+                    i += 1;
+                    continue;
+                }
+                
+                // If we just passed the notbefore time, update startedat to now
+                if (anim.startedat < anim.notbefore) {
+                    anim.startedat = now;
+                }
+                
                 const elapsed = @as(f32, @floatFromInt(now - anim.startedat));
                 const duration = @as(f32, @floatFromInt(anim.duration));
                 var progress = std.math.clamp(elapsed / duration, 0.0, 1.0);

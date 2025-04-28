@@ -11,6 +11,7 @@ pub const AnimationState = struct {
     color: [4]u8,
     startedat: i64,
     duration: i64,
+    notbefore: i64 = 0, // Timestamp when animation should start (0 = start immediately)
     mode: enum { linear, easein, easeout },
     animating: bool,
 };
