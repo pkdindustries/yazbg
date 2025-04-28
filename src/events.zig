@@ -23,7 +23,6 @@ pub const Event = union(enum) {
 
     // Gameplay lifecycle events (pure game‑logic → graphics/audio/UI)
     Spawn, // a new active piece appeared
-    Lock, // the piece was fixed to the grid
     /// Emitted when a piece is locked onto the grid with block positions and colors
     PieceLocked: struct {
         blocks: [4]CellDataPos,

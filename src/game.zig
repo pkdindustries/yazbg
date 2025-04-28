@@ -175,9 +175,6 @@ pub fn harddrop() void {
         events.push(.{ .Clear = @as(u8, @intCast(cleared)) }, events.Source.Game);
     }
 
-    // Piece is now locked into the grid.
-    events.push(.Lock, events.Source.Game);
-
     // spawn a new piece after the drop has settled
     nextpiece();
 
