@@ -9,6 +9,7 @@ const components = @import("components.zig");
 const flashSystem = @import("systems/flashsys.zig").flashSystem;
 const gridRenderSystem = @import("systems/gridsys.zig").gridRenderSystem;
 const rowFallSystem = @import("systems/rowfallsys.zig").rowFallSystem;
+const rowShiftSystem = @import("systems/rowshiftsys.zig").rowShiftSystem;
 // const createFallingRowEntities = @import("systems/rowfallsys.zig").createFallingRowEntities;
 
 pub const Window = struct {
@@ -425,6 +426,7 @@ pub fn frame() void {
                 gridRenderSystem();
                 flashSystem();
                 rowFallSystem();
+                rowShiftSystem();
             }
             ray.EndShaderMode();
 

@@ -34,6 +34,12 @@ pub fn getSprite(entity: ecs.Entity) ?components.Sprite {
 pub fn addFlash(entity: ecs.Entity, ttl_ms: i64) void {
     const expires_at = std.time.milliTimestamp() + ttl_ms;
     std.debug.print("addFlash {} {}\n", .{ ttl_ms, expires_at });
+    
+    // Check if entity already has a Flash component and remove it first
+    if (world.?.has(components.Flash, entity)) {
+        world.?.remove(components.Flash, entity);
+    }
+    
     world.?.add(entity, components.Flash{
         .ttl_ms = ttl_ms,
         .expires_at_ms = expires_at,

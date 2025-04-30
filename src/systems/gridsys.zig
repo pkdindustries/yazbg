@@ -16,7 +16,7 @@ pub fn gridRenderSystem() void {
 fn renderStaticBlocks() void {
     const world = ecs.getWorld();
 
-    var view = world.view(.{ components.BlockTag, components.GridPos, components.Sprite, components.Position }, .{components.Flash}); // Exclude entities that still have Flash
+    var view = world.view(.{ components.BlockTag, components.GridPos, components.Sprite, components.Position }, .{}); // Include all blocks, even those with Flash
 
     var it = view.entityIterator();
 

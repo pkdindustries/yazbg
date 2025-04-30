@@ -6,6 +6,7 @@ const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
 const createFallingRow = @import("systems/rowfallsys.zig").createFallingRow;
+const addRowShiftAnim = @import("systems/rowshiftsys.zig").addRowShiftAnim;
 
 pub const Grid = struct {
     const Self = @This();
@@ -49,7 +50,7 @@ pub const Grid = struct {
 
         ecs.addPosition(entity, px, py);
         ecs.addSprite(entity, color, 1.0);
-        ecs.addFlash(entity, 200); // Flash duration in milliseconds
+        ecs.addFlash(entity, 100); // Flash duration in milliseconds
     }
 
     pub fn vacate(self: *Self, gridy: i32, gridx: i32) void {
@@ -117,6 +118,12 @@ pub const Grid = struct {
             }
         }
 
+        // Flash the entire row before removing it
+        for (entities.items) |entity| {
+            // Add flash effect to make it blink before falling
+            ecs.addFlash(entity, 100);
+        }
+
         // blocks to falling animations
         // We'll remove them from the grid but keep them as visual entities
         for (entities.items) |entity| {
@@ -158,6 +165,8 @@ pub const Grid = struct {
                     // Store entity and its positions
                     entities_to_update.append(entity) catch continue;
 
+                    // No flash effect for blocks about to drop, only flash completed lines
+
                     if (ecs.getPosition(entity)) |pos| {
                         positions_to_update.append(pos) catch continue;
                     } else {
@@ -175,19 +184,28 @@ pub const Grid = struct {
 
         // Update all collected entities
         for (entities_to_update.items, 0..) |entity, idx| {
+            const cellsize_f32: f32 = 35.0;
+            var pos = positions_to_update.items[idx];
+            var grid_pos = grid_positions_to_update.items[idx];
+
+            // Store the original position for animation
+            const start_pos_y = pos.y;
+            const target_pos_y = start_pos_y + cellsize_f32;
+
             // Remove old components
             ecs.getWorld().remove(components.GridPos, entity);
             ecs.getWorld().remove(components.Position, entity);
 
-            // Add updated components
-            var grid_pos = grid_positions_to_update.items[idx];
+            // Add updated components (logical update happens immediately)
             grid_pos.y += 1;
             ecs.addGridPos(entity, grid_pos.x, grid_pos.y);
 
-            var pos = positions_to_update.items[idx];
-            const cellsize_f32: f32 = 35.0;
-            pos.y += cellsize_f32;
+            // Position is updated for game logic
+            pos.y = target_pos_y;
             ecs.addPosition(entity, pos.x, pos.y);
+
+            // Add animation component
+            addRowShiftAnim(entity, start_pos_y, target_pos_y);
         }
     }
 
