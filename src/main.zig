@@ -6,9 +6,7 @@ const gfx = @import("gfx.zig");
 const hud = @import("hud.zig");
 const events = @import("events.zig");
 const level = @import("level.zig");
-const ecsmod = @import("ecs.zig");
-const flashSystem = @import("systems/flash.zig").flashSystem;
-const blockRenderSystem = @import("systems/render.zig").blockRenderSystem;
+const ecs = @import("ecs.zig");
 
 const MS = 1_000_000;
 pub fn main() !void {
@@ -24,8 +22,8 @@ pub fn main() !void {
     try gfx.init();
     defer gfx.deinit();
 
-    ecsmod.init();
-    defer ecsmod.deinit();
+    ecs.init();
+    defer ecs.deinit();
 
     std.debug.print("system init {}ms\n", .{timer.lap() / MS});
 

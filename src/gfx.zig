@@ -422,22 +422,6 @@ pub fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32) void {
         });
 }
 
-// Render all entities with Position and Sprite components
-fn spriteRenderSystem() void {
-    const world = ecs.getWorld();
-    var view = world.view(.{ components.Position, components.Sprite }, .{});
-    var it = view.entityIterator();
-
-    while (it.next()) |entity| {
-        const pos = view.get(components.Position, entity);
-        const sprite = view.get(components.Sprite, entity);
-        std.debug.print("Rendering entity {} at ({}, {})\n", .{ entity, pos.x, pos.y });
-        // Position is in grid-relative coordinates, without the grid offset
-        // drawbox will add the offset during rendering
-        drawbox(@intFromFloat(pos.x), @intFromFloat(pos.y), sprite.rgba, sprite.size);
-    }
-}
-
 pub fn frame() void {
     // Handle window resizing
     window.updateScale();
