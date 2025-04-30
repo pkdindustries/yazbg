@@ -1,6 +1,7 @@
 const std = @import("std");
 const ray = @import("../raylib.zig");
 const ecs = @import("../ecs.zig");
+const ecsroot = @import("ecs");
 const components = @import("../components.zig");
 const gfx = @import("../gfx.zig");
 const events = @import("../events.zig");
@@ -60,61 +61,31 @@ pub fn rowFallSystem() void {
     }
 }
 
-// Create entities for a falling row effect
-pub fn createFallingRowEntities(row_y: usize) void {
-    std.debug.print("Creating falling row entities for row {}\n", .{row_y});
+// Create falling row effects from existing entities
+pub fn createFallingRow(row_y: usize, existing_entities: []const ecsroot.Entity) void {
+    std.debug.print("Converting {} entities in row {} to falling blocks\n", .{ existing_entities.len, row_y });
     const window = gfx.window;
-    const gridoffsetx = window.gridoffsetx;
-    const gridoffsety = window.gridoffsety;
-    const cellsize = window.cellsize;
+    const world = ecs.getWorld();
 
-    // For each cell in the row, create a falling entity
-    for (0..Grid.WIDTH) |x| {
-        // Create an entity for this cell
-        const entity = ecs.createEntity();
+    // Process all existing entities from the cleared row
+    for (existing_entities) |entity| {
+        // Get the current position
+        if (ecs.getPosition(entity)) |position| {
+            const start_y_pos = position.y;
 
-        // Calculate screen position
-        const screen_x = gridoffsetx + @as(i32, @intCast(x)) * cellsize;
-        const screen_y = gridoffsety + @as(i32, @intCast(row_y)) * cellsize;
+            // Target position is off the bottom of the screen
+            const target_y_pos = @as(f32, @floatFromInt(window.height + 100));
 
-        // this will directly query entities with BlockTag components.. someday
-        const grid = game.state.grid;
-        if (x < Grid.WIDTH and row_y < Grid.HEIGHT and grid.data[row_y][x] == null) {
-            // Skip creating entities for empty cells
-            ecs.getWorld().destroy(entity);
-            continue;
+            // Add RowFall component to handle the animation
+            world.add(entity, RowFall{
+                .y = row_y,
+                .start_y = start_y_pos,
+                .target_y = target_y_pos,
+                .start_time = std.time.milliTimestamp(),
+                .duration = 350, // 350 ms for the fall
+                .opacity = 1.0,
+            });
         }
-
-        // Get cell color
-        const color = grid.data[row_y][x].?.toRgba();
-
-        // Calculate animation parameters
-        const start_y_pos = @as(f32, @floatFromInt(screen_y));
-
-        // Target is off screen - add random horizontal drift for more natural look
-        const random_drift = @as(f32, @floatFromInt(@mod(std.time.milliTimestamp() + @as(i64, @intCast(x)) * 10, 100))) / 50.0 - 1.0; // -1.0 to 1.0
-        const target_y_pos = @as(f32, @floatFromInt(window.height + 100));
-
-        // Add components
-        ecs.addPosition(entity, @as(f32, @floatFromInt(screen_x)) + random_drift * 10.0, start_y_pos);
-        ecs.addSprite(entity, color, 1.0);
-
-        // Add our custom RowFall component with easing parameters
-        const world = ecs.getWorld();
-        world.add(entity, RowFall{
-            .y = row_y,
-            .start_y = start_y_pos,
-            .target_y = target_y_pos,
-            .start_time = std.time.milliTimestamp(),
-            // NOTE: the intent is to have the row fall fairly quickly – roughly a
-            // quarter of a second. The extra two zeros slipped in during the
-            // initial implementation made the duration **25 000 ms** (25 s)
-            // instead of **250 ms**. This caused the animation to move almost
-            // imperceptibly and appear "stuck". Restoring the intended value
-            // makes the effect visible again.
-            .duration = 250, // 250 ms for the fall
-            .opacity = 1.0,
-        });
     }
 }
 //

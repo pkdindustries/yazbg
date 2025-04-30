@@ -8,7 +8,7 @@ const ecs = @import("ecs.zig");
 const components = @import("components.zig");
 const flashSystem = @import("systems/flashsys.zig").flashSystem;
 const gridRenderSystem = @import("systems/gridsys.zig").gridRenderSystem;
-// const rowFallSystem = @import("systems/rowfallsys.zig").rowFallSystem;
+const rowFallSystem = @import("systems/rowfallsys.zig").rowFallSystem;
 // const createFallingRowEntities = @import("systems/rowfallsys.zig").createFallingRowEntities;
 
 pub const Window = struct {
@@ -423,8 +423,8 @@ pub fn frame() void {
                 player.draw();
 
                 gridRenderSystem();
-
                 flashSystem();
+                rowFallSystem();
             }
             ray.EndShaderMode();
 
@@ -467,12 +467,9 @@ pub fn process(queue: *events.EventQueue) void {
                 if (warp_end_ms < now + extra_ms) warp_end_ms = now + extra_ms;
             },
             .GameOver => {
-                // Immediately intensify the warp and pick a contrasting background
-                // to highlight the end of the run.
                 background.next();
                 warp_end_ms = now + 300;
 
-                // Create the line splat effect for all rows
                 for (0..Grid.HEIGHT) |_| {
                     //explodeRow(y);
                 }
@@ -487,29 +484,7 @@ pub fn process(queue: *events.EventQueue) void {
             .Debug => {
                 // Debug code removed
             },
-            .RowsShiftedDown => |_| {
-                // Row shifting handled by ECS
-
-                //         // Set up movement animation
-                //         const anim_state = AnimationState{
-                //             .source = .{ source_x, source_y },
-                //             .target = .{ source_x, target_y_pos },
-                //             .position = .{ source_x, source_y },
-                //             .scale = 1.0,
-                //             .color_source = color,
-                //             .color_target = color,
-                //             .color = color,
-                //             .startedat = std.time.milliTimestamp(),
-                //             .duration = 150,
-                //             .notbefore = std.time.milliTimestamp() + 150,
-                //             .mode = .easeout,
-                //             .animating = true,
-                //         };
-
-                //         // Start animation at the target position
-                // }
-                // }
-            },
+            .RowsShiftedDown => |_| {},
             .GridReset => {
                 // Stop all animations
                 // var idx: usize = 0;

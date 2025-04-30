@@ -1,12 +1,11 @@
 const std = @import("std");
 const cells = @import("cell.zig");
-const CellData = cells.CellData;
 const pieces = @import("pieces.zig");
 const events = @import("events.zig");
 const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
-//const entity_traits = @import("ecs").entity_traits;
+const createFallingRow = @import("systems/rowfallsys.zig").createFallingRow;
 
 pub const Grid = struct {
     const Self = @This();
@@ -103,12 +102,12 @@ pub const Grid = struct {
         // Emit LineClearing event before modifying the grid
         events.push(.{ .LineClearing = .{ .y = line } }, events.Source.Game);
 
-        // Remove all entities in this line
+        // get blocks in this line
         var blocks_view = ecs.getBlocksView();
         var entities = std.ArrayList(ecsroot.Entity).init(std.heap.c_allocator);
         defer entities.deinit();
 
-        // Collect entities to destroy
+        // Collect entities for animation
         var iter = blocks_view.entityIterator();
         while (iter.next()) |entity| {
             if (ecs.getGridPos(entity)) |grid_pos| {
@@ -118,10 +117,16 @@ pub const Grid = struct {
             }
         }
 
-        // Destroy all collected entities
+        // blocks to falling animations
+        // We'll remove them from the grid but keep them as visual entities
         for (entities.items) |entity| {
-            ecs.getWorld().destroy(entity);
+            //  (no longer part of grid)
+            ecs.getWorld().remove(components.GridPos, entity);
+            // (no longer a static block)
+            ecs.getWorld().remove(components.BlockTag, entity);
         }
+
+        createFallingRow(line, entities.items);
     }
 
     // shift a single line down
@@ -262,8 +267,8 @@ pub const Grid = struct {
 
 test "grid init" {
     // Initialize ECS world for testing
-    ecs.init();
-    defer ecs.deinit();
+    ecsroot.init();
+    defer ecsroot.deinit();
 
     var grid = Grid.init();
 
