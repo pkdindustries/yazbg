@@ -422,8 +422,9 @@ pub fn frame() void {
                 // Draw player piece and ghost
                 player.draw();
 
-                flashSystem();
                 gridRenderSystem();
+
+                flashSystem();
             }
             ray.EndShaderMode();
 
@@ -519,40 +520,7 @@ pub fn process(queue: *events.EventQueue) void {
                 // Create the falling row effect
                 // createFallingRowEntities(y.y);
             },
-            .PieceLocked => |pl| {
-                std.debug.print("PieceLocked event with {} blocks\n", .{pl.count});
-                for (pl.blocks[0..pl.count]) |b| {
-                    std.debug.print("  Block at grid pos ({}, {}) with color {any}\n", .{ b.x, b.y, b.color });
 
-                    const entity = ecs.createEntity();
-
-                    // Acomponents for the permanent block state
-                    const gx: i32 = @as(i32, @intCast(b.x));
-                    const gy: i32 = @as(i32, @intCast(b.y));
-                    ecs.addGridPos(entity, gx, gy);
-                    ecs.addBlockTag(entity);
-
-                    // Scale from grid coordinates to pixel coordinates
-                    const x_grid = @as(f32, @floatFromInt(b.x));
-                    const y_grid = @as(f32, @floatFromInt(b.y));
-                    const cellsize_f32 = @as(f32, @floatFromInt(window.cellsize));
-
-                    // (drawbox will add the offset during rendering)
-                    const px = x_grid * cellsize_f32;
-                    const py = y_grid * cellsize_f32;
-
-                    std.debug.print("  Creating single entity {} for block at ({}, {}) with initial Flash\n", .{ entity, gx, gy });
-
-                    // Add Position component for rendering
-                    ecs.addPosition(entity, px, py);
-
-                    // Add Sprite component with the block's color
-                    ecs.addSprite(entity, b.color, 1.0);
-
-                    // Add Flash component to trigger the animation
-                    ecs.addFlash(entity, 200); // Flash duration in milliseconds
-                }
-            },
             else => {},
         }
     }
