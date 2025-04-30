@@ -13,6 +13,9 @@ pub fn main() !void {
     var timer = try std.time.Timer.start();
     ray.SetTraceLogLevel(ray.LOG_WARNING);
 
+    ecs.init();
+    defer ecs.deinit();
+
     try game.init(std.heap.c_allocator);
     defer game.deinit();
 
@@ -21,9 +24,6 @@ pub fn main() !void {
 
     try gfx.init();
     defer gfx.deinit();
-
-    ecs.init();
-    defer ecs.deinit();
 
     std.debug.print("system init {}ms\n", .{timer.lap() / MS});
 
