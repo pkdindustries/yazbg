@@ -31,7 +31,11 @@ pub fn getSprite(entity: ecs.Entity) ?components.Sprite {
 }
 
 pub fn addFlash(entity: ecs.Entity, ttl_ms: i64) void {
-    world.?.add(entity, components.Flash{ .ttl_ms = ttl_ms });
+    const expires_at = std.time.milliTimestamp() + ttl_ms;
+    world.?.add(entity, components.Flash{
+        .ttl_ms = ttl_ms,
+        .expires_at_ms = expires_at,
+    });
 }
 
 pub fn getFlash(entity: ecs.Entity) ?components.Flash {

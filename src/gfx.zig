@@ -6,8 +6,9 @@ const events = @import("events.zig");
 const Grid = @import("grid.zig").Grid;
 const ecs = @import("ecs.zig");
 const components = @import("components.zig");
-const renderSystem = @import("systems/render.zig").blockRenderSystem;
-const flashSystem = @import("systems/flash.zig").flashSystem;
+const flashSystem = @import("systems/flashsys.zig").flashSystem;
+const gridRenderSystem = @import("systems/gridsys.zig").gridRenderSystem;
+
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
     pub const OGHEIGHT: i32 = 760;
@@ -179,7 +180,7 @@ pub const Background = struct {
     }
 };
 
-var window = Window{};
+pub var window = Window{};
 var background = Background{};
 
 // Graphics state variables
@@ -346,20 +347,6 @@ fn preshade() void {
     ray.SetShaderValue(background.shader, background.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
 }
 
-fn drawcells(grid: *const Grid) void {
-    // Iterate through all cells in the grid
-    for (0..Grid.HEIGHT) |y| {
-        for (0..Grid.WIDTH) |x| {
-            if (grid.data[y][x]) |cell_data| {
-                const drawX = @as(i32, @intCast(x)) * window.cellsize;
-                const drawY = @as(i32, @intCast(y)) * window.cellsize;
-                drawbox(drawX, drawY, cell_data.toRgba(), 1.0);
-            }
-        }
-    }
-}
-
-// Draw a tetromino piece
 fn drawpiece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
     const scale: f32 = 1.0;
 
@@ -433,11 +420,9 @@ pub fn frame() void {
                 // Draw player piece and ghost
                 player.draw();
 
-                // Draw grid cells
-                drawcells(&game.state.grid);
-
+                gridRenderSystem();
                 flashSystem();
-                renderSystem();
+                //renderSystem();
             }
             ray.EndShaderMode();
 
@@ -460,39 +445,6 @@ pub fn frame() void {
         window.drawScaled();
     }
     ray.EndDrawing();
-}
-
-// Explode all cells in a given row with flying animation
-fn explodeRow(row: usize) void {
-    _ = row; // Placeholder for now
-    // // Create exploding entities for each cell in row
-    // for (0..Grid.WIDTH) |x| {
-    //     const idx = game.state.cells.index(x, row);
-    //     const cell_ptr = &game.state.cells.cells[idx];
-
-    //     if (cell_ptr.data != null) {
-    //         // Get current position in pixel coordinates
-    //         const x_pos = @as(f32, @floatFromInt(x * @as(usize, @intCast(window.cellsize))));
-    //         const y_pos = @as(f32, @floatFromInt(row * @as(usize, @intCast(window.cellsize))));
-
-    //         // Get current color
-    //         const color = cell_ptr.data.?.toRgba();
-
-    //         // Create an entity for this exploding cell
-    //         const entity = ecs.createEntity();
-
-    //         // Add components to the entity
-    //         ecs.addPosition(entity, x_pos, y_pos);
-    //         ecs.addSprite(entity, color, 1.0);
-
-    //         // Create custom animation system for this entity using the flash system
-    //         // The flash component's ttl_ms will be used to destroy the entity and handle fade-out
-    //         ecs.addFlash(entity, 1000);
-
-    //         // Setup entity for exploding animation
-    //         // The flash system will automatically fade out and destroy the entity
-    //     }
-    // }
 }
 
 pub fn process(queue: *events.EventQueue) void {
@@ -519,8 +471,8 @@ pub fn process(queue: *events.EventQueue) void {
                 warp_end_ms = now + 300;
 
                 // Create the line splat effect for all rows
-                for (0..Grid.HEIGHT) |y| {
-                    explodeRow(y);
+                for (0..Grid.HEIGHT) |_| {
+                    //explodeRow(y);
                 }
             },
             .Reset => reset(),
@@ -586,7 +538,7 @@ pub fn process(queue: *events.EventQueue) void {
                     // Ensure alpha is initially 255 for the sprite
                     const sprite_color = .{ 255, 255, 255, 255 };
                     ecs.addSprite(e, sprite_color, 1.0);
-                    ecs.addFlash(e, 50); // Flash duration
+                    ecs.addFlash(e, 100); // Flash duration in milliseconds
                 }
             },
             else => {},
@@ -594,14 +546,8 @@ pub fn process(queue: *events.EventQueue) void {
     }
 }
 
-/// Reset graphics to first level state
 pub fn reset() void {
     background.index = 0;
     level = 0;
     background.load();
-
-    // // Clear all animations
-    // var idx: usize = 0;
-    //     idx += 1;
-    // }
 }

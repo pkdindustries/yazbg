@@ -7,7 +7,16 @@ pub const Position = struct { x: f32, y: f32 }; // Replaces anim_state.position 
 pub const Sprite = struct { rgba: [4]u8, size: f32 }; // Replaces anim_state.color, scale[cite: 464], CellData.color [cite: 482]
 
 // Tag for temporary flash/fade effects
-pub const Flash = struct { ttl_ms: i64 }; // New component to manage fade-out lifecycle
+pub const Flash = struct {
+    /// Requested lifetime of the flash effect in milliseconds.
+    ttl_ms: i64,
+
+    /// Absolute timestamp, in wall-clock milliseconds, after which the
+    /// component (and owning entity) should be destroyed. This value is
+    /// populated when the component is added via `ecs.addFlash` so that the
+    /// runtime system does not need to detect a "first frame" condition.
+    expires_at_ms: i64,
+}; // Component to manage fade-out lifecycle
 
 // --- Components for later steps (define now for clarity) ---
 
