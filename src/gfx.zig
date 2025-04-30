@@ -4,9 +4,6 @@ const game = @import("game.zig");
 const hud = @import("hud.zig");
 const events = @import("events.zig");
 const Grid = @import("grid.zig").Grid;
-const CellLayer = @import("cellrenderer.zig").CellLayer;
-//const AnimationState = @import("cellrenderer.zig").AnimationState;
-const Animator = @import("animator.zig").Animator;
 const ecs = @import("ecs.zig");
 const components = @import("components.zig");
 const renderSystem = @import("systems/render.zig").blockRenderSystem;
@@ -190,7 +187,6 @@ var background = Background{};
 var warp_end_ms: i64 = 0;
 var dropIntervalMs: i64 = 0;
 var level: u8 = 0;
-var animator: Animator = undefined;
 
 // Static effect shader
 var static: ray.Shader = undefined;
@@ -282,9 +278,6 @@ pub fn init() !void {
 
     // Initialize background
     try background.init();
-
-    // Initialize animator
-    animator = try Animator.init(game.state.alloc, game.state.cells);
 }
 
 pub fn deinit() void {
@@ -298,9 +291,6 @@ pub fn deinit() void {
 
     // Clean up background resources
     background.deinit();
-
-    // Clean up animator resources
-    animator.deinit();
 }
 
 // These global functions now call the Background struct methods
@@ -356,21 +346,16 @@ fn preshade() void {
     ray.SetShaderValue(background.shader, background.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
 }
 
-fn drawcells(layer: *CellLayer) void {
-    // Iterate through all cells in the layer
-    for (layer.cells, 0..) |cell, idx| {
-        if (cell.anim_state) |anim| {
-            // Draw animated cell
-            const drawX = @as(i32, @intFromFloat(anim.position[0]));
-            const drawY = @as(i32, @intFromFloat(anim.position[1]));
-            drawbox(drawX, drawY, anim.color, anim.scale);
-        } else if (cell.data) |logic| {
-            // Draw static cell based on logical data
-            const coords = layer.coordsFromIdx(idx);
-            const drawX = @as(i32, @intCast(coords.x)) * window.cellsize;
-            const drawY = @as(i32, @intCast(coords.y)) * window.cellsize;
-            drawbox(drawX, drawY, logic.toRgba(), 1.0);
-        } //
+fn drawcells(grid: *const Grid) void {
+    // Iterate through all cells in the grid
+    for (0..Grid.HEIGHT) |y| {
+        for (0..Grid.WIDTH) |x| {
+            if (grid.data[y][x]) |cell_data| {
+                const drawX = @as(i32, @intCast(x)) * window.cellsize;
+                const drawY = @as(i32, @intCast(y)) * window.cellsize;
+                drawbox(drawX, drawY, cell_data.toRgba(), 1.0);
+            }
+        }
     }
 }
 
@@ -432,8 +417,7 @@ pub fn frame() void {
     // Update shader uniforms
     preshade();
 
-    // Update animations
-    animator.step(0); // dt parameter isn't used since we're using timestamps
+    // Animation system now handled by ECS
 
     ray.BeginDrawing();
     {
@@ -450,7 +434,7 @@ pub fn frame() void {
                 player.draw();
 
                 // Draw grid cells
-                drawcells(game.state.cells);
+                drawcells(&game.state.grid);
 
                 flashSystem();
                 renderSystem();
@@ -547,28 +531,10 @@ pub fn process(queue: *events.EventQueue) void {
             .DropInterval => |ms| dropIntervalMs = ms,
             .Spawn => player.active = false,
             .Debug => {
-                // const active_count = animator.countActiveAnimations();
-                // std.debug.print("Active animations: {}\n", .{active_count});
-                // const total_count = game.state.cells.countTotalAnimations();
-                // std.debug.print("Total animations: {}\n", .{total_count});
+                // Debug code removed
             },
             .RowsShiftedDown => |_| {
-                // const start_y = shift_data.start_y;
-                // const target_y = start_y + 1; // The row where we're moving cells to
-
-                // // Animate cells shifting down
-                // for (0..Grid.WIDTH) |x| {
-                //     const target_idx = game.state.cells.index(x, target_y);
-
-                //     // Only animate if there was data at the source position
-                //     // Check the target cell because the logical pos has already been moved
-                //     // by the grid.shiftrow() function
-                //     if (game.state.cells.ptr(x, target_y).data != null) {
-                //         // Get source and target positions
-                //         const source_x = @as(f32, @floatFromInt(x * @as(usize, @intCast(window.cellsize))));
-                //         const source_y = @as(f32, @floatFromInt(start_y * @as(usize, @intCast(window.cellsize))));
-                //         const target_y_pos = @as(f32, @floatFromInt(target_y * @as(usize, @intCast(window.cellsize))));
-                //         const color = game.state.cells.ptr(x, target_y).data.?.toRgba();
+                // Row shifting handled by ECS
 
                 //         // Set up movement animation
                 //         const anim_state = AnimationState{
@@ -587,18 +553,14 @@ pub fn process(queue: *events.EventQueue) void {
                 //         };
 
                 //         // Start animation at the target position
-                //         animator.startAnimation(target_idx, anim_state) catch {};
                 // }
                 // }
             },
             .GridReset => {
                 // Stop all animations
                 // var idx: usize = 0;
-                // while (idx < animator.indices.items.len) {
-                //     animator.stopAnimation(animator.indices.items[idx]);
                 //     idx += 1;
                 // }
-                // animator.indices.clearRetainingCapacity();
             },
             .PieceLocked => |pl| {
                 // Debug the PieceLocked event
@@ -640,9 +602,6 @@ pub fn reset() void {
 
     // // Clear all animations
     // var idx: usize = 0;
-    // while (idx < animator.indices.items.len) {
-    //     animator.stopAnimation(animator.indices.items[idx]);
     //     idx += 1;
     // }
-    // animator.indices.clearRetainingCapacity();
 }

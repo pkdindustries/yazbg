@@ -3,13 +3,11 @@ const std = @import("std");
 const Grid = @import("grid.zig").Grid;
 const shapes = @import("pieces.zig");
 const events = @import("events.zig");
-const CellLayer = @import("cellrenderer.zig").CellLayer;
 
 pub const YAZBG = struct {
     alloc: std.mem.Allocator = undefined,
     rng: std.Random.DefaultPrng = undefined,
-    grid: *Grid = undefined,
-    cells: *CellLayer = undefined,
+    grid: Grid = undefined,
     gameover: bool = false,
     paused: bool = false,
     // time of the last successful move (milliseconds, monotonic clock)
@@ -49,8 +47,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
         break :blk seed;
     });
 
-    state.cells = try CellLayer.init(allocator, Grid.WIDTH, Grid.HEIGHT);
-    state.grid = try Grid.init(state.cells);
+    state.grid = Grid.init();
 
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
     nextpiece();
@@ -58,9 +55,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
 
 pub fn deinit() void {
     std.debug.print("deinit game\n", .{});
-    state.grid.deinit();
-    state.cells.deinit();
-    //
+    // Grid no longer needs deinit
 }
 
 pub fn reset() void {

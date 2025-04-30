@@ -46,6 +46,6 @@ pub fn flashSystem() void {
     }
 
     if (entity_count > 0) {
-        std.debug.print("FlashSystem processed {} entities\n", .{entity_count});
+        // std.debug.print("FlashSystem processed {} entities\n", .{entity_count});
     }
 }
