@@ -1,45 +1,42 @@
 const std = @import("std");
-const Cell = @import("cell.zig");
+const cells = @import("cell.zig");
+const CellData = cells.CellData;
+const events = @import("events.zig");
+const CellLayer = @import("cellrenderer.zig").CellLayer;
+const pieces = @import("pieces.zig");
 pub const Grid = struct {
     const Self = @This();
     pub const WIDTH = 10;
     pub const HEIGHT = 20;
-    allocator: std.mem.Allocator = undefined,
+    layer: *CellLayer, //
 
-    cells: [HEIGHT][WIDTH]?*Cell = undefined,
-    cleartimer: i64 = 0,
-
-    pub fn init(allocator: std.mem.Allocator) !*Self {
+    pub fn init(layer: *CellLayer) !*Self {
         std.debug.print("init grid\n", .{});
+        const allocator = layer.allocator;
         const gc = try allocator.create(Self);
 
         gc.* = Self{
-            .allocator = allocator,
+            .layer = layer,
         };
 
-        for (gc.cells, 0..) |line, i| {
-            for (line, 0..) |_, j| {
-                gc.cells[i][j] = null;
-            }
-        }
         return gc;
     }
 
     pub fn deinit(self: *Self) void {
         std.debug.print("deinit grid\n", .{});
-
-        self.allocator.destroy(self);
+        const allocator = self.layer.allocator;
+        allocator.destroy(self);
     }
 
     fn removeline(self: *Self, line: usize) void {
         std.debug.print("removeline {d}\n", .{line});
-        inline for (self.cells[line], 0..) |cell, i| {
-            if (cell) |cptr| {
-                cptr.target[1] = 800;
-                cptr.mode = .easein;
-                cptr.duration = 250;
-                self.cells[line][i] = null;
-            }
+
+        // Emit LineClearing event before modifying the grid
+        events.push(.{ .LineClearing = .{ .y = line } }, events.Source.Game);
+
+        // Clear data cells
+        for (0..WIDTH) |i| {
+            self.layer.ptr(i, line).data = null;
         }
     }
 
@@ -50,22 +47,20 @@ pub const Grid = struct {
             return; // Cannot shift the last row down
         }
 
+        // Emit RowsShiftedDown event before modifying the grid
+        events.push(.{ .RowsShiftedDown = .{ .start_y = line, .count = 1 } }, events.Source.Game);
+
         // Move each cell in the row down by one row
-        inline for (self.cells[line], 0..) |cell, i| {
-            self.cells[line + 1][i] = cell; // Shift down
-            self.cells[line][i] = null; // Clear the original cell
-            // coords
-            if (cell) |cptr| {
-                cptr.duration = 200;
-                cptr.mode = .easeinout;
-                cptr.setcoords(i, line + 1);
-            }
+        for (0..WIDTH) |i| {
+            // Shift data cells down
+            self.layer.ptr(i, line + 1).data = self.layer.ptr(i, line).data;
+            self.layer.ptr(i, line).data = null;
         }
     }
 
     pub fn checkline(self: *Self, line: usize) bool {
-        for (self.cells[line]) |cell| {
-            if (cell == null) {
+        for (0..WIDTH) |i| {
+            if (!self.layer.ptr(i, line).isOccupied()) {
                 return false;
             }
         }
@@ -92,16 +87,29 @@ pub const Grid = struct {
         return count;
     }
 
-    pub fn createCell(_: *Self, gridx: usize, gridy: usize, color: [4]u8) ?*Cell {
-        return Cell{ .gridx = gridx, .gridy = gridy, .color = color };
+    /// Occupy a cell with a color in data table
+    pub fn occupy(self: *Self, gridy: usize, gridx: usize, color: [4]u8) void {
+        // Create logical cell data
+        self.layer.ptr(gridx, gridy).data = CellData.fromRgba(color);
+    }
+
+    /// Remove a cell from data table
+    pub fn vacate(self: *Self, gridy: usize, gridx: usize) void {
+        // Remove from data table
+        self.layer.ptr(gridx, gridy).data = null;
+    }
+
+    pub fn clearall(self: *Self) void {
+        self.layer.clear();
     }
 
     pub fn print(self: *Self) void {
         std.debug.print("\n", .{});
-        for (self.cells) |line| {
-            for (line) |cell| {
-                if (cell) |cptr| {
-                    _ = cptr;
+
+        // Print data cells
+        for (0..HEIGHT) |y| {
+            for (0..WIDTH) |x| {
+                if (self.layer.ptr(x, y).isOccupied()) {
                     std.debug.print("+", .{});
                 } else {
                     std.debug.print("-", .{});
@@ -110,19 +118,61 @@ pub const Grid = struct {
             std.debug.print("\n", .{});
         }
     }
+
+    pub fn checkmove(self: *Self, piece: ?pieces.tetramino, x: i32, y: i32, r: u32) bool {
+        if (piece) |p| {
+            const shape = p.shape[r];
+            for (shape, 0..) |row, j| {
+                for (row, 0..) |cell, i| {
+                    if (cell) {
+                        const gx = x + @as(i32, @intCast(j));
+                        const gy = y + @as(i32, @intCast(i));
+                        // cell is out of bounds
+                        if (gx < 0 or gx >= WIDTH or gy < 0 or gy >= HEIGHT) {
+                            return false;
+                        }
+
+                        const ix = @as(usize, @intCast(gx));
+                        const iy = @as(usize, @intCast(gy));
+                        // cell is already occupied via logical_data only
+                        if (self.layer.ptr(ix, iy).isOccupied()) {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
 };
 
 test "init" {
     const GPA = std.heap.GeneralPurposeAllocator(.{});
     var gpa = GPA{};
-    const g = try Grid.init(gpa.allocator());
-    defer g.deinit();
-    g.cells[0][0] = g.createCell(0, 0, .{ 255, 255, 255, 255 });
+    const allocator = gpa.allocator();
 
-    if (g.cells[0][0]) |cptr| {
-        std.debug.print("0 0 {any}\n", .{cptr.*});
-        g.cells[0][0] = null;
-        // No need to destroy, just set to null and the pool will reuse it later
+    const layer = try CellLayer.init(allocator, Grid.WIDTH, Grid.HEIGHT);
+    defer layer.deinit();
+
+    const g = try Grid.init(layer);
+    defer g.deinit();
+
+    g.occupy(0, 0, .{ 255, 255, 255, 255 });
+
+    // Print the grid
+    g.print();
+
+    // Verify that the cell has the color
+    const cell = g.layer.ptr(0, 0);
+    if (cell.data) |cell_data| {
+        const rgba = cell_data.toRgba();
+        std.debug.print("cell color: {any}\n", .{rgba});
+        try std.testing.expectEqual(@as(u8, 255), rgba[0]);
+        try std.testing.expectEqual(@as(u8, 255), rgba[1]);
+        try std.testing.expectEqual(@as(u8, 255), rgba[2]);
+        try std.testing.expectEqual(@as(u8, 255), rgba[3]);
+    } else {
+        try std.testing.expect(false);
     }
 }
 
@@ -130,19 +180,24 @@ test "rm" {
     std.debug.print("rm\n", .{});
     const GPA = std.heap.GeneralPurposeAllocator(.{});
     var gpa = GPA{};
-    const g = try Grid.init(gpa.allocator());
+    const allocator = gpa.allocator();
+
+    const layer = try CellLayer.init(allocator, Grid.WIDTH, Grid.HEIGHT);
+    defer layer.deinit();
+
+    const g = try Grid.init(layer);
     defer g.deinit();
 
     // fill line 0
-    for (g.cells[0], 0..) |_, i| {
-        g.cells[0][i] = g.createCell(i, 0, .{ 255, 255, 255, 255 });
+    for (0..Grid.WIDTH) |i| {
+        g.occupy(0, i, .{ 255, 255, 255, 255 });
     }
 
     g.print();
     g.removeline(0);
     // assert empty grid
-    for (g.cells[0]) |cell| {
-        try std.testing.expect(cell == null);
+    for (0..Grid.WIDTH) |i| {
+        try std.testing.expect(!g.layer.ptr(i, 0).isOccupied());
     }
     g.print();
 }
@@ -151,17 +206,22 @@ test "shift" {
     std.debug.print("shift\n", .{});
     const GPA = std.heap.GeneralPurposeAllocator(.{});
     var gpa = GPA{};
-    const g = try Grid.init(gpa.allocator());
+    const allocator = gpa.allocator();
+
+    const layer = try CellLayer.init(allocator, Grid.WIDTH, Grid.HEIGHT);
+    defer layer.deinit();
+
+    const g = try Grid.init(layer);
     defer g.deinit();
 
     // fill line 0
-    for (g.cells[0], 0..) |_, i| {
-        g.cells[0][i] = g.createCell(i, 0, .{ 255, 255, 255, 255 });
+    for (0..Grid.WIDTH) |i| {
+        g.occupy(0, i, .{ 255, 255, 255, 255 });
     }
 
     // fill line 1
-    for (g.cells[1], 0..) |_, i| {
-        g.cells[1][i] = g.createCell(i, 1, .{ 255, 255, 255, 255 });
+    for (0..Grid.WIDTH) |i| {
+        g.occupy(1, i, .{ 255, 255, 255, 255 });
     }
 
     g.print();
@@ -172,8 +232,8 @@ test "shift" {
     try std.testing.expect(g.checkline(0) == true);
 
     // assert line 1 is empty
-    for (g.cells[1]) |cell| {
-        try std.testing.expect(cell == null);
+    for (0..Grid.WIDTH) |i| {
+        try std.testing.expect(!g.layer.ptr(i, 1).isOccupied());
     }
 
     try std.testing.expect(g.checkline(2) == true);
@@ -185,20 +245,27 @@ test "clear" {
     std.debug.print("clear\n", .{});
     const GPA = std.heap.GeneralPurposeAllocator(.{});
     var gpa = GPA{};
-    const g = try Grid.init(gpa.allocator());
+    const allocator = gpa.allocator();
+
+    const layer = try CellLayer.init(allocator, Grid.WIDTH, Grid.HEIGHT);
+    defer layer.deinit();
+
+    const g = try Grid.init(layer);
     defer g.deinit();
 
-    // fill line 0
-    for (g.cells[19], 0..) |_, i| {
-        g.cells[19][i] = g.createCell(i, 0, .{ 255, 255, 255, 255 });
+    // fill line 19 (bottom row)
+    for (0..Grid.WIDTH) |i| {
+        g.occupy(19, i, .{ 255, 255, 255, 255 });
     }
 
-    g.cells[18][0] = g.createCell(0, 18, .{ 255, 255, 255, 255 });
-    g.cells[17][0] = g.createCell(0, 18, .{ 255, 255, 255, 255 });
-    g.cells[17][1] = g.createCell(0, 18, .{ 255, 255, 255, 255 });
+    // Add some cells in rows 18 and 17
+    g.occupy(18, 0, .{ 255, 255, 255, 255 });
+    g.occupy(17, 0, .{ 255, 255, 255, 255 });
+    g.occupy(17, 1, .{ 255, 255, 255, 255 });
 
-    for (g.cells[16], 0..) |_, i| {
-        g.cells[16][i] = g.createCell(i, 0, .{ 255, 255, 255, 255 });
+    // Fill row 16 completely
+    for (0..Grid.WIDTH) |i| {
+        g.occupy(16, i, .{ 255, 255, 255, 255 });
     }
     g.print();
     _ = g.clear();

@@ -50,7 +50,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
     });
 
     state.cells = try CellLayer.init(allocator, Grid.WIDTH, Grid.HEIGHT);
-    state.grid = try Grid.init(allocator);
+    state.grid = try Grid.init(state.cells);
 
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
     nextpiece();
@@ -60,6 +60,7 @@ pub fn deinit() void {
     std.debug.print("deinit game\n", .{});
     state.grid.deinit();
     state.cells.deinit();
+    //
 }
 
 pub fn reset() void {

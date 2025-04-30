@@ -370,7 +370,7 @@ fn drawcells(layer: *CellLayer) void {
             const drawX = @as(i32, @intCast(coords.x)) * window.cellsize;
             const drawY = @as(i32, @intCast(coords.y)) * window.cellsize;
             drawbox(drawX, drawY, logic.toRgba(), 1.0);
-        }
+        } //
     }
 }
 
