@@ -5,9 +5,12 @@ const hud = @import("hud.zig");
 const events = @import("events.zig");
 const Grid = @import("grid.zig").Grid;
 const CellLayer = @import("cellrenderer.zig").CellLayer;
-const AnimationState = @import("cellrenderer.zig").AnimationState;
+//const AnimationState = @import("cellrenderer.zig").AnimationState;
 const Animator = @import("animator.zig").Animator;
-
+const ecs = @import("ecs.zig");
+const components = @import("components.zig");
+const renderSystem = @import("systems/render.zig").blockRenderSystem;
+const flashSystem = @import("systems/flash.zig").flashSystem;
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
     pub const OGHEIGHT: i32 = 760;
@@ -387,7 +390,7 @@ fn drawpiece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
 }
 
 // Draw a rounded box with scale factor applied
-fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32) void {
+pub fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32) void {
     // Calculate scaled dimensions
     const cellsize_scaled = @as(f32, @floatFromInt(window.cellsize)) * scale;
     const padding_scaled = @as(f32, @floatFromInt(window.cellpadding)) * scale;
@@ -419,6 +422,22 @@ fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32) void {
         });
 }
 
+// Render all entities with Position and Sprite components
+fn spriteRenderSystem() void {
+    const world = ecs.getWorld();
+    var view = world.view(.{ components.Position, components.Sprite }, .{});
+    var it = view.entityIterator();
+
+    while (it.next()) |entity| {
+        const pos = view.get(components.Position, entity);
+        const sprite = view.get(components.Sprite, entity);
+        std.debug.print("Rendering entity {} at ({}, {})\n", .{ entity, pos.x, pos.y });
+        // Position is in grid-relative coordinates, without the grid offset
+        // drawbox will add the offset during rendering
+        drawbox(@intFromFloat(pos.x), @intFromFloat(pos.y), sprite.rgba, sprite.size);
+    }
+}
+
 pub fn frame() void {
     // Handle window resizing
     window.updateScale();
@@ -448,6 +467,9 @@ pub fn frame() void {
 
                 // Draw grid cells
                 drawcells(game.state.cells);
+
+                flashSystem();
+                renderSystem();
             }
             ray.EndShaderMode();
 
@@ -474,42 +496,35 @@ pub fn frame() void {
 
 // Explode all cells in a given row with flying animation
 fn explodeRow(row: usize) void {
-    // Create exploding animation for each cell in row
-    for (0..Grid.WIDTH) |x| {
-        const idx = game.state.cells.index(x, row);
-        const cell_ptr = &game.state.cells.cells[idx];
+    _ = row; // Placeholder for now
+    // // Create exploding entities for each cell in row
+    // for (0..Grid.WIDTH) |x| {
+    //     const idx = game.state.cells.index(x, row);
+    //     const cell_ptr = &game.state.cells.cells[idx];
 
-        if (cell_ptr.data != null) {
-            // Set random end position for explosion with much wider range
-            const xr: f32 = -2000.0 + std.crypto.random.float(f32) * 4000.0;
-            const yr: f32 = -2000.0 + std.crypto.random.float(f32) * 4000.0;
+    //     if (cell_ptr.data != null) {
+    //         // Get current position in pixel coordinates
+    //         const x_pos = @as(f32, @floatFromInt(x * @as(usize, @intCast(window.cellsize))));
+    //         const y_pos = @as(f32, @floatFromInt(row * @as(usize, @intCast(window.cellsize))));
 
-            // Get current position
-            const x_pos = @as(f32, @floatFromInt(x * @as(usize, @intCast(window.cellsize))));
-            const y_pos = @as(f32, @floatFromInt(row * @as(usize, @intCast(window.cellsize))));
+    //         // Get current color
+    //         const color = cell_ptr.data.?.toRgba();
 
-            // Get current color
-            const color = cell_ptr.data.?.toRgba();
+    //         // Create an entity for this exploding cell
+    //         const entity = ecs.createEntity();
 
-            // Set up animation
-            const anim_state = AnimationState{
-                .source = .{ x_pos, y_pos },
-                .target = .{ xr, yr },
-                .position = .{ x_pos, y_pos },
-                .scale = 1.0,
-                .color_source = color,
-                .color_target = .{ 0, 0, 0, 0 },
-                .color = color,
-                .startedat = std.time.milliTimestamp(),
-                .duration = 1000,
-                .mode = .easein,
-                .animating = true,
-            };
+    //         // Add components to the entity
+    //         ecs.addPosition(entity, x_pos, y_pos);
+    //         ecs.addSprite(entity, color, 1.0);
 
-            // Start animation
-            animator.startAnimation(idx, anim_state) catch {};
-        }
-    }
+    //         // Create custom animation system for this entity using the flash system
+    //         // The flash component's ttl_ms will be used to destroy the entity and handle fade-out
+    //         ecs.addFlash(entity, 1000);
+
+    //         // Setup entity for exploding animation
+    //         // The flash system will automatically fade out and destroy the entity
+    //     }
+    // }
 }
 
 pub fn process(queue: *events.EventQueue) void {
@@ -548,58 +563,85 @@ pub fn process(queue: *events.EventQueue) void {
             .DropInterval => |ms| dropIntervalMs = ms,
             .Spawn => player.active = false,
             .Debug => {
-                const active_count = animator.countActiveAnimations();
-                std.debug.print("Active animations: {}\n", .{active_count});
-                const total_count = game.state.cells.countTotalAnimations();
-                std.debug.print("Total animations: {}\n", .{total_count});
+                // const active_count = animator.countActiveAnimations();
+                // std.debug.print("Active animations: {}\n", .{active_count});
+                // const total_count = game.state.cells.countTotalAnimations();
+                // std.debug.print("Total animations: {}\n", .{total_count});
             },
-            .RowsShiftedDown => |shift_data| {
-                const start_y = shift_data.start_y;
-                const target_y = start_y + 1; // The row where we're moving cells to
+            .RowsShiftedDown => |_| {
+                // const start_y = shift_data.start_y;
+                // const target_y = start_y + 1; // The row where we're moving cells to
 
-                // Animate cells shifting down
-                for (0..Grid.WIDTH) |x| {
-                    const target_idx = game.state.cells.index(x, target_y);
+                // // Animate cells shifting down
+                // for (0..Grid.WIDTH) |x| {
+                //     const target_idx = game.state.cells.index(x, target_y);
 
-                    // Only animate if there was data at the source position
-                    // Check the target cell because the logical pos has already been moved
-                    // by the grid.shiftrow() function
-                    if (game.state.cells.ptr(x, target_y).data != null) {
-                        // Get source and target positions
-                        const source_x = @as(f32, @floatFromInt(x * @as(usize, @intCast(window.cellsize))));
-                        const source_y = @as(f32, @floatFromInt(start_y * @as(usize, @intCast(window.cellsize))));
-                        const target_y_pos = @as(f32, @floatFromInt(target_y * @as(usize, @intCast(window.cellsize))));
-                        const color = game.state.cells.ptr(x, target_y).data.?.toRgba();
+                //     // Only animate if there was data at the source position
+                //     // Check the target cell because the logical pos has already been moved
+                //     // by the grid.shiftrow() function
+                //     if (game.state.cells.ptr(x, target_y).data != null) {
+                //         // Get source and target positions
+                //         const source_x = @as(f32, @floatFromInt(x * @as(usize, @intCast(window.cellsize))));
+                //         const source_y = @as(f32, @floatFromInt(start_y * @as(usize, @intCast(window.cellsize))));
+                //         const target_y_pos = @as(f32, @floatFromInt(target_y * @as(usize, @intCast(window.cellsize))));
+                //         const color = game.state.cells.ptr(x, target_y).data.?.toRgba();
 
-                        // Set up movement animation
-                        const anim_state = AnimationState{
-                            .source = .{ source_x, source_y },
-                            .target = .{ source_x, target_y_pos },
-                            .position = .{ source_x, source_y },
-                            .scale = 1.0,
-                            .color_source = color,
-                            .color_target = color,
-                            .color = color,
-                            .startedat = std.time.milliTimestamp(),
-                            .duration = 150,
-                            .notbefore = std.time.milliTimestamp() + 100,
-                            .mode = .easeout,
-                            .animating = true,
-                        };
+                //         // Set up movement animation
+                //         const anim_state = AnimationState{
+                //             .source = .{ source_x, source_y },
+                //             .target = .{ source_x, target_y_pos },
+                //             .position = .{ source_x, source_y },
+                //             .scale = 1.0,
+                //             .color_source = color,
+                //             .color_target = color,
+                //             .color = color,
+                //             .startedat = std.time.milliTimestamp(),
+                //             .duration = 150,
+                //             .notbefore = std.time.milliTimestamp() + 150,
+                //             .mode = .easeout,
+                //             .animating = true,
+                //         };
 
-                        // Start animation at the target position
-                        animator.startAnimation(target_idx, anim_state) catch {};
-                    }
-                }
+                //         // Start animation at the target position
+                //         animator.startAnimation(target_idx, anim_state) catch {};
+                // }
+                // }
             },
             .GridReset => {
                 // Stop all animations
-                var idx: usize = 0;
-                while (idx < animator.indices.items.len) {
-                    animator.stopAnimation(animator.indices.items[idx]);
-                    idx += 1;
+                // var idx: usize = 0;
+                // while (idx < animator.indices.items.len) {
+                //     animator.stopAnimation(animator.indices.items[idx]);
+                //     idx += 1;
+                // }
+                // animator.indices.clearRetainingCapacity();
+            },
+            .PieceLocked => |pl| {
+                // Debug the PieceLocked event
+                std.debug.print("PieceLocked event with {} blocks\n", .{pl.count});
+                for (pl.blocks[0..pl.count]) |b| {
+                    std.debug.print("  Block at grid pos ({}, {}) with color {any}\n", .{ b.x, b.y, b.color });
+
+                    const e = ecs.createEntity();
+
+                    // Scale from grid coordinates to pixel coordinates
+                    const x_grid = @as(f32, @floatFromInt(b.x));
+                    const y_grid = @as(f32, @floatFromInt(b.y));
+                    const cellsize_f32 = @as(f32, @floatFromInt(window.cellsize));
+
+                    // (drawbox will add the offset during rendering)
+                    const px = x_grid * cellsize_f32;
+                    const py = y_grid * cellsize_f32;
+
+                    std.debug.print("  Placing entity at pixel pos ({}, {})\n", .{ px, py });
+
+                    ecs.addPosition(e, px, py);
+
+                    // Ensure alpha is initially 255 for the sprite
+                    const sprite_color = .{ 255, 255, 255, 255 };
+                    ecs.addSprite(e, sprite_color, 1.0);
+                    ecs.addFlash(e, 50); // Flash duration
                 }
-                animator.indices.clearRetainingCapacity();
             },
             else => {},
         }
@@ -612,11 +654,11 @@ pub fn reset() void {
     level = 0;
     background.load();
 
-    // Clear all animations
-    var idx: usize = 0;
-    while (idx < animator.indices.items.len) {
-        animator.stopAnimation(animator.indices.items[idx]);
-        idx += 1;
-    }
-    animator.indices.clearRetainingCapacity();
+    // // Clear all animations
+    // var idx: usize = 0;
+    // while (idx < animator.indices.items.len) {
+    //     animator.stopAnimation(animator.indices.items[idx]);
+    //     idx += 1;
+    // }
+    // animator.indices.clearRetainingCapacity();
 }

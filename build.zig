@@ -110,6 +110,13 @@ pub fn build(b: *std.Build) void {
         });
         exe.root_module.strip = strip;
         exe.linkLibrary(raylib_artifact);
+        
+        const ecs_dep = b.dependency("entt", .{
+            .target = target,
+            .optimize = optimize,
+        });
+        exe.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+        
         b.installArtifact(exe);
 
         const run_cmd = b.addRunArtifact(exe);
