@@ -129,9 +129,6 @@ pub fn harddrop() void {
     var y = state.piece.y;
     while (checkmove(state.piece.x, y + 1)) : (y += 1) {}
     state.piece.y = y;
-    // Collect blocks for the PieceLocked event
-    var blocks: [4]events.CellDataPos = undefined;
-    var block_count: usize = 0;
 
     if (state.piece.current) |piece| {
         const shape = piece.shape[state.piece.r];
@@ -144,23 +141,15 @@ pub fn harddrop() void {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
 
-                        // Store block position and color for event
-                        if (block_count < blocks.len) {
-                            blocks[block_count] = .{
-                                .x = ix,
-                                .y = iy,
-                                .color = piece.color,
-                            };
-                            block_count += 1;
-                        }
+                        state.grid.occupy(ix, iy, piece.color);
                     }
                 }
             }
         }
     }
 
-    // Emit PieceLocked event with block data before updating grid
-    events.push(.{ .PieceLocked = .{ .blocks = blocks, .count = block_count } }, events.Source.Game);
+    // // Emit PieceLocked event with block data before updating grid
+    // events.push(.{ .PieceLocked = .{ .blocks = blocks, .count = block_count } }, events.Source.Game);
 
     state.lastmove_ms = state.current_time_ms;
     const cleared = state.grid.clear();
