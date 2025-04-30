@@ -8,6 +8,8 @@ const ecs = @import("ecs.zig");
 const components = @import("components.zig");
 const flashSystem = @import("systems/flashsys.zig").flashSystem;
 const gridRenderSystem = @import("systems/gridsys.zig").gridRenderSystem;
+// const rowFallSystem = @import("systems/rowfallsys.zig").rowFallSystem;
+// const createFallingRowEntities = @import("systems/rowfallsys.zig").createFallingRowEntities;
 
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
@@ -420,9 +422,8 @@ pub fn frame() void {
                 // Draw player piece and ghost
                 player.draw();
 
-                gridRenderSystem();
                 flashSystem();
-                //renderSystem();
+                gridRenderSystem();
             }
             ray.EndShaderMode();
 
@@ -514,13 +515,22 @@ pub fn process(queue: *events.EventQueue) void {
                 //     idx += 1;
                 // }
             },
+            .LineClearing => |_| {
+                // Create the falling row effect
+                // createFallingRowEntities(y.y);
+            },
             .PieceLocked => |pl| {
-                // Debug the PieceLocked event
                 std.debug.print("PieceLocked event with {} blocks\n", .{pl.count});
                 for (pl.blocks[0..pl.count]) |b| {
                     std.debug.print("  Block at grid pos ({}, {}) with color {any}\n", .{ b.x, b.y, b.color });
 
-                    const e = ecs.createEntity();
+                    const entity = ecs.createEntity();
+
+                    // Acomponents for the permanent block state
+                    const gx: i32 = @as(i32, @intCast(b.x));
+                    const gy: i32 = @as(i32, @intCast(b.y));
+                    ecs.addGridPos(entity, gx, gy);
+                    ecs.addBlockTag(entity);
 
                     // Scale from grid coordinates to pixel coordinates
                     const x_grid = @as(f32, @floatFromInt(b.x));
@@ -531,14 +541,16 @@ pub fn process(queue: *events.EventQueue) void {
                     const px = x_grid * cellsize_f32;
                     const py = y_grid * cellsize_f32;
 
-                    std.debug.print("  Placing entity at pixel pos ({}, {})\n", .{ px, py });
+                    std.debug.print("  Creating single entity {} for block at ({}, {}) with initial Flash\n", .{ entity, gx, gy });
 
-                    ecs.addPosition(e, px, py);
+                    // Add Position component for rendering
+                    ecs.addPosition(entity, px, py);
 
-                    // Ensure alpha is initially 255 for the sprite
-                    const sprite_color = .{ 255, 255, 255, 255 };
-                    ecs.addSprite(e, sprite_color, 1.0);
-                    ecs.addFlash(e, 100); // Flash duration in milliseconds
+                    // Add Sprite component with the block's color
+                    ecs.addSprite(entity, b.color, 1.0);
+
+                    // Add Flash component to trigger the animation
+                    ecs.addFlash(entity, 200); // Flash duration in milliseconds
                 }
             },
             else => {},

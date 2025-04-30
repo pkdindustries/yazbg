@@ -21,18 +21,14 @@ pub fn flashSystem() void {
         const time_left_ms = flash.expires_at_ms - current_time_ms;
 
         if (time_left_ms <= 0) {
-            std.debug.print("Destroying entity {}\n", .{entity});
-            world.remove(components.Flash, entity);
-            world.remove(components.Sprite, entity);
-            world.remove(components.Position, entity);
-            world.destroy(entity);
-        } else {
-            // Update alpha based on remaining time and initial TTL
-            const progress = @as(f32, @floatFromInt(time_left_ms)) / @as(f32, @floatFromInt(flash.ttl_ms));
-            // Ensure alpha stays within [0,1]
-            sprite.rgba[3] = @intFromFloat(std.math.clamp(progress, 0.0, 1.0) * 255.0);
+            std.debug.print("Flash expired for entity {}, removing Flash component\n", .{entity});
 
-            // Draw the sprite using the current alpha.
+            world.remove(components.Flash, entity);
+            // reset alpha
+            sprite.rgba[3] = 255;
+        } else {
+            const progress = @as(f32, @floatFromInt(time_left_ms)) / @as(f32, @floatFromInt(flash.ttl_ms));
+            sprite.rgba[3] = @intFromFloat(std.math.clamp(progress, 0.0, 1.0) * 255.0);
             const draw_x = @as(i32, @intFromFloat(pos.x));
             const draw_y = @as(i32, @intFromFloat(pos.y));
             gfx.drawbox(draw_x, draw_y, sprite.rgba, sprite.size);

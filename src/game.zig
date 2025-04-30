@@ -153,9 +153,6 @@ pub fn harddrop() void {
                             };
                             block_count += 1;
                         }
-
-                        // Occupy cell in grid
-                        state.grid.occupy(iy, ix, piece.color);
                     }
                 }
             }
