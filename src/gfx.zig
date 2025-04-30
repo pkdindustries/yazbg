@@ -423,10 +423,10 @@ pub fn frame() void {
                 // Draw player piece and ghost
                 player.draw();
 
-                gridRenderSystem();
-                flashSystem();
+                //flashSystem();
                 rowFallSystem();
                 rowShiftSystem();
+                gridRenderSystem();
             }
             ray.EndShaderMode();
 

@@ -50,7 +50,7 @@ pub const Grid = struct {
 
         ecs.addPosition(entity, px, py);
         ecs.addSprite(entity, color, 1.0);
-        ecs.addFlash(entity, 100); // Flash duration in milliseconds
+        ecs.addFlash(entity, 250); // Flash duration in milliseconds
     }
 
     pub fn vacate(self: *Self, gridy: i32, gridx: i32) void {
@@ -121,7 +121,7 @@ pub const Grid = struct {
         // Flash the entire row before removing it
         for (entities.items) |entity| {
             // Add flash effect to make it blink before falling
-            ecs.addFlash(entity, 100);
+            ecs.addFlash(entity, 500);
         }
 
         // blocks to falling animations

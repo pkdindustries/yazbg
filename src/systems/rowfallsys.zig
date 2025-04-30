@@ -82,8 +82,8 @@ pub fn createFallingRow(row_y: usize, existing_entities: []const ecsroot.Entity)
                 .start_y = start_y_pos,
                 .target_y = target_y_pos,
                 .start_time = std.time.milliTimestamp(),
-                .duration = 350, // 350 ms for the fall
-                .opacity = 1.0,
+                .duration = 400, // 350 ms for the fall
+                .opacity = 0.5,
             });
         }
     }
