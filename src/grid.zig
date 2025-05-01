@@ -51,7 +51,7 @@ pub const Grid = struct {
         ecs.add(components.Position, entity, components.Position{ .x = px, .y = py });
         ecs.add(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
 
-        const ttl_ms: i64 = 250;
+        const ttl_ms: i64 = 125;
         ecs.add(components.Flash, entity, components.Flash{
             .ttl_ms = ttl_ms,
             .expires_at_ms = std.time.milliTimestamp() + ttl_ms,

@@ -423,7 +423,7 @@ pub fn frame() void {
                 // Draw player piece and ghost
                 player.draw();
 
-                //flashSystem();
+                flashSystem();
                 rowFallSystem();
                 rowShiftSystem();
                 renderSystem();

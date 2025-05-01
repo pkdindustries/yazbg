@@ -19,6 +19,8 @@ pub const RowFall = struct {
 
 // create falling row effects
 pub fn rowFallSystem() void {
+
+
     const world = ecs.getWorld(); // Update existing falling row entities
     var view = world.view(.{ RowFall, components.Position, components.Sprite }, .{});
     var it = view.entityIterator();
