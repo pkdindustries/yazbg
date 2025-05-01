@@ -7,10 +7,11 @@ const Grid = @import("grid.zig").Grid;
 const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
-const renderSystem = @import("systems/rendersys.zig").renderSystem;
+const rendersys = @import("systems/rendersys.zig");
 const animsys = @import("systems/animsys.zig");
 const playersys = @import("systems/playersys.zig");
 const animationSystem = animsys.animationSystem;
+const playerSystem = playersys.playerSystem;
 
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
@@ -274,9 +275,8 @@ pub fn frame() void {
     // Handle window resizing
     window.updateScale();
 
-    //window drag, if we want to fuck with an undecorated window
-    //window.updateDrag();
-
+    playerSystem();
+    animationSystem(); // Process all animations (core animation system)
     // Update shader uniforms
     preshade();
 
@@ -292,12 +292,7 @@ pub fn frame() void {
 
             // Apply static effect shader to game elements
             ray.BeginShaderMode(static);
-            {
-                // player piece and ghost
-                playersys.draw();
-                animationSystem(); // Process all animations (core animation system)
-                renderSystem(); // Render all updated entities
-            }
+            rendersys.drawSprites();
             ray.EndShaderMode();
 
             // Draw HUD elements

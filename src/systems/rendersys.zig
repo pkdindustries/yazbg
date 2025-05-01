@@ -7,10 +7,10 @@ const game = @import("../game.zig");
 const gfx = @import("../gfx.zig");
 
 pub fn renderSystem() void {
-    renderSprites();
+    drawSprites();
 }
 
-fn renderSprites() void {
+pub fn drawSprites() void {
     const world = ecs.getWorld();
 
     var view = world.view(.{ components.Sprite, components.Position }, .{}); // Include all blocks, even those with Flash
