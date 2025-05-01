@@ -7,9 +7,10 @@ const Grid = @import("grid.zig").Grid;
 const ecs = @import("ecs.zig");
 const components = @import("components.zig");
 const flashSystem = @import("systems/flashsys.zig").flashSystem;
-const renderSystem = @import("systems/gridsys.zig").renderSystem;
+const renderSystem = @import("systems/rendersys.zig").renderSystem;
 const rowFallSystem = @import("systems/rowfallsys.zig").rowFallSystem;
 const rowShiftSystem = @import("systems/rowshiftsys.zig").rowShiftSystem;
+const animationSystem = @import("systems/animsys.zig").animationSystem;
 
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
@@ -413,10 +414,12 @@ pub fn frame() void {
                 // Draw player piece and ghost
                 player.draw();
 
-                flashSystem();
-                rowFallSystem();
-                rowShiftSystem();
-                renderSystem();
+                // Run animation systems in the proper order
+                flashSystem();        // Convert Flash components to Animation components
+                rowFallSystem();      // Convert RowFall components to Animation components
+                rowShiftSystem();     // Convert RowShift components to Animation components
+                animationSystem();    // Process all animations (core animation system)
+                renderSystem();       // Render all updated entities
             }
             ray.EndShaderMode();
 

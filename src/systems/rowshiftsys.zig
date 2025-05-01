@@ -20,8 +20,8 @@ pub fn rowShiftSystem() void {
     var it = view.entityIterator();
 
     const current_time = std.time.milliTimestamp();
-    var entities_to_update = std.ArrayList(ecsroot.Entity).init(std.heap.c_allocator);
-    defer entities_to_update.deinit();
+    var entities_to_update: [128]ecsroot.Entity = undefined;
+    var num_entities: usize = 0;
 
     while (it.next()) |entity| {
         const row_shift = view.get(RowShift, entity);
@@ -41,12 +41,15 @@ pub fn rowShiftSystem() void {
         // Check if animation is complete
         if (progress >= 1.0) {
             // Remove the RowShift component, animation is done
-            entities_to_update.append(entity) catch continue;
+            if (num_entities < entities_to_update.len) {
+                entities_to_update[num_entities] = entity;
+                num_entities += 1;
+            }
         }
     }
 
     // Remove RowShift components from completed animations
-    for (entities_to_update.items) |entity| {
+    for (entities_to_update[0..num_entities]) |entity| {
         world.remove(RowShift, entity);
     }
 }

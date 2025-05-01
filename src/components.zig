@@ -1,3 +1,4 @@
+const std = @import("std");
 const ecs = @import("ecs");
 
 // rendering and general positioning (pixel coordinates)
@@ -10,6 +11,48 @@ pub const Sprite = struct { rgba: [4]u8, size: f32 }; // Replaces anim_state.col
 pub const Flash = struct {
     ttl_ms: i64,
     expires_at_ms: i64,
+};
+
+pub const easing_types = enum {
+    linear,
+    ease_in,
+    ease_out,
+    ease_in_out,
+};
+// Generic animation component for any property animations
+pub const Animation = struct {
+    // Animation type flags - which properties to animate
+    animate_position: bool = false,
+    animate_alpha: bool = false,
+    animate_scale: bool = false,
+    animate_color: bool = false,
+
+    // Position animation (if animate_position=true)
+    start_pos: ?[2]f32 = null,
+    target_pos: ?[2]f32 = null,
+
+    // Alpha animation (if animate_alpha=true)
+    start_alpha: ?u8 = null,
+    target_alpha: ?u8 = null,
+
+    // Scale animation (if animate_scale=true)
+    start_scale: ?f32 = null,
+    target_scale: ?f32 = null,
+
+    // Color animation (if animate_color=true)
+    start_color: ?[3]u8 = null, // RGB only (no alpha)
+    target_color: ?[3]u8 = null, // RGB only (no alpha)
+
+    // Timing
+    start_time: i64, // when animation started (milliseconds)
+    duration: i64, // animation duration (milliseconds)
+    delay: i64 = 0, // delay before starting animation (milliseconds)
+
+    // Easing function to use
+    easing: easing_types = .ease_out,
+
+    // Callback when complete
+    remove_when_done: bool = true, // whether to remove this component when animation completes
 };
 
 // --- Components for later steps (define now for clarity) ---

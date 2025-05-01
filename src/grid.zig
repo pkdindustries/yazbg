@@ -5,7 +5,7 @@ const events = @import("events.zig");
 const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
-const createFallingRow = @import("systems/rowfallsys.zig").createFallingRow;
+const createFallingRow = @import("systems/rowfallsys.zig").createRippledFallingRow;
 const addRowShiftAnim = @import("systems/rowshiftsys.zig").addRowShiftAnim;
 
 pub const Grid = struct {

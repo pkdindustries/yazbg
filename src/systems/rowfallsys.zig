@@ -7,7 +7,7 @@ const gfx = @import("../gfx.zig");
 const events = @import("../events.zig");
 const Grid = @import("../grid.zig").Grid;
 const game = @import("../game.zig");
-// New component for falling row animation
+
 pub const RowFall = struct {
     y: usize, // original row position
     start_y: f32, // starting y position in pixels
@@ -41,7 +41,7 @@ pub fn rowFallSystem() void {
         // row_fall.opacity = 1.0;
 
         // Check if animation is complete
-        if (progress >= 1.0) {
+        if (progress >= 1.1) {
             world.remove(RowFall, entity);
             world.remove(components.Position, entity);
             world.remove(components.Sprite, entity);
@@ -51,7 +51,7 @@ pub fn rowFallSystem() void {
 }
 
 // Create new falling row effects for cleared lines
-pub fn createFallingRow(row_y: usize, existing_entities: []const ecsroot.Entity) void {
+pub fn createRippledFallingRow(row_y: usize, existing_entities: []const ecsroot.Entity) void {
     const window = gfx.window;
     const world = ecs.getWorld();
 
@@ -59,7 +59,7 @@ pub fn createFallingRow(row_y: usize, existing_entities: []const ecsroot.Entity)
     for (existing_entities) |old_entity| {
         // Get position and sprite from the original entity
         if (ecs.get(components.Position, old_entity)) |old_position| {
-            var sprite_color: [4]u8 = .{ 255, 255, 255, 255 };
+            var sprite_color = [4]u8{ 255, 255, 255, 255 };
 
             if (ecs.get(components.Sprite, old_entity)) |old_sprite| {
                 sprite_color = old_sprite.rgba;
@@ -74,13 +74,14 @@ pub fn createFallingRow(row_y: usize, existing_entities: []const ecsroot.Entity)
             // Target position is off the bottom of the screen
             const target_y_pos = @as(f32, @floatFromInt(window.height + 100));
 
-            // Add necessary components to the new entity
+            // Add necessary components to the new entity with increasing duration based on position
+            // This creates a ripple effect as each cell falls with slight delay
             world.add(new_entity, RowFall{
                 .y = row_y,
                 .start_y = start_y_pos,
                 .target_y = target_y_pos,
                 .start_time = std.time.milliTimestamp(),
-                .duration = 500,
+                .duration = @as(i64, @intFromFloat(old_position.x * 5)),
             });
 
             // Add Position component with the same x position
