@@ -3,9 +3,6 @@ const ray = @import("../raylib.zig");
 const ecs = @import("../ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("../components.zig");
-const events = @import("../events.zig");
-const Grid = @import("../grid.zig").Grid;
-const game = @import("../game.zig");
 
 // Component for animating row shift down
 // This is purely visual - the grid position is already updated in the game logic
@@ -54,14 +51,13 @@ pub fn rowShiftSystem() void {
     }
 }
 
-// Helper function to create row shift animation for a specific entity
-// Called after the grid positions have already been updated
+//  function to create row shift animation for a specific entity
 pub fn addRowShiftAnim(entity: ecsroot.Entity, from_y: f32, to_y: f32) void {
     const world = ecs.getWorld();
 
     // Only add the animation if the entity has a Position component
     // and doesn't already have a RowShift component
-    if (ecs.getPosition(entity)) |_| {
+    if (ecs.get(components.Position, entity)) |_| {
         // Remove any existing RowShift component first to avoid conflicts
         if (world.has(RowShift, entity)) {
             world.remove(RowShift, entity);
