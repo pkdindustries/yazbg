@@ -99,10 +99,5 @@ pub fn createFallingRow(row_y: usize, existing_entities: []const ecsroot.Entity)
             });
         }
     }
-
-    // Original entities should be destroyed immediately
-    for (existing_entities) |entity| {
-        world.destroy(entity);
-    }
 }
 //

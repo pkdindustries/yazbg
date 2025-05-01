@@ -124,7 +124,7 @@ pub const Grid = struct {
 
         createFallingRow(line, entities.items);
         // Original entities should be destroyed immediately
-        for (entities) |entity| {
+        for (entities.items) |entity| {
             ecs.getWorld().destroy(entity);
         }
     }
