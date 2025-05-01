@@ -38,21 +38,33 @@ pub fn main() !void {
         // keep music fed
         sfx.updateMusic();
 
+        // Handle single-press keys via GetKeyPressed() – suitable for actions
+        // that should not auto-repeat (e.g. toggle, debug, etc.).
         switch (ray.GetKeyPressed()) {
             ray.KEY_P => events.push(.Pause, events.Source.Input),
             ray.KEY_R => events.push(.Reset, events.Source.Input),
             ray.KEY_SPACE => events.push(.HardDrop, events.Source.Input),
-            ray.KEY_LEFT => events.push(.MoveLeft, events.Source.Input),
-            ray.KEY_RIGHT => events.push(.MoveRight, events.Source.Input),
-            ray.KEY_DOWN => events.push(.MoveDown, events.Source.Input),
-            ray.KEY_UP => events.push(.Rotate, events.Source.Input),
-            ray.KEY_Z => events.push(.RotateCCW, events.Source.Input),
             ray.KEY_C => events.push(.SwapPiece, events.Source.Input),
             ray.KEY_B => events.push(.NextBackground, events.Source.Input),
             ray.KEY_M => events.push(.MuteAudio, events.Source.Input),
             ray.KEY_N => events.push(.NextMusic, events.Source.Input),
             ray.KEY_L => events.push(.Debug, events.Source.Input),
             else => {},
+        }
+
+        // Keys that benefit from auto-repeat (movement / rotation)
+        const repeat_keys = [_]struct { key: c_int, ev: events.Event }{
+            .{ .key = ray.KEY_LEFT, .ev = events.Event.MoveLeft },
+            .{ .key = ray.KEY_RIGHT, .ev = events.Event.MoveRight },
+            .{ .key = ray.KEY_DOWN, .ev = events.Event.MoveDown },
+            .{ .key = ray.KEY_UP, .ev = events.Event.Rotate },
+            .{ .key = ray.KEY_Z, .ev = events.Event.RotateCCW },
+        };
+
+        inline for (repeat_keys) |rk| {
+            if (ray.IsKeyPressed(rk.key) or ray.IsKeyPressedRepeat(rk.key)) {
+                events.push(rk.ev, events.Source.Input);
+            }
         }
 
         // Check if it's time for automatic piece drop

@@ -116,8 +116,6 @@ pub const Grid = struct {
     fn removeline(self: *Self, line: usize) void {
         std.debug.print("removeline {d}\n", .{line});
 
-        events.push(.{ .LineClearing = .{ .y = line } }, events.Source.Game);
-
         // Clear the line in bit-grid
         if (line < HEIGHT) {
             for (0..WIDTH) |x| {
