@@ -53,6 +53,11 @@ pub const Animation = struct {
 
     // Callback when complete
     remove_when_done: bool = true, // whether to remove this component when animation completes
+
+    // Whether to restore the animated properties to their start values when the
+    // animation finishes (useful for one-shot flash effects where the property
+    // should return to its original value).
+    revert_when_done: bool = false,
 };
 
 // --- Components for later steps (define now for clarity) ---

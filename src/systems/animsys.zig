@@ -3,6 +3,7 @@ const ray = @import("../raylib.zig");
 const ecs = @import("../ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("../components.zig");
+const gfx = @import("../gfx.zig");
 
 // calculate eased value based on animation progress
 fn applyEasing(progress: f32, easing_type: components.easing_types) f32 {
@@ -79,12 +80,9 @@ pub fn animationSystem() void {
     var num_entities: usize = 0;
 
     while (it.next()) |entity| {
-        // `view` only contains the `Animation` component, so the registry returned a
-        // `BasicView`, whose `get` method requires only the `entity` parameter.
-        // Dereference the returned pointer to work with a copy of the component.
         const animation = view.get(entity).*;
 
-        // check if animation should start yet (handle delay)
+        // check if animation should start yet
         if (current_time < animation.start_time + animation.delay) {
             continue; // skip this animation for now
         }
@@ -109,11 +107,39 @@ pub fn animationSystem() void {
         }
 
         // check if animation is complete
-        if (raw_progress >= 1.0 and animation.remove_when_done) {
-            // add to list of entities to remove animation from
-            if (num_entities < entities_to_update.len) {
-                entities_to_update[num_entities] = entity;
-                num_entities += 1;
+        if (raw_progress >= 1.0) {
+            // revert?
+            if (animation.revert_when_done) {
+                if (world.has(components.Position, entity) and animation.animate_position and animation.start_pos != null) {
+                    const position = world.get(components.Position, entity);
+                    position.* = components.Position{ .x = animation.start_pos.?[0], .y = animation.start_pos.?[1] };
+                }
+
+                if (world.has(components.Sprite, entity)) {
+                    const sprite_ptr = world.get(components.Sprite, entity);
+
+                    if (animation.animate_alpha and animation.start_alpha != null) {
+                        sprite_ptr.rgba[3] = animation.start_alpha.?;
+                    }
+
+                    if (animation.animate_scale and animation.start_scale != null) {
+                        sprite_ptr.size = animation.start_scale.?;
+                    }
+
+                    if (animation.animate_color and animation.start_color != null) {
+                        sprite_ptr.rgba[0] = animation.start_color.?[0];
+                        sprite_ptr.rgba[1] = animation.start_color.?[1];
+                        sprite_ptr.rgba[2] = animation.start_color.?[2];
+                    }
+                }
+            }
+
+            if (animation.remove_when_done) {
+                // add to list of entities to remove animation from
+                if (num_entities < entities_to_update.len) {
+                    entities_to_update[num_entities] = entity;
+                    num_entities += 1;
+                }
             }
         }
     }
@@ -146,6 +172,21 @@ pub fn createMoveAnimation(entity: ecsroot.Entity, from_x: f32, from_y: f32, to_
     };
 
     world.add(entity, anim);
+}
+
+pub fn createRowShiftAnimation(entity: ecsroot.Entity, from_y: f32, to_y: f32) void {
+    const world = ecs.getWorld();
+
+    if (ecs.get(components.Position, entity)) |_| {
+        const position = world.get(components.Position, entity);
+        const x = position.x;
+
+        createMoveAnimation(entity, x, from_y, // Start position (x, y)
+            x, to_y, // Target position (same x, new y)
+            200, // 200ms for the shift animation
+            .ease_in // Use ease in easing
+        );
+    }
 }
 
 // Create fade animation (alpha)
@@ -215,4 +256,83 @@ pub fn createMoveAndFadeAnimation(entity: ecsroot.Entity, from_x: f32, from_y: f
     };
 
     world.add(entity, anim);
+}
+
+// Simple flash animation: fade the sprite's alpha from start_alpha to target_alpha
+// over the given duration, then automatically reset it back to the starting alpha
+// when the animation is finished.
+pub fn createFlashAnimation(entity: ecsroot.Entity, start_alpha: u8, target_alpha: u8, duration_ms: i64) void {
+    const world = ecs.getWorld();
+
+    if (world.has(components.Animation, entity)) {
+        world.remove(components.Animation, entity);
+    }
+
+    const anim = components.Animation{
+        .animate_alpha = true,
+        .start_alpha = start_alpha,
+        .target_alpha = target_alpha,
+        .start_time = std.time.milliTimestamp(),
+        .duration = duration_ms,
+        .easing = .linear,
+        .revert_when_done = true,
+    };
+
+    world.add(entity, anim);
+}
+
+// Create new falling row effects for cleared lines using Animation components
+pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Entity) void {
+    const window = gfx.window;
+    const world = ecs.getWorld();
+
+    // Create new animation entities based on the cleared row's entities
+    for (existing_entities) |old_entity| {
+        // Get position and sprite from the original entity
+        if (ecs.get(components.Position, old_entity)) |old_position| {
+            var sprite_color = [4]u8{ 255, 255, 255, 255 };
+
+            if (ecs.get(components.Sprite, old_entity)) |old_sprite| {
+                sprite_color = old_sprite.rgba;
+            }
+
+            // Create a new entity for the falling animation
+            const new_entity = world.create();
+
+            // Start position is the same as the original entity
+            const start_y_pos = old_position.y;
+
+            // Target position is off the bottom of the screen
+            const target_y_pos = @as(f32, @floatFromInt(window.height + 100));
+
+            // Add Position component with the same x position
+            world.add(new_entity, components.Position{
+                .x = old_position.x,
+                .y = start_y_pos,
+            });
+
+            // Add Sprite component with the same color
+            world.add(new_entity, components.Sprite{
+                .rgba = sprite_color,
+                .size = 1.0,
+            });
+
+            // Calculate duration with a ripple effect based on x-position
+            // This creates a ripple effect as each cell falls with slight delay
+            const duration_ms = @as(i64, @intFromFloat(old_position.x * 5));
+
+            // Create animation component directly
+            const anim = components.Animation{
+                .animate_position = true,
+                .start_pos = .{ old_position.x, start_y_pos },
+                .target_pos = .{ old_position.x, target_y_pos },
+                .start_time = std.time.milliTimestamp(),
+                .duration = duration_ms,
+                .easing = .ease_out,
+                .remove_when_done = true,
+            };
+
+            world.add(new_entity, anim);
+        }
+    }
 }

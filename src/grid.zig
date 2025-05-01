@@ -5,8 +5,7 @@ const events = @import("events.zig");
 const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
-const createFallingRow = @import("systems/rowfallsys.zig").createRippledFallingRow;
-const addRowShiftAnim = @import("systems/rowshiftsys.zig").addRowShiftAnim;
+const animsys = @import("systems/animsys.zig");
 
 pub const Grid = struct {
     const Self = @This();
@@ -52,10 +51,7 @@ pub const Grid = struct {
         ecs.add(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
 
         const ttl_ms: i64 = 350;
-        ecs.add(components.Flash, entity, components.Flash{
-            .ttl_ms = ttl_ms,
-            .expires_at_ms = std.time.milliTimestamp() + ttl_ms,
-        });
+        animsys.createFlashAnimation(entity, 255, 0, ttl_ms);
     }
 
     pub fn vacate(self: *Self, gridy: i32, gridx: i32) void {
@@ -144,7 +140,7 @@ pub const Grid = struct {
             }
         }
 
-        createFallingRow(line, buffer[0..count]);
+        animsys.createRippledFallingRow(line, buffer[0..count]);
         // Original entities should be destroyed immediately
         for (buffer[0..count]) |entity| {
             ecs.getWorld().destroy(entity);
@@ -230,7 +226,7 @@ pub const Grid = struct {
             ecs.add(components.Position, entity, pos);
 
             // Add animation component
-            addRowShiftAnim(entity, start_pos_y, target_pos_y);
+            animsys.createRowShiftAnimation(entity, start_pos_y, target_pos_y);
         }
     }
 
