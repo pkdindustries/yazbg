@@ -126,6 +126,10 @@ pub const Background = struct {
     ampy: f32 = 2.0,
     speedx: f32 = 0.15,
     speedy: f32 = 0.15,
+    
+    // Store when warp effect should end
+    warp_end_ms: i64 = 0,
+    level: u8 = 0,
 
     pub fn init(self: *Background) !void {
         // Load background textures
@@ -165,6 +169,64 @@ pub const Background = struct {
     pub fn next(self: *Background) void {
         self.index = (self.index + 1) % self.texture.len;
     }
+    
+    pub fn updateShader(self: *Background) void {
+        const current_time = @as(f32, @floatCast(ray.GetTime()));
+
+        // Update time uniform
+        ray.SetShaderValue(self.shader, self.secondsloc, &current_time, ray.SHADER_UNIFORM_FLOAT);
+
+        // Set background warp parameters based on game state
+        const now = std.time.milliTimestamp();
+        if (self.warp_end_ms > now) {
+            // Intense warp effect for special events
+            self.freqx = 25.0;
+            self.freqy = 25.0;
+            self.ampx = 10.0;
+            self.ampy = 10.0;
+            self.speedx = 25.0;
+            self.speedy = 25.0;
+        } else {
+            // Normal warp effect scaling with level
+            self.freqx = 10.0;
+            self.freqy = 10.0;
+            self.ampx = 2.0;
+            self.ampy = 2.0;
+            self.speedx = 0.15 * (@as(f32, @floatFromInt(self.level)) + 2.0);
+            self.speedy = 0.15 * (@as(f32, @floatFromInt(self.level)) + 2.0);
+        }
+
+        // Update all shader uniforms
+        ray.SetShaderValue(self.shader, self.freqxloc, &self.freqx, ray.SHADER_UNIFORM_FLOAT);
+        ray.SetShaderValue(self.shader, self.freqyloc, &self.freqy, ray.SHADER_UNIFORM_FLOAT);
+        ray.SetShaderValue(self.shader, self.ampxloc, &self.ampx, ray.SHADER_UNIFORM_FLOAT);
+        ray.SetShaderValue(self.shader, self.ampyloc, &self.ampy, ray.SHADER_UNIFORM_FLOAT);
+        ray.SetShaderValue(self.shader, self.speedxloc, &self.speedx, ray.SHADER_UNIFORM_FLOAT);
+        ray.SetShaderValue(self.shader, self.speedyloc, &self.speedy, ray.SHADER_UNIFORM_FLOAT);
+
+        // Set screen size for shader
+        const size = [2]f32{
+            @floatFromInt(Window.OGWIDTH),
+            @floatFromInt(Window.OGHEIGHT),
+        };
+        ray.SetShaderValue(self.shader, self.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
+    }
+    
+    pub fn setWarpEffect(self: *Background, duration_ms: i64) void {
+        const now = std.time.milliTimestamp();
+        if (self.warp_end_ms < now + duration_ms) {
+            self.warp_end_ms = now + duration_ms;
+        }
+    }
+    
+    pub fn setLevel(self: *Background, new_level: u8) void {
+        self.level = new_level;
+    }
+    
+    pub fn reset(self: *Background) void {
+        self.index = 0;
+        self.level = 0;
+    }
 
     pub fn draw(self: *Background) void {
         // Apply the warp shader when drawing the background
@@ -182,13 +244,39 @@ pub const Background = struct {
 
 pub var window = Window{};
 var background = Background{};
-// Effect timer for visual effects like warp
-var warp_end_ms: i64 = 0;
 var dropIntervalMs: i64 = 0;
-var level: u8 = 0;
 // Static effect shader
-var static: ray.Shader = undefined;
-var statictimeloc: i32 = 0;
+pub const StaticShader = struct {
+    shader: ray.Shader = undefined,
+    time_loc: i32 = 0,
+    
+    pub fn init(self: *StaticShader) void {
+        // Load static effect shader
+        self.shader = ray.LoadShader(null, "resources/shader/static.fs");
+        self.time_loc = ray.GetShaderLocation(self.shader, "time");
+    }
+    
+    pub fn deinit(self: *StaticShader) void {
+        // Unload the shader
+        ray.UnloadShader(self.shader);
+    }
+    
+    pub fn update(self: *StaticShader) void {
+        // Update shader time uniform
+        const current_time = @as(f32, @floatCast(ray.GetTime()));
+        ray.SetShaderValue(self.shader, self.time_loc, &current_time, ray.SHADER_UNIFORM_FLOAT);
+    }
+    
+    pub fn begin(self: *StaticShader) void {
+        ray.BeginShaderMode(self.shader);
+    }
+    
+    pub fn end(_: *StaticShader) void {
+        ray.EndShaderMode();
+    }
+};
+
+var static_shader = StaticShader{};
 
 pub fn init() !void {
     std.debug.print("init gfx\n", .{});
@@ -196,9 +284,8 @@ pub fn init() !void {
     // Initialize window
     try window.init();
 
-    // Load static effect shader for game elements
-    static = ray.LoadShader(null, "resources/shader/static.fs");
-    statictimeloc = ray.GetShaderLocation(static, "time");
+    // Initialize static shader
+    static_shader.init();
 
     // Initialize background
     try background.init();
@@ -210,8 +297,8 @@ pub fn init() !void {
 pub fn deinit() void {
     std.debug.print("deinit gfx\n", .{});
 
-    // Unload the static shader
-    ray.UnloadShader(static);
+    // Clean up static shader
+    static_shader.deinit();
 
     // Clean up window resources
     window.deinit();
@@ -229,46 +316,11 @@ pub fn nextbackground() void {
 
 // Update shader parameters before drawing
 fn preshade() void {
-    const current_time = @as(f32, @floatCast(ray.GetTime()));
-
-    // Update time uniforms for both shaders
-    ray.SetShaderValue(background.shader, background.secondsloc, &current_time, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(static, statictimeloc, &current_time, ray.SHADER_UNIFORM_FLOAT);
-
-    // Set background warp parameters based on game state
-    const now = std.time.milliTimestamp();
-    if (warp_end_ms > now) {
-        // Intense warp effect for special events
-        background.freqx = 25.0;
-        background.freqy = 25.0;
-        background.ampx = 10.0;
-        background.ampy = 10.0;
-        background.speedx = 25.0;
-        background.speedy = 25.0;
-    } else {
-        // Normal warp effect scaling with level
-        background.freqx = 10.0;
-        background.freqy = 10.0;
-        background.ampx = 2.0;
-        background.ampy = 2.0;
-        background.speedx = 0.15 * (@as(f32, @floatFromInt(level)) + 2.0);
-        background.speedy = 0.15 * (@as(f32, @floatFromInt(level)) + 2.0);
-    }
-
-    // Update all shader uniforms
-    ray.SetShaderValue(background.shader, background.freqxloc, &background.freqx, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(background.shader, background.freqyloc, &background.freqy, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(background.shader, background.ampxloc, &background.ampx, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(background.shader, background.ampyloc, &background.ampy, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(background.shader, background.speedxloc, &background.speedx, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(background.shader, background.speedyloc, &background.speedy, ray.SHADER_UNIFORM_FLOAT);
-
-    // Set screen size for shader
-    const size = [2]f32{
-        @floatFromInt(Window.OGWIDTH),
-        @floatFromInt(Window.OGHEIGHT),
-    };
-    ray.SetShaderValue(background.shader, background.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
+    // Update background warp shader
+    background.updateShader();
+    
+    // Update static shader time
+    static_shader.update();
 }
 
 pub fn frame() void {
@@ -291,9 +343,9 @@ pub fn frame() void {
             background.draw();
 
             // Apply static effect shader to game elements
-            ray.BeginShaderMode(static);
+            static_shader.begin();
             rendersys.drawSprites();
-            ray.EndShaderMode();
+            static_shader.end();
 
             // Draw HUD elements
             hud.draw(.{
@@ -306,7 +358,7 @@ pub fn frame() void {
                 .og_height = Window.OGHEIGHT,
                 .next_piece = game.state.piece.next,
                 .held_piece = game.state.piece.held,
-            }, static);
+            }, static_shader.shader);
         }
         ray.EndTextureMode();
 
@@ -317,22 +369,21 @@ pub fn frame() void {
 }
 
 pub fn process(queue: *events.EventQueue) void {
-    const now = std.time.milliTimestamp();
     for (queue.items()) |rec| {
         switch (rec.event) {
             // Original event handlers
             .LevelUp => |newlevel| {
                 background.next();
-                level = newlevel;
+                background.setLevel(newlevel);
             },
             .NextBackground => background.next(),
             .Clear => |lines| {
                 const extra_ms: i64 = 120 * @as(i64, @intCast(lines));
-                if (warp_end_ms < now + extra_ms) warp_end_ms = now + extra_ms;
+                background.setWarpEffect(extra_ms);
             },
             .GameOver => {
                 background.next();
-                warp_end_ms = now + 300;
+                background.setWarpEffect(300);
             },
             .Reset => reset(),
             .MoveLeft => playersys.move(1, 0),
@@ -347,6 +398,5 @@ pub fn process(queue: *events.EventQueue) void {
 }
 
 pub fn reset() void {
-    background.index = 0;
-    level = 0;
+    background.reset();
 }
