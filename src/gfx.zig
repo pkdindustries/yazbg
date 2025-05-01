@@ -9,6 +9,7 @@ const ecsroot = @import("ecs");
 const components = @import("components.zig");
 const renderSystem = @import("systems/rendersys.zig").renderSystem;
 const animsys = @import("systems/animsys.zig");
+const playersys = @import("systems/playersys.zig");
 const animationSystem = animsys.animationSystem;
 
 pub const Window = struct {
@@ -180,101 +181,13 @@ pub const Background = struct {
 
 pub var window = Window{};
 var background = Background{};
-
-// Graphics state variables
 // Effect timer for visual effects like warp
 var warp_end_ms: i64 = 0;
 var dropIntervalMs: i64 = 0;
 var level: u8 = 0;
-
 // Static effect shader
 var static: ray.Shader = undefined;
 var statictimeloc: i32 = 0;
-
-const PlayerPiece = struct {
-    entity: ?ecsroot.Entity = null,
-    last_piece_x: i32 = 0,
-    last_piece_y: i32 = 0,
-
-    // Initialize the player piece entity the first time it's used
-    pub fn ensureEntity(self: *PlayerPiece) void {
-        if (self.entity == null) {
-            // Create an entity for the player piece if it doesn't exist
-            self.entity = ecs.createEntity();
-            
-            // Add position component (will be updated in move())
-            ecs.add(components.Position, self.entity.?, components.Position{
-                .x = 0,
-                .y = 0,
-            });
-            
-            // Add a marker to identify this as a player piece
-            ecs.add(components.ActivePieceTag, self.entity.?, components.ActivePieceTag{});
-        }
-    }
-
-    // Start a slide animation for the player piece
-    pub fn move(self: *PlayerPiece, dx: i32, dy: i32) void {
-        self.ensureEntity();
-        
-        // Calculate target position (where piece will end up)
-        const targetx = @as(f32, @floatFromInt(game.state.piece.x * window.cellsize));
-        const targety = @as(f32, @floatFromInt(game.state.piece.y * window.cellsize));
-        
-        // Calculate source position (where piece is visually coming from)
-        const sourcex = targetx + @as(f32, @floatFromInt(dx * window.cellsize));
-        const sourcey = targety + @as(f32, @floatFromInt(dy * window.cellsize));
-        
-        // Create animation using the animsys
-        animsys.createPlayerPieceAnimation(self.entity.?, sourcex, sourcey, targetx, targety);
-    }
-
-    // Draw the player piece and ghost preview
-    pub fn draw(self: *PlayerPiece) void {
-        if (game.state.piece.current) |p| {
-            self.ensureEntity();
-            
-            // Get the current animated position from the entity's Position component
-            var drawX: i32 = 0;
-            var drawY: i32 = 0;
-            
-            if (ecs.get(components.Position, self.entity.?)) |pos| {
-                drawX = @intFromFloat(pos.x);
-                drawY = @intFromFloat(pos.y);
-            } else {
-                // If for some reason the position component is missing, use default values
-                drawX = game.state.piece.x * window.cellsize;
-                drawY = game.state.piece.y * window.cellsize;
-                
-                // Update entity with current position for future animations
-                ecs.add(components.Position, self.entity.?, components.Position{
-                    .x = @floatFromInt(drawX),
-                    .y = @floatFromInt(drawY),
-                });
-            }
-
-            // Draw the active piece
-            drawpiece(drawX, drawY, p.shape[game.state.piece.r], p.color);
-
-            // Draw ghost piece (semi-transparent preview at landing position)
-            const ghostColor = .{ p.color[0], p.color[1], p.color[2], 60 };
-            drawpiece(drawX, ghosty() * window.cellsize, p.shape[game.state.piece.r], ghostColor);
-            
-            // Update position tracking for next animation
-            self.last_piece_x = game.state.piece.x;
-            self.last_piece_y = game.state.piece.y;
-        }
-    }
-    
-    pub fn ghosty() i32 {
-        // Calculate the ghost position based on the current piece position
-        var y = game.state.piece.y;
-        while (game.checkmove(game.state.piece.x, y + 1)) : (y += 1) {}
-        return y;
-    }
-};
-
-var player: PlayerPiece = .{};
 
 pub fn init() !void {
     std.debug.print("init gfx\n", .{});
@@ -288,6 +201,9 @@ pub fn init() !void {
 
     // Initialize background
     try background.init();
+
+    // Initialize player system
+    playersys.init();
 }
 
 pub fn deinit() void {
@@ -301,6 +217,9 @@ pub fn deinit() void {
 
     // Clean up background resources
     background.deinit();
+
+    // Clean up player system
+    playersys.deinit();
 }
 
 pub fn nextbackground() void {
@@ -351,53 +270,6 @@ fn preshade() void {
     ray.SetShaderValue(background.shader, background.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
 }
 
-fn drawpiece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
-    const scale: f32 = 1.0;
-
-    for (shape, 0..) |row, i| {
-        for (row, 0..) |cell, j| {
-            if (cell) {
-                const cellX = @as(i32, @intCast(i)) * window.cellsize;
-                const cellY = @as(i32, @intCast(j)) * window.cellsize;
-                drawbox(x + cellX, y + cellY, color, scale);
-            }
-        }
-    }
-}
-
-// Draw a rounded box with scale factor applied
-pub fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32) void {
-    // Calculate scaled dimensions
-    const cellsize_scaled = @as(f32, @floatFromInt(window.cellsize)) * scale;
-    const padding_scaled = @as(f32, @floatFromInt(window.cellpadding)) * scale;
-    const width_scaled = cellsize_scaled - 2 * padding_scaled;
-
-    // Calculate center of cell in screen coordinates
-    const center_x = @as(f32, @floatFromInt(window.gridoffsetx + x)) +
-        @as(f32, @floatFromInt(window.cellsize)) / 2.0;
-    const center_y = @as(f32, @floatFromInt(window.gridoffsety + y)) +
-        @as(f32, @floatFromInt(window.cellsize)) / 2.0;
-
-    // Calculate top-left drawing position
-    const rect_x = center_x - width_scaled / 2.0;
-    const rect_y = center_y - width_scaled / 2.0; // Width used for height to ensure square
-
-    // Draw rounded rectangle
-    ray.DrawRectangleRounded(ray.Rectangle{
-        .x = rect_x,
-        .y = rect_y,
-        .width = width_scaled,
-        .height = width_scaled, // Same as width for perfect square
-    }, 0.4, // Roundness
-        20, // Segments
-        ray.Color{
-            .r = color[0],
-            .g = color[1],
-            .b = color[2],
-            .a = color[3],
-        });
-}
-
 pub fn frame() void {
     // Handle window resizing
     window.updateScale();
@@ -421,11 +293,8 @@ pub fn frame() void {
             // Apply static effect shader to game elements
             ray.BeginShaderMode(static);
             {
-                // Draw player piece and ghost
-                player.draw();
-
-                // Run animation systems in the proper order
-                // All animations are now handled by the generic animation system
+                // player piece and ghost
+                playersys.draw();
                 animationSystem(); // Process all animations (core animation system)
                 renderSystem(); // Render all updated entities
             }
@@ -471,22 +340,11 @@ pub fn process(queue: *events.EventQueue) void {
                 warp_end_ms = now + 300;
             },
             .Reset => reset(),
-            .MoveLeft => player.move(1, 0),
-            .MoveRight => player.move(-1, 0),
-            .MoveDown => player.move(0, -1),
+            .MoveLeft => playersys.move(1, 0),
+            .MoveRight => playersys.move(-1, 0),
+            .MoveDown => playersys.move(0, -1),
             .DropInterval => |ms| dropIntervalMs = ms,
-            .Spawn => {
-                // Initialize position to match the game state without animation
-                player.ensureEntity();
-                const targetx = @as(f32, @floatFromInt(game.state.piece.x * window.cellsize));
-                const targety = @as(f32, @floatFromInt(game.state.piece.y * window.cellsize));
-                
-                // Position is set immediately for spawning, no animation
-                ecs.add(components.Position, player.entity.?, components.Position{
-                    .x = targetx,
-                    .y = targety,
-                });
-            },
+            .Spawn => playersys.spawn(),
 
             else => {},
         }
