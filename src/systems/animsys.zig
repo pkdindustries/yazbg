@@ -283,7 +283,6 @@ pub fn createFlashAnimation(entity: ecsroot.Entity, start_alpha: u8, target_alph
 
 // Create new falling row effects for cleared lines using Animation components
 pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Entity) void {
-    const window = gfx.window;
     const world = ecs.getWorld();
 
     // Create new animation entities based on the cleared row's entities
@@ -302,8 +301,8 @@ pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Enti
             // Start position is the same as the original entity
             const start_y_pos = old_position.y;
 
-            // Target position is off the bottom of the screen
-            const target_y_pos = @as(f32, @floatFromInt(window.height + 100));
+            // Target position is off the bottom of the screen - use original height
+            const target_y_pos = @as(f32, @floatFromInt(gfx.Window.OGHEIGHT + 100));
 
             // Add Position component with the same x position
             world.add(new_entity, components.Position{

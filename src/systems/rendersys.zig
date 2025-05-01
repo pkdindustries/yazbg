@@ -35,7 +35,7 @@ pub fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32) void {
     const padding_scaled = @as(f32, @floatFromInt(gfx.window.cellpadding)) * scale;
     const width_scaled = cellsize_scaled - 2 * padding_scaled;
 
-    // Calculate center of cell in screen coordinates
+    // Calculate center of cell in screen coordinates, applying window scale factor
     const center_x = @as(f32, @floatFromInt(gfx.window.gridoffsetx + x)) +
         @as(f32, @floatFromInt(gfx.window.cellsize)) / 2.0;
     const center_y = @as(f32, @floatFromInt(gfx.window.gridoffsety + y)) +
