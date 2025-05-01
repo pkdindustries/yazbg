@@ -7,7 +7,7 @@ pub fn flashSystem() void {
     const world = ecs.getWorld();
 
     // position, flash, sprite
-    var view = world.view(.{ components.Flash, components.Sprite }, .{});
+    var view = world.view(.{ components.Flash, components.Sprite, components.Position }, .{});
     var it = view.entityIterator();
 
     // Use wall clock time directly

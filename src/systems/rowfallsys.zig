@@ -14,13 +14,10 @@ pub const RowFall = struct {
     target_y: f32, // target y position in pixels (offscreen)
     start_time: i64, // when animation started
     duration: i64, // animation duration in ms
-    opacity: f32, // current opacity (decreases as row falls)
 };
 
 // create falling row effects
 pub fn rowFallSystem() void {
-
-
     const world = ecs.getWorld(); // Update existing falling row entities
     var view = world.view(.{ RowFall, components.Position, components.Sprite }, .{});
     var it = view.entityIterator();
@@ -28,7 +25,7 @@ pub fn rowFallSystem() void {
     const current_time = std.time.milliTimestamp();
 
     while (it.next()) |entity| {
-        var row_fall = view.get(RowFall, entity);
+        const row_fall = view.get(RowFall, entity);
         var position = view.get(components.Position, entity);
 
         // Calculate progress (0.0 to 1.0)
@@ -41,8 +38,7 @@ pub fn rowFallSystem() void {
         // Update position using lerp
         position.y = row_fall.start_y + (row_fall.target_y - row_fall.start_y) * eased;
 
-        // Decrease opacity as the row falls (based on progress)
-        row_fall.opacity = 1.0;
+        // row_fall.opacity = 1.0;
 
         // Check if animation is complete
         if (progress >= 1.0) {
@@ -84,8 +80,7 @@ pub fn createFallingRow(row_y: usize, existing_entities: []const ecsroot.Entity)
                 .start_y = start_y_pos,
                 .target_y = target_y_pos,
                 .start_time = std.time.milliTimestamp(),
-                .duration = 300,
-                .opacity = 1.0,
+                .duration = 500,
             });
 
             // Add Position component with the same x position

@@ -10,7 +10,6 @@ const flashSystem = @import("systems/flashsys.zig").flashSystem;
 const renderSystem = @import("systems/gridsys.zig").renderSystem;
 const rowFallSystem = @import("systems/rowfallsys.zig").rowFallSystem;
 const rowShiftSystem = @import("systems/rowshiftsys.zig").rowShiftSystem;
-// const createFallingRowEntities = @import("systems/rowfallsys.zig").createFallingRowEntities;
 
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
@@ -27,7 +26,7 @@ pub const Window = struct {
 
     pub fn init(self: *Window) !void {
         // Initialize window
-        ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE | ray.FLAG_VSYNC_HINT);
+        ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
         ray.InitWindow(Window.OGWIDTH, Window.OGHEIGHT, "yazbg");
 
         // Create render texture for resolution independence
@@ -165,10 +164,6 @@ pub const Background = struct {
         self.index = (self.index + 1) % self.texture.len;
     }
 
-    pub fn load(self: *Background) void {
-        _ = self; // This is just for semantic clarity - textures are already loaded
-    }
-
     pub fn draw(self: *Background) void {
         // Apply the warp shader when drawing the background
         ray.BeginShaderMode(self.shader);
@@ -295,11 +290,6 @@ pub fn deinit() void {
 
     // Clean up background resources
     background.deinit();
-}
-
-// These global functions now call the Background struct methods
-pub fn loadbackground() void {
-    background.load();
 }
 
 pub fn nextbackground() void {
@@ -473,15 +463,8 @@ pub fn process(queue: *events.EventQueue) void {
             .MoveLeft => player.move(1, 0),
             .MoveRight => player.move(-1, 0),
             .MoveDown => player.move(0, -1),
-            // Drop interval tweaked by the level subsystem.
             .DropInterval => |ms| dropIntervalMs = ms,
             .Spawn => player.active = false,
-            .Debug => {
-                // Debug code removed
-            },
-            .RowsShiftedDown => |_| {},
-            .GridReset => {},
-            .LineClearing => |_| {},
 
             else => {},
         }
@@ -491,5 +474,4 @@ pub fn process(queue: *events.EventQueue) void {
 pub fn reset() void {
     background.index = 0;
     level = 0;
-    background.load();
 }

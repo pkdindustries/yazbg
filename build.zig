@@ -107,16 +107,17 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
+            .omit_frame_pointer = false, // keep frame pointer
         });
         exe.root_module.strip = strip;
         exe.linkLibrary(raylib_artifact);
-        
+
         const ecs_dep = b.dependency("entt", .{
             .target = target,
             .optimize = optimize,
         });
         exe.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
-        
+
         b.installArtifact(exe);
 
         const run_cmd = b.addRunArtifact(exe);

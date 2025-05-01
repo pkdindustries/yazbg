@@ -13,35 +13,35 @@ pub const Grid = struct {
     pub const WIDTH = 10;
     pub const HEIGHT = 20;
 
+    // Bitgrid to track occupied cells
+    occupied: [HEIGHT][WIDTH]bool,
+    // Color array for occupied cells
+    colors: [HEIGHT][WIDTH][4]u8,
+
     pub fn init() Self {
-        return Self{};
+        return Self{
+            .occupied = [_][WIDTH]bool{[_]bool{false} ** WIDTH} ** HEIGHT,
+            .colors = [_][WIDTH][4]u8{[_][4]u8{[_]u8{0} ** 4} ** WIDTH} ** HEIGHT,
+        };
     }
 
     pub fn isOccupied(self: *const Self, x: usize, y: usize) bool {
-        _ = self; // Unused parameter
         if (x >= WIDTH or y >= HEIGHT) return false;
-
-        // Check ECS entities
-        var blocks_view = ecs.getBlocksView();
-        var iter = blocks_view.entityIterator();
-
-        while (iter.next()) |entity| {
-            if (ecs.get(components.GridPos, entity)) |grid_pos| {
-                if (grid_pos.x == @as(i32, @intCast(x)) and grid_pos.y == @as(i32, @intCast(y))) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return self.occupied[y][x];
     }
 
-    pub fn occupy(_: *Self, gridx: usize, gridy: usize, color: [4]u8) void {
+    pub fn occupy(self: *Self, gridx: usize, gridy: usize, color: [4]u8) void {
         const entity = ecs.createEntity();
         const gx: i32 = @intCast(gridx);
         const gy: i32 = @intCast(gridy);
         ecs.add(components.GridPos, entity, components.GridPos{ .x = gx, .y = gy });
         ecs.add(components.BlockTag, entity, components.BlockTag{});
+
+        // Update bit-grid and color array
+        if (gridx < WIDTH and gridy < HEIGHT) {
+            self.occupied[gridy][gridx] = true;
+            self.colors[gridy][gridx] = color;
+        }
 
         // Scale from grid coordinates to pixel coordinates
         const cellsize_f32: f32 = 35.0; // Using default cell size, could be made configurable
@@ -51,7 +51,7 @@ pub const Grid = struct {
         ecs.add(components.Position, entity, components.Position{ .x = px, .y = py });
         ecs.add(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
 
-        const ttl_ms: i64 = 125;
+        const ttl_ms: i64 = 350;
         ecs.add(components.Flash, entity, components.Flash{
             .ttl_ms = ttl_ms,
             .expires_at_ms = std.time.milliTimestamp() + ttl_ms,
@@ -59,8 +59,13 @@ pub const Grid = struct {
     }
 
     pub fn vacate(self: *Self, gridy: i32, gridx: i32) void {
-        _ = self; // Unused parameter
-        if (gridx >= WIDTH or gridy >= HEIGHT) return;
+        if (gridx < 0 or gridy < 0 or gridx >= WIDTH or gridy >= HEIGHT) return;
+
+        // Update bit-grid
+        const gx: usize = @intCast(gridx);
+        const gy: usize = @intCast(gridy);
+        self.occupied[gy][gx] = false;
+        self.colors[gy][gx] = .{ 0, 0, 0, 0 }; // Clear color
 
         // Find and remove entity at this position
         var blocks_view = ecs.getBlocksView();
@@ -69,7 +74,7 @@ pub const Grid = struct {
 
         while (iter.next()) |entity| {
             if (ecs.get(components.GridPos, entity)) |grid_pos| {
-                if (grid_pos.x == @as(i32, @intCast(gridx)) and grid_pos.y == @as(i32, @intCast(gridy))) {
+                if (grid_pos.x == gridx and grid_pos.y == gridy) {
                     found_entity = entity;
                     break;
                 }
@@ -82,104 +87,133 @@ pub const Grid = struct {
     }
 
     pub fn clearall(self: *Self) void {
-        _ = self; // Unused parameter
+        // Clear bit-grid and color array
+        self.occupied = [_][WIDTH]bool{[_]bool{false} ** WIDTH} ** HEIGHT;
+        self.colors = [_][WIDTH][4]u8{[_][4]u8{[_]u8{0} ** 4} ** WIDTH} ** HEIGHT;
 
         // Remove all block entities
         var blocks_view = ecs.getBlocksView();
-        var entities = std.ArrayList(ecsroot.Entity).init(std.heap.c_allocator);
-        defer entities.deinit();
+
+        // We know the maximum entities is WIDTH*HEIGHT
+        var buffer: [WIDTH * HEIGHT]ecsroot.Entity = undefined;
+        var count: usize = 0;
 
         // Collect entities to destroy (can't modify while iterating)
         var iter = blocks_view.entityIterator();
         while (iter.next()) |entity| {
-            entities.append(entity) catch continue;
+            if (count < buffer.len) {
+                buffer[count] = entity;
+                count += 1;
+            }
         }
 
         // Destroy all collected entities
-        for (entities.items) |entity| {
+        for (buffer[0..count]) |entity| {
             ecs.getWorld().destroy(entity);
         }
     }
 
     fn removeline(self: *Self, line: usize) void {
-        _ = self; // Unused parameter
         std.debug.print("removeline {d}\n", .{line});
 
         events.push(.{ .LineClearing = .{ .y = line } }, events.Source.Game);
 
+        // Clear the line in bit-grid
+        if (line < HEIGHT) {
+            for (0..WIDTH) |x| {
+                self.occupied[line][x] = false;
+                self.colors[line][x] = .{ 0, 0, 0, 0 }; // Clear color
+            }
+        }
+
         // get blocks in this line
         var blocks_view = ecs.getBlocksView();
-        var entities = std.ArrayList(ecsroot.Entity).init(std.heap.c_allocator);
-        defer entities.deinit();
+
+        // We know the maximum entities in a line is WIDTH
+        var buffer: [WIDTH]ecsroot.Entity = undefined;
+        var count: usize = 0;
 
         // Collect entities in the line
         var iter = blocks_view.entityIterator();
         while (iter.next()) |entity| {
             if (ecs.get(components.GridPos, entity)) |grid_pos| {
                 if (grid_pos.y == @as(i32, @intCast(line))) {
-                    entities.append(entity) catch continue;
+                    if (count < buffer.len) {
+                        buffer[count] = entity;
+                        count += 1;
+                    }
                 }
             }
         }
 
-        createFallingRow(line, entities.items);
+        createFallingRow(line, buffer[0..count]);
         // Original entities should be destroyed immediately
-        for (entities.items) |entity| {
+        for (buffer[0..count]) |entity| {
             ecs.getWorld().destroy(entity);
         }
     }
 
     // shift a single line down
     fn shiftrow(self: *Self, line: usize) void {
-        _ = self; // Unused parameter
-
         // Check if the line is within bounds
         if (line >= HEIGHT - 1) {
             return; // Cannot shift the last row down
         }
 
-        // Emit RowsShiftedDown event before modifying the grid
-        events.push(.{ .RowsShiftedDown = .{ .start_y = line, .count = 1 } }, events.Source.Game);
+        // Update the bit-grid by moving cells from line to line+1
+        if (line + 1 < HEIGHT) {
+            for (0..WIDTH) |x| {
+                self.occupied[line + 1][x] = self.occupied[line][x];
+                self.colors[line + 1][x] = self.colors[line][x];
+                self.occupied[line][x] = false;
+                self.colors[line][x] = .{ 0, 0, 0, 0 };
+            }
+        }
 
         // Shift all entities in this line down
         var blocks_view = ecs.getBlocksView();
-        var entities_to_update = std.ArrayList(ecsroot.Entity).init(std.heap.c_allocator);
-        var positions_to_update = std.ArrayList(components.Position).init(std.heap.c_allocator);
-        var grid_positions_to_update = std.ArrayList(components.GridPos).init(std.heap.c_allocator);
-        defer entities_to_update.deinit();
-        defer positions_to_update.deinit();
-        defer grid_positions_to_update.deinit();
+
+        // We know the maximum entities in a line is WIDTH
+        var buffer: [WIDTH]ecsroot.Entity = undefined;
+        var pbuffer: [WIDTH]components.Position = undefined;
+        var gbuffer: [WIDTH]components.GridPos = undefined;
+        var count: usize = 0;
 
         // Collect entities to update
         var iter = blocks_view.entityIterator();
         while (iter.next()) |entity| {
             if (ecs.get(components.GridPos, entity)) |grid_pos| {
                 if (grid_pos.y == @as(i32, @intCast(line))) {
-                    // Store entity and its positions
-                    entities_to_update.append(entity) catch continue;
+                    if (count < buffer.len) {
+                        // Store entity
+                        buffer[count] = entity;
 
-                    // No flash effect for blocks about to drop, only flash completed lines
+                        // Store position
+                        if (ecs.get(components.Position, entity)) |pos| {
+                            pbuffer[count] = pos;
+                        } else {
+                            // If no position component, use default (unlikely)
+                            const cellsize_f32: f32 = 35.0;
+                            const px = @as(f32, @floatFromInt(grid_pos.x)) * cellsize_f32;
+                            const py = @as(f32, @floatFromInt(grid_pos.y)) * cellsize_f32;
+                            pbuffer[count] = .{ .x = px, .y = py };
+                        }
 
-                    if (ecs.get(components.Position, entity)) |pos| {
-                        positions_to_update.append(pos) catch continue;
-                    } else {
-                        // If no position component, use default (unlikely)
-                        const cellsize_f32: f32 = 35.0;
-                        const px = @as(f32, @floatFromInt(grid_pos.x)) * cellsize_f32;
-                        const py = @as(f32, @floatFromInt(grid_pos.y)) * cellsize_f32;
-                        positions_to_update.append(.{ .x = px, .y = py }) catch continue;
+                        // Store grid position
+                        gbuffer[count] = grid_pos;
+
+                        count += 1;
                     }
-
-                    grid_positions_to_update.append(grid_pos) catch continue;
                 }
             }
         }
 
         // Update all collected entities
-        for (entities_to_update.items, 0..) |entity, idx| {
+        for (0..count) |idx| {
+            const entity = buffer[idx];
             const cellsize_f32: f32 = 35.0;
-            var pos = positions_to_update.items[idx];
-            var grid_pos = grid_positions_to_update.items[idx];
+            var pos = pbuffer[idx];
+            var grid_pos = gbuffer[idx];
 
             // Store the original position for animation
             const start_pos_y = pos.y;
@@ -240,7 +274,7 @@ pub const Grid = struct {
         if (y >= HEIGHT) return false;
 
         for (0..WIDTH) |x| {
-            if (!self.isOccupied(x, y)) {
+            if (!self.occupied[y][x]) {
                 return false;
             }
         }
@@ -264,8 +298,8 @@ pub const Grid = struct {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
 
-                        // Cell is already occupied
-                        if (self.isOccupied(ix, iy)) {
+                        // Cell is already occupied - direct bit-grid check
+                        if (self.occupied[iy][ix]) {
                             return false;
                         }
                     }
@@ -278,8 +312,6 @@ pub const Grid = struct {
 
 test "grid init" {
     // Initialize ECS world for testing
-    ecsroot.init();
-    defer ecsroot.deinit();
 
     var grid = Grid.init();
 
@@ -301,8 +333,6 @@ test "grid init" {
 
 test "check line" {
     // Initialize ECS world for testing
-    ecs.init();
-    defer ecs.deinit();
 
     var grid = Grid.init();
 
@@ -322,10 +352,6 @@ test "check line" {
 test "rm" {
     std.debug.print("rm\n", .{});
 
-    // Initialize ECS world for testing
-    ecs.init();
-    defer ecs.deinit();
-
     var grid = Grid.init();
 
     // fill line 0
@@ -344,10 +370,6 @@ test "rm" {
 
 test "shift" {
     std.debug.print("shift\n", .{});
-
-    // Initialize ECS world for testing
-    ecs.init();
-    defer ecs.deinit();
 
     var grid = Grid.init();
 
@@ -380,10 +402,6 @@ test "shift" {
 
 test "clear" {
     std.debug.print("clear\n", .{});
-
-    // Initialize ECS world for testing
-    ecs.init();
-    defer ecs.deinit();
 
     var grid = Grid.init();
 

@@ -6,7 +6,6 @@ const Grid = @import("../grid.zig").Grid;
 const game = @import("../game.zig");
 const gfx = @import("../gfx.zig");
 
-// The grid rendering system draws the static blocks on the grid
 pub fn renderSystem() void {
     renderSprites();
 }
