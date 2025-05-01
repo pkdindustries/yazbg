@@ -8,14 +8,13 @@ const gfx = @import("../gfx.zig");
 
 // The grid rendering system draws the static blocks on the grid
 pub fn renderSystem() void {
-    renderBlocks();
+    renderSprites();
 }
 
-fn renderBlocks() void {
+fn renderSprites() void {
     const world = ecs.getWorld();
 
-    var view = world.view(.{ components.BlockTag, components.GridPos, components.Sprite, components.Position }, .{}); // Include all blocks, even those with Flash
-
+    var view = world.view(.{ components.Sprite, components.Position }, .{}); // Include all blocks, even those with Flash
     var it = view.entityIterator();
 
     while (it.next()) |entity| {

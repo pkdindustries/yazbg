@@ -28,7 +28,6 @@ pub fn rowFallSystem() void {
     while (it.next()) |entity| {
         var row_fall = view.get(RowFall, entity);
         var position = view.get(components.Position, entity);
-        const sprite = view.get(components.Sprite, entity);
 
         // Calculate progress (0.0 to 1.0)
         const elapsed = current_time - row_fall.start_time;
@@ -42,13 +41,6 @@ pub fn rowFallSystem() void {
 
         // Decrease opacity as the row falls (based on progress)
         row_fall.opacity = 1.0;
-
-        // Draw the falling block
-        const draw_x = @as(i32, @intFromFloat(position.x));
-        const draw_y = @as(i32, @intFromFloat(position.y));
-        std.debug.print("RowFallSystem: Drawing entity {} progress {} at ({}, {}) with opacity {}\n", .{ entity, progress, draw_x, draw_y, row_fall.opacity });
-
-        gfx.drawbox(draw_x, draw_y, sprite.rgba, sprite.size);
 
         // Check if animation is complete
         if (progress >= 1.0) {
