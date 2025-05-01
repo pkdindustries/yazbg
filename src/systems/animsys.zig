@@ -336,3 +336,19 @@ pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Enti
         }
     }
 }
+
+// Create an animation for the player piece movement
+pub fn createPlayerPieceAnimation(entity: ecsroot.Entity, from_x: f32, from_y: f32, to_x: f32, to_y: f32) void {
+    //const world = ecs.getWorld();
+
+    // Only add the animation if the entity has a Position component
+    if (ecs.get(components.Position, entity)) |_| {
+        // Create an animation from current position to target
+        // Use a shorter duration (50ms) for player piece movements to keep them snappy
+        createMoveAnimation(entity, from_x, from_y, // Start position
+            to_x, to_y, // Target position
+            50, // 50ms duration (same as original player animation)
+            .linear // Linear easing for consistent movement
+        );
+    }
+}

@@ -5,9 +5,11 @@ const hud = @import("hud.zig");
 const events = @import("events.zig");
 const Grid = @import("grid.zig").Grid;
 const ecs = @import("ecs.zig");
+const ecsroot = @import("ecs");
 const components = @import("components.zig");
 const renderSystem = @import("systems/rendersys.zig").renderSystem;
-const animationSystem = @import("systems/animsys.zig").animationSystem;
+const animsys = @import("systems/animsys.zig");
+const animationSystem = animsys.animationSystem;
 
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
@@ -190,69 +192,80 @@ var static: ray.Shader = undefined;
 var statictimeloc: i32 = 0;
 
 const PlayerPiece = struct {
-    active: bool = false,
-    start_time: i64 = 0,
-    duration: i64 = 50, // ms
-    sourcex: i32 = 0,
-    sourcey: i32 = 0,
-    targetx: i32 = 0,
-    targety: i32 = 0,
+    entity: ?ecsroot.Entity = null,
     last_piece_x: i32 = 0,
     last_piece_y: i32 = 0,
 
+    // Initialize the player piece entity the first time it's used
+    pub fn ensureEntity(self: *PlayerPiece) void {
+        if (self.entity == null) {
+            // Create an entity for the player piece if it doesn't exist
+            self.entity = ecs.createEntity();
+            
+            // Add position component (will be updated in move())
+            ecs.add(components.Position, self.entity.?, components.Position{
+                .x = 0,
+                .y = 0,
+            });
+            
+            // Add a marker to identify this as a player piece
+            ecs.add(components.ActivePieceTag, self.entity.?, components.ActivePieceTag{});
+        }
+    }
+
     // Start a slide animation for the player piece
     pub fn move(self: *PlayerPiece, dx: i32, dy: i32) void {
-        self.active = true;
-        self.start_time = std.time.milliTimestamp();
-        self.targetx = game.state.piece.x * window.cellsize;
-        self.targety = game.state.piece.y * window.cellsize;
-        self.sourcex = self.targetx + dx * window.cellsize;
-        self.sourcey = self.targety + dy * window.cellsize;
+        self.ensureEntity();
+        
+        // Calculate target position (where piece will end up)
+        const targetx = @as(f32, @floatFromInt(game.state.piece.x * window.cellsize));
+        const targety = @as(f32, @floatFromInt(game.state.piece.y * window.cellsize));
+        
+        // Calculate source position (where piece is visually coming from)
+        const sourcex = targetx + @as(f32, @floatFromInt(dx * window.cellsize));
+        const sourcey = targety + @as(f32, @floatFromInt(dy * window.cellsize));
+        
+        // Create animation using the animsys
+        animsys.createPlayerPieceAnimation(self.entity.?, sourcex, sourcey, targetx, targety);
     }
 
     // Draw the player piece and ghost preview
     pub fn draw(self: *PlayerPiece) void {
         if (game.state.piece.current) |p| {
-            // Calculate base position in pixels
-            const baseX = game.state.piece.x * window.cellsize;
-            const baseY = game.state.piece.y * window.cellsize;
-
-            // Start with base position
-            var drawX: f32 = @floatFromInt(baseX);
-            var drawY: f32 = @floatFromInt(baseY);
-
-            // Apply animation if active
-            if (self.active) {
-                const elapsed_time = std.time.milliTimestamp() - self.start_time;
-                const duration: f32 = @floatFromInt(self.duration);
-                const progress: f32 = std.math.clamp(@as(f32, @floatFromInt(elapsed_time)) / duration, 0.0, 1.0);
-
-                // Smoothly interpolate between source and target positions
-                drawX = std.math.lerp(@as(f32, @floatFromInt(self.sourcex)), @as(f32, @floatFromInt(self.targetx)), progress);
-                drawY = std.math.lerp(@as(f32, @floatFromInt(self.sourcey)), @as(f32, @floatFromInt(self.targety)), progress);
-
-                // End animation when complete
-                if (elapsed_time >= self.duration) {
-                    self.active = false;
-                }
+            self.ensureEntity();
+            
+            // Get the current animated position from the entity's Position component
+            var drawX: i32 = 0;
+            var drawY: i32 = 0;
+            
+            if (ecs.get(components.Position, self.entity.?)) |pos| {
+                drawX = @intFromFloat(pos.x);
+                drawY = @intFromFloat(pos.y);
             } else {
-                // Update position tracking for next animation
-                self.last_piece_x = game.state.piece.x;
-                self.last_piece_y = game.state.piece.y;
+                // If for some reason the position component is missing, use default values
+                drawX = game.state.piece.x * window.cellsize;
+                drawY = game.state.piece.y * window.cellsize;
+                
+                // Update entity with current position for future animations
+                ecs.add(components.Position, self.entity.?, components.Position{
+                    .x = @floatFromInt(drawX),
+                    .y = @floatFromInt(drawY),
+                });
             }
 
-            // Convert back to integer coordinates for drawing
-            const finalX = @as(i32, @intFromFloat(drawX));
-            const finalY = @as(i32, @intFromFloat(drawY));
-
             // Draw the active piece
-            drawpiece(finalX, finalY, p.shape[game.state.piece.r], p.color);
+            drawpiece(drawX, drawY, p.shape[game.state.piece.r], p.color);
 
             // Draw ghost piece (semi-transparent preview at landing position)
             const ghostColor = .{ p.color[0], p.color[1], p.color[2], 60 };
-            drawpiece(finalX, ghosty() * window.cellsize, p.shape[game.state.piece.r], ghostColor);
+            drawpiece(drawX, ghosty() * window.cellsize, p.shape[game.state.piece.r], ghostColor);
+            
+            // Update position tracking for next animation
+            self.last_piece_x = game.state.piece.x;
+            self.last_piece_y = game.state.piece.y;
         }
     }
+    
     pub fn ghosty() i32 {
         // Calculate the ghost position based on the current piece position
         var y = game.state.piece.y;
@@ -462,7 +475,18 @@ pub fn process(queue: *events.EventQueue) void {
             .MoveRight => player.move(-1, 0),
             .MoveDown => player.move(0, -1),
             .DropInterval => |ms| dropIntervalMs = ms,
-            .Spawn => player.active = false,
+            .Spawn => {
+                // Initialize position to match the game state without animation
+                player.ensureEntity();
+                const targetx = @as(f32, @floatFromInt(game.state.piece.x * window.cellsize));
+                const targety = @as(f32, @floatFromInt(game.state.piece.y * window.cellsize));
+                
+                // Position is set immediately for spawning, no animation
+                ecs.add(components.Position, player.entity.?, components.Position{
+                    .x = targetx,
+                    .y = targety,
+                });
+            },
 
             else => {},
         }
