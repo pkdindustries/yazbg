@@ -20,8 +20,6 @@ pub fn flashSystem() void {
         const time_left_ms = flash.expires_at_ms - current_time_ms;
 
         if (time_left_ms <= 0) {
-            std.debug.print("Flash expired for entity {}, removing Flash component\n", .{entity});
-
             world.remove(components.Flash, entity);
             // reset alpha
             sprite.rgba[3] = 255;

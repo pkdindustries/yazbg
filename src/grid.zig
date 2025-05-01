@@ -105,7 +105,6 @@ pub const Grid = struct {
         _ = self; // Unused parameter
         std.debug.print("removeline {d}\n", .{line});
 
-        // Emit LineClearing event before modifying the grid
         events.push(.{ .LineClearing = .{ .y = line } }, events.Source.Game);
 
         // get blocks in this line
@@ -113,7 +112,7 @@ pub const Grid = struct {
         var entities = std.ArrayList(ecsroot.Entity).init(std.heap.c_allocator);
         defer entities.deinit();
 
-        // Collect entities for animation
+        // Collect entities in the line
         var iter = blocks_view.entityIterator();
         while (iter.next()) |entity| {
             if (ecs.get(components.GridPos, entity)) |grid_pos| {
@@ -123,26 +122,11 @@ pub const Grid = struct {
             }
         }
 
-        // Flash the entire row before removing it
-        for (entities.items) |entity| {
-            // Add flash effect to make it blink before falling
-            const ttl_ms2: i64 = 500;
-            ecs.add(components.Flash, entity, components.Flash{
-                .ttl_ms = ttl_ms2,
-                .expires_at_ms = std.time.milliTimestamp() + ttl_ms2,
-            });
-        }
-
-        // blocks to falling animations
-        // We'll remove them from the grid but keep them as visual entities
-        for (entities.items) |entity| {
-            //  (no longer part of grid)
-            ecs.getWorld().remove(components.GridPos, entity);
-            // (no longer a static block)
-            ecs.getWorld().remove(components.BlockTag, entity);
-        }
-
         createFallingRow(line, entities.items);
+        // Original entities should be destroyed immediately
+        for (entities) |entity| {
+            ecs.getWorld().destroy(entity);
+        }
     }
 
     // shift a single line down
