@@ -7,7 +7,7 @@ const Grid = @import("grid.zig").Grid;
 const ecs = @import("ecs.zig");
 const components = @import("components.zig");
 const flashSystem = @import("systems/flashsys.zig").flashSystem;
-const gridRenderSystem = @import("systems/gridsys.zig").gridRenderSystem;
+const renderSystem = @import("systems/gridsys.zig").renderSystem;
 const rowFallSystem = @import("systems/rowfallsys.zig").rowFallSystem;
 const rowShiftSystem = @import("systems/rowshiftsys.zig").rowShiftSystem;
 // const createFallingRowEntities = @import("systems/rowfallsys.zig").createFallingRowEntities;
@@ -426,7 +426,7 @@ pub fn frame() void {
                 //flashSystem();
                 rowFallSystem();
                 rowShiftSystem();
-                gridRenderSystem();
+                renderSystem();
             }
             ray.EndShaderMode();
 
@@ -462,19 +462,12 @@ pub fn process(queue: *events.EventQueue) void {
             },
             .NextBackground => background.next(),
             .Clear => |lines| {
-                // Prolong the background warp effect proportionally to the number
-                // of lines removed so it is visible even when the grid animation
-                // finishes very quickly.
                 const extra_ms: i64 = 120 * @as(i64, @intCast(lines));
                 if (warp_end_ms < now + extra_ms) warp_end_ms = now + extra_ms;
             },
             .GameOver => {
                 background.next();
                 warp_end_ms = now + 300;
-
-                for (0..Grid.HEIGHT) |_| {
-                    //explodeRow(y);
-                }
             },
             .Reset => reset(),
             .MoveLeft => player.move(1, 0),
@@ -487,16 +480,8 @@ pub fn process(queue: *events.EventQueue) void {
                 // Debug code removed
             },
             .RowsShiftedDown => |_| {},
-            .GridReset => {
-                // Stop all animations
-                // var idx: usize = 0;
-                //     idx += 1;
-                // }
-            },
-            .LineClearing => |_| {
-                // Create the falling row effect
-                // createFallingRowEntities(y.y);
-            },
+            .GridReset => {},
+            .LineClearing => |_| {},
 
             else => {},
         }

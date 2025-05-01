@@ -70,7 +70,7 @@ pub fn createFallingRow(row_y: usize, existing_entities: []const ecsroot.Entity)
     // Process all existing entities from the cleared row
     for (existing_entities) |entity| {
         // Get the current position
-        if (ecs.getPosition(entity)) |position| {
+        if (ecs.get(components.Position, entity)) |position| {
             const start_y_pos = position.y;
 
             // Target position is off the bottom of the screen

@@ -26,7 +26,7 @@ pub const Grid = struct {
         var iter = blocks_view.entityIterator();
 
         while (iter.next()) |entity| {
-            if (ecs.getGridPos(entity)) |grid_pos| {
+            if (ecs.get(components.GridPos, entity)) |grid_pos| {
                 if (grid_pos.x == @as(i32, @intCast(x)) and grid_pos.y == @as(i32, @intCast(y))) {
                     return true;
                 }
@@ -40,17 +40,22 @@ pub const Grid = struct {
         const entity = ecs.createEntity();
         const gx: i32 = @intCast(gridx);
         const gy: i32 = @intCast(gridy);
-        ecs.addGridPos(entity, gx, gy);
-        ecs.addBlockTag(entity);
+        ecs.add(components.GridPos, entity, components.GridPos{ .x = gx, .y = gy });
+        ecs.add(components.BlockTag, entity, components.BlockTag{});
 
         // Scale from grid coordinates to pixel coordinates
         const cellsize_f32: f32 = 35.0; // Using default cell size, could be made configurable
         const px = @as(f32, @floatFromInt(gridx)) * cellsize_f32;
         const py = @as(f32, @floatFromInt(gridy)) * cellsize_f32;
 
-        ecs.addPosition(entity, px, py);
-        ecs.addSprite(entity, color, 1.0);
-        ecs.addFlash(entity, 250); // Flash duration in milliseconds
+        ecs.add(components.Position, entity, components.Position{ .x = px, .y = py });
+        ecs.add(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
+
+        const ttl_ms: i64 = 250;
+        ecs.add(components.Flash, entity, components.Flash{
+            .ttl_ms = ttl_ms,
+            .expires_at_ms = std.time.milliTimestamp() + ttl_ms,
+        });
     }
 
     pub fn vacate(self: *Self, gridy: i32, gridx: i32) void {
@@ -63,7 +68,7 @@ pub const Grid = struct {
         var found_entity: ?ecsroot.Entity = null;
 
         while (iter.next()) |entity| {
-            if (ecs.getGridPos(entity)) |grid_pos| {
+            if (ecs.get(components.GridPos, entity)) |grid_pos| {
                 if (grid_pos.x == @as(i32, @intCast(gridx)) and grid_pos.y == @as(i32, @intCast(gridy))) {
                     found_entity = entity;
                     break;
@@ -111,7 +116,7 @@ pub const Grid = struct {
         // Collect entities for animation
         var iter = blocks_view.entityIterator();
         while (iter.next()) |entity| {
-            if (ecs.getGridPos(entity)) |grid_pos| {
+            if (ecs.get(components.GridPos, entity)) |grid_pos| {
                 if (grid_pos.y == @as(i32, @intCast(line))) {
                     entities.append(entity) catch continue;
                 }
@@ -121,7 +126,11 @@ pub const Grid = struct {
         // Flash the entire row before removing it
         for (entities.items) |entity| {
             // Add flash effect to make it blink before falling
-            ecs.addFlash(entity, 500);
+            const ttl_ms2: i64 = 500;
+            ecs.add(components.Flash, entity, components.Flash{
+                .ttl_ms = ttl_ms2,
+                .expires_at_ms = std.time.milliTimestamp() + ttl_ms2,
+            });
         }
 
         // blocks to falling animations
@@ -160,14 +169,14 @@ pub const Grid = struct {
         // Collect entities to update
         var iter = blocks_view.entityIterator();
         while (iter.next()) |entity| {
-            if (ecs.getGridPos(entity)) |grid_pos| {
+            if (ecs.get(components.GridPos, entity)) |grid_pos| {
                 if (grid_pos.y == @as(i32, @intCast(line))) {
                     // Store entity and its positions
                     entities_to_update.append(entity) catch continue;
 
                     // No flash effect for blocks about to drop, only flash completed lines
 
-                    if (ecs.getPosition(entity)) |pos| {
+                    if (ecs.get(components.Position, entity)) |pos| {
                         positions_to_update.append(pos) catch continue;
                     } else {
                         // If no position component, use default (unlikely)
@@ -198,11 +207,11 @@ pub const Grid = struct {
 
             // Add updated components (logical update happens immediately)
             grid_pos.y += 1;
-            ecs.addGridPos(entity, grid_pos.x, grid_pos.y);
+            ecs.add(components.GridPos, entity, grid_pos);
 
             // Position is updated for game logic
             pos.y = target_pos_y;
-            ecs.addPosition(entity, pos.x, pos.y);
+            ecs.add(components.Position, entity, pos);
 
             // Add animation component
             addRowShiftAnim(entity, start_pos_y, target_pos_y);

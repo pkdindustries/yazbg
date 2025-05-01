@@ -7,13 +7,11 @@ const game = @import("../game.zig");
 const gfx = @import("../gfx.zig");
 
 // The grid rendering system draws the static blocks on the grid
-pub fn gridRenderSystem() void {
-    renderStaticBlocks();
-
-    // renderFromGridData();
+pub fn renderSystem() void {
+    renderBlocks();
 }
 
-fn renderStaticBlocks() void {
+fn renderBlocks() void {
     const world = ecs.getWorld();
 
     var view = world.view(.{ components.BlockTag, components.GridPos, components.Sprite, components.Position }, .{}); // Include all blocks, even those with Flash
