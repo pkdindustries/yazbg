@@ -12,7 +12,7 @@ const animsys = @import("systems/anim.zig");
 const playersys = @import("systems/player.zig");
 const animationSystem = animsys.animationSystem;
 const playerSystem = playersys.playerSystem;
-const blocktextures = @import("blocktextures.zig");
+const textures = @import("textures.zig");
 const gridsvc = @import("systems/gridsvc.zig");
 
 pub const Window = struct {
@@ -295,7 +295,7 @@ pub fn init() !void {
     playersys.init();
 
     // Initialize texture and shader systems
-    try blocktextures.init();
+    try textures.init();
 }
 
 pub fn deinit() void {

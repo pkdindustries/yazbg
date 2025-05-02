@@ -6,6 +6,7 @@ const Grid = @import("../grid.zig").Grid;
 const game = @import("../game.zig");
 const gfx = @import("../gfx.zig");
 
+const DEBUG = false;
 pub fn drawSprites() void {
     const world = ecs.getWorld();
 
@@ -23,21 +24,6 @@ pub fn drawSprites() void {
         const draw_y = @as(i32, @intFromFloat(pos.y));
 
         drawTexture(draw_x, draw_y, st.texture, st, sprite.rgba, sprite.size, sprite.rotation);
-    }
-
-    // Second pass: entities without textures (using standard box rendering)
-    var view = world.view(.{ components.Sprite, components.Position }, .{components.Texture});
-    var it = view.entityIterator();
-
-    while (it.next()) |entity| {
-        const sprite = view.get(components.Sprite, entity);
-        const pos = view.get(components.Position, entity);
-
-        // Draw the static block
-        const draw_x = @as(i32, @intFromFloat(pos.x));
-        const draw_y = @as(i32, @intFromFloat(pos.y));
-
-        drawbox(draw_x, draw_y, sprite.rgba, sprite.size, sprite.rotation);
     }
 }
 
@@ -66,40 +52,6 @@ fn rotationToDegrees(rotation: f32) f32 {
     return rotation * 360.0;
 }
 
-// Draw a rounded box with scale factor applied and rotation
-pub fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32, rotation: f32) void {
-    // Calculate scaled dimensions
-    const cellsize_scaled = @as(f32, @floatFromInt(gfx.window.cellsize)) * scale;
-    const padding_scaled = @as(f32, @floatFromInt(gfx.window.cellpadding)) * scale;
-    const width_scaled = cellsize_scaled - 2 * padding_scaled;
-
-    // Get center of cell
-    const center = getCellCenter(x, y);
-
-    // Calculate top-left drawing position
-    const rect_x = center.x - width_scaled / 2.0;
-    const rect_y = center.y - width_scaled / 2.0; // Width used for height to ensure square
-
-    // Create a rectangle centered on the draw position
-    const rect = ray.Rectangle{
-        .x = rect_x,
-        .y = rect_y,
-        .width = width_scaled,
-        .height = width_scaled, // Same as width for perfect square
-    };
-
-    const ray_color = toRayColor(color);
-
-    if (rotation != 0) {
-        ray.DrawRectanglePro(rect, ray.Vector2{ .x = width_scaled / 2.0, .y = width_scaled / 2.0 }, // Origin (center of rectangle)
-            rotationToDegrees(rotation), ray_color);
-    } else {
-        ray.DrawRectangleRounded(rect, 0.4, // Roundness
-            20, // Segments
-            ray_color);
-    }
-}
-
 // Draw a render texture with scaling and rotation
 pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, tex_component: *const components.Texture, tint: [4]u8, scale: f32, rotation: f32) void {
     // Calculate scaled dimensions
@@ -111,12 +63,18 @@ pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, tex_comp
     // Source rectangle (using UV coordinates from the Texture component)
     const texture_width = @as(f32, @floatFromInt(texture.*.texture.width));
     const texture_height = @as(f32, @floatFromInt(texture.*.texture.height));
+
+    // Fix for render texture handling in raylib - RenderTextures are y-flipped
+    // We need to change how we access the texture to compensate
     const src = ray.Rectangle{
         .x = tex_component.*.uv[0] * texture_width,
-        .y = tex_component.*.uv[1] * texture_height,
+        .y = (1.0 - tex_component.*.uv[3]) * texture_height, // Start from bottom of the region
         .width = (tex_component.*.uv[2] - tex_component.*.uv[0]) * texture_width,
-        .height = -(tex_component.*.uv[3] - tex_component.*.uv[1]) * texture_height, // Negative to flip the texture vertically (render texture is flipped)
+        .height = (tex_component.*.uv[3] - tex_component.*.uv[1]) * texture_height, // Use positive height
     };
+
+    if (DEBUG)
+        std.debug.print("Src rect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}\n", .{ src.x, src.y, src.width, src.height });
 
     // Destination rectangle (centered on the position with proper scaling)
     const dest = ray.Rectangle{
@@ -126,11 +84,17 @@ pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, tex_comp
         .height = cellsize_scaled,
     };
 
+    if (DEBUG)
+        std.debug.print("Dest rect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}\n", .{ dest.x, dest.y, dest.width, dest.height });
+
     // Origin (center of the texture)
     const origin = ray.Vector2{
         .x = cellsize_scaled / 2.0,
         .y = cellsize_scaled / 2.0,
     };
+
+    if (DEBUG)
+        std.debug.print("Drawing with rotation: {d:.1}°, tint: [{}, {}, {}, {}]\n", .{ rotationToDegrees(rotation), tint[0], tint[1], tint[2], tint[3] });
 
     // Draw the texture with rotation
     ray.DrawTexturePro(texture.*.texture, src, dest, origin, rotationToDegrees(rotation), toRayColor(tint));

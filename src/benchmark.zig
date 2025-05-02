@@ -6,7 +6,7 @@ const components = @import("components.zig");
 const animsys = @import("systems/anim.zig");
 const rendersys = @import("systems/render.zig");
 const gfx = @import("gfx.zig");
-const blocktextures = @import("blocktextures.zig");
+const textures = @import("textures.zig");
 const Grid = @import("grid.zig").Grid;
 const pieces = @import("pieces.zig");
 
@@ -43,8 +43,8 @@ fn benchmarkGridLogic() !void {
     };
 
     // Initialize block textures for gridsvc
-    try blocktextures.init();
-    defer blocktextures.deinit();
+    try textures.init();
+    defer textures.deinit();
 
     var grid = Grid.init();
 
@@ -231,7 +231,7 @@ fn setupRenderingForBenchmark() !void {
     };
 
     // Initialize block textures for the benchmark
-    try blocktextures.init();
+    try textures.init();
 }
 
 fn benchmarkRenderSystem() !void {
@@ -320,9 +320,8 @@ fn createNewEntity() void {
     const rotation = rng.float(f32) * 0.5; // Initial rotation in turns (0.5 = 180 degrees)
 
     var entity = ecs.createEntity();
-    // Position, Sprite, and SpriteTexture components
     if (TEXTURED) {
-        entity = blocktextures.createTexturedSprite(x, y, color, size, rotation) catch |err| {
+        entity = textures.createBlockTextureWithAtlas(x, y, color, size, rotation) catch |err| {
             std.debug.print("Failed to create textured block entity: {}\n", .{err});
             return;
         };
@@ -469,7 +468,7 @@ fn visualBenchmark() !void {
 fn cleanup() void {
     std.debug.print("\nCleaning up...\n", .{});
 
-    blocktextures.deinit();
+    textures.deinit();
     // Cleanup ECS
     ecs.deinit();
 }

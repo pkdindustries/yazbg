@@ -6,7 +6,7 @@ const ecs = @import("../ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("../components.zig");
 const animsys = @import("anim.zig");
-const blocktextures = @import("../blocktextures.zig");
+const textures = @import("../textures.zig");
 
 pub fn occupyCell(gridx: usize, gridy: usize, color: [4]u8) void {
     const entity = ecs.createEntity();
@@ -23,7 +23,7 @@ pub fn occupyCell(gridx: usize, gridy: usize, color: [4]u8) void {
 
     ecs.addOrReplace(components.Position, entity, components.Position{ .x = px, .y = py });
     ecs.addOrReplace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
-    _ = blocktextures.addTextureComponent(entity, color) catch |err| {
+    _ = textures.addBlockTextureWithAtlas(entity, color) catch |err| {
         std.debug.print("Failed to add texture component: {}\n", .{err});
         return;
     };

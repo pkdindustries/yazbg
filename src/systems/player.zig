@@ -6,7 +6,7 @@ const game = @import("../game.zig");
 const components = @import("../components.zig");
 const animsys = @import("anim.zig");
 const gfx = @import("../gfx.zig");
-const blocktextures = @import("../blocktextures.zig");
+const textures = @import("../textures.zig");
 //active player piece
 var player_entity: ?ecsroot.Entity = null;
 var piece_block_entities: std.ArrayList(ecsroot.Entity) = undefined;
@@ -89,7 +89,7 @@ fn clearBlockEntities() void {
 
 // Create entity for a single block
 fn createBlockEntity(x: f32, y: f32, color: [4]u8, scale: f32) !ecsroot.Entity {
-    const entity = blocktextures.createTexturedSprite(x, y, color, scale, 0.0) catch |err| {
+    const entity = textures.createBlockTextureWithAtlas(x, y, color, scale, 0.0) catch |err| {
         std.debug.print("Failed to create block entity: {}\n", .{err});
         return err;
     };
