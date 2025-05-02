@@ -292,6 +292,7 @@ pub fn init() !void {
     // Initialize player system
     playersys.init();
 
+    // Initialize texture and shader systems
     try blocktextures.init();
 }
 

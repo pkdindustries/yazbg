@@ -10,9 +10,9 @@ const blocktextures = @import("blocktextures.zig");
 
 // Benchmark parameters
 const NUM_ENTITIES = 100000;
-const ANIMATION_DURATION_MS = 1000;
+const ANIMATION_DURATION_MS = 5000;
 const BENCHMARK_ITERATIONS = 1;
-const TEXTURED = true;
+var TEXTURED = false;
 // All benchmark entities
 var entities: [NUM_ENTITIES]ecsroot.Entity = undefined;
 
@@ -97,7 +97,7 @@ fn setupRenderingForBenchmark() !void {
 
     // Initialize window settings needed for render system
     gfx.window = .{
-        .cellsize = 20,
+        .cellsize = 7,
         .cellpadding = 2,
         .gridoffsetx = 10,
         .gridoffsety = 10,
@@ -155,12 +155,12 @@ fn benchmarkRenderSystem() !void {
 fn drawStats(avg_anim_time_ms: f64, avg_render_time_ms: f64) void {
     var buffer: [64]u8 = undefined;
 
-    ray.DrawText("Visual Animation Benchmark", 10, 30, 30, ray.WHITE);
-    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Active Entities: {d}/{d}", .{ current_entity_count, NUM_ENTITIES }) catch unreachable, 10, 60, 20, ray.WHITE);
-    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Animation: {d:.3} ms", .{avg_anim_time_ms}) catch unreachable, 10, 80, 20, ray.WHITE);
-    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Rendering: {d:.3} ms", .{avg_render_time_ms}) catch unreachable, 10, 100, 20, ray.WHITE);
-    ray.DrawText(std.fmt.bufPrintZ(&buffer, "FPS: {d}", .{ray.GetFPS()}) catch unreachable, 10, 120, 20, ray.WHITE);
-    ray.DrawText("Press ESC to exit", 10, 140, 16, ray.WHITE);
+    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Active Entities: {d}/{d}", .{ current_entity_count, NUM_ENTITIES }) catch unreachable, 10, 60, 25, ray.WHITE);
+    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Animation: {d:.3} ms", .{avg_anim_time_ms}) catch unreachable, 10, 80, 25, ray.WHITE);
+    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Rendering: {d:.3} ms", .{avg_render_time_ms}) catch unreachable, 10, 100, 25, ray.WHITE);
+    ray.DrawText(std.fmt.bufPrintZ(&buffer, "FPS: {d}", .{ray.GetFPS()}) catch unreachable, 10, 120, 25, ray.WHITE);
+    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Textures: {s}", .{if (TEXTURED) "ON" else "OFF"}) catch unreachable, 10, 140, 25, ray.WHITE);
+    ray.DrawText("Press ESC to exit", 10, 180, 16, ray.WHITE);
 }
 
 fn createNewEntity() void {
@@ -228,7 +228,7 @@ fn createNewEntity() void {
         .target_scale = rng.float(f32) * 2 + 0.5,
         .animate_rotation = true,
         .start_rotation = rotation,
-        .target_rotation = rotation + rng.float(f32) * 2.0,
+        .target_rotation = rotation + rng.float(f32) * 2.5,
         .start_time = std.time.milliTimestamp(),
         .duration = ANIMATION_DURATION_MS,
         .easing = @enumFromInt(rng.intRangeAtMost(u8, 0, 3)),
@@ -240,7 +240,7 @@ fn createNewEntity() void {
 
 fn runFrame(timer: *std.time.Timer, frame_count: *u32, total_anim_time: *u64, total_render_time: *u64) void {
     // Add new entities gradually over time
-    const animation_progress = @as(f32, @floatFromInt(frame_count.*)) / @as(f32, @floatFromInt(ANIMATION_DURATION_MS * 4));
+    const animation_progress = @as(f32, @floatFromInt(frame_count.*)) / @as(f32, @floatFromInt(ANIMATION_DURATION_MS * 2));
     const target_entities = @min(NUM_ENTITIES, @as(usize, @intFromFloat(animation_progress * @as(f32, @floatFromInt(NUM_ENTITIES)))));
 
     // Limit how many entities we create per frame
@@ -282,7 +282,7 @@ fn runFrame(timer: *std.time.Timer, frame_count: *u32, total_anim_time: *u64, to
     batch_frame_count += 1;
 
     // Print info every 10000 entities (only when we cross a milestone)
-    const milestone = current_entity_count / 10000;
+    const milestone = current_entity_count / 100;
     if (milestone > last_entity_milestone and current_entity_count > 0) {
         const batch_avg_anim_time_ms = @as(f64, @floatFromInt(batch_anim_time)) / @as(f64, @floatFromInt(batch_frame_count)) / 1_000_000.0;
         const batch_avg_render_time_ms = @as(f64, @floatFromInt(batch_render_time)) / @as(f64, @floatFromInt(batch_frame_count)) / 1_000_000.0;
@@ -315,6 +315,12 @@ fn visualBenchmark() !void {
     // Main loop for visual benchmark
     while (!ray.WindowShouldClose()) {
         const current_time = std.time.milliTimestamp();
+        ray.DrawFPS(10, 10);
+        // // Toggle textures with 'T' key
+        // if (ray.IsKeyPressed(ray.KEY_T)) {
+        //     TEXTURED = !TEXTURED;
+        //     std.debug.print("Textures: {s}\n", .{if (TEXTURED) "ON" else "OFF"});
+        // }
 
         runFrame(&timer, &frame_count, &total_anim_time, &total_render_time);
 
@@ -336,18 +342,14 @@ fn visualBenchmark() !void {
 fn cleanup() void {
     std.debug.print("\nCleaning up...\n", .{});
 
-    // Cleanup block textures
-
-    // Close window
-    ray.CloseWindow();
-
+    blocktextures.deinit();
     // Cleanup ECS
     ecs.deinit();
 }
 
 pub fn main() !void {
     std.debug.print("Starting Animation/Render System Benchmark\n", .{});
-    std.debug.print("Entities: {d}, Iterations: {d} Textures: {}\n", .{ NUM_ENTITIES, BENCHMARK_ITERATIONS, TEXTURED });
+    std.debug.print("Entities: {d}, Iterations: {d}, Textures: {s}\n", .{ NUM_ENTITIES, BENCHMARK_ITERATIONS, if (TEXTURED) "ON" else "OFF" });
 
     // Seed global RNG
     var seed: u64 = undefined;

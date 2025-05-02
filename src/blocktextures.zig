@@ -148,7 +148,7 @@ pub fn createTexturedSprite(x: f32, y: f32, color: [4]u8, scale: f32, rotation: 
     // Get or create the appropriate texture and attach it to the entity.
     const texture_ptr = try getBlockTexture(color);
 
-    ecs.addOrReplace(components.SpriteTexture, entity, components.SpriteTexture{
+    ecs.addOrReplace(components.Texture, entity, components.Texture{
         .texture = texture_ptr,
         .created = false, // This is a shared cached texture.
     });
@@ -160,7 +160,7 @@ pub fn addTextureComponent(entity: ecsroot.Entity, color: [4]u8) !ecsroot.Entity
     // Get or create the appropriate texture and attach it to the entity.
     const texture_ptr = try getBlockTexture(color);
 
-    ecs.addOrReplace(components.SpriteTexture, entity, components.SpriteTexture{
+    ecs.addOrReplace(components.Texture, entity, components.Texture{
         .texture = texture_ptr,
         .created = false, // This is a shared cached texture.
     });
