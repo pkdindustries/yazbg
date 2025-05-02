@@ -2,6 +2,7 @@ pub const tetramino = struct {
     shape: [4][4][4]bool,
     color: [4]u8,
     kicks: [2][5][2]i32,
+    id: u32, // Unique identifier for each piece type
 };
 
 const o = false;
@@ -37,6 +38,7 @@ pub const tetraminos = [_]tetramino{
             },
         },
         .color = .{ 102, 191, 235, 255 },
+        .id = 0,
         .kicks = .{
             // CW kicks
             .{
@@ -86,6 +88,7 @@ pub const tetraminos = [_]tetramino{
             },
         },
         .color = .{ 233, 229, 0, 255 },
+        .id = 5,
         .kicks = .{
             // CW kicks
             .{
@@ -135,6 +138,7 @@ pub const tetraminos = [_]tetramino{
             },
         },
         .color = .{ 0, 100, 44, 255 },
+        .id = 1,
         .kicks = .{
             // CW kicks
             .{
@@ -184,6 +188,7 @@ pub const tetraminos = [_]tetramino{
             },
         },
         .color = .{ 220, 41, 55, 255 },
+        .id = 6,
         .kicks = .{
             // CW kicks
             .{
@@ -232,6 +237,7 @@ pub const tetraminos = [_]tetramino{
             },
         },
         .color = .{ 220, 90, 220, 255 },
+        .id = 2,
         .kicks = .{
             // CW kicks
             .{
@@ -280,6 +286,7 @@ pub const tetraminos = [_]tetramino{
             },
         },
         .color = .{ 255, 161, 0, 255 },
+        .id = 3,
         .kicks = .{
             // CW kicks
             .{
@@ -328,6 +335,7 @@ pub const tetraminos = [_]tetramino{
             },
         },
         .color = .{ 0, 121, 241, 255 },
+        .id = 4,
         .kicks = .{
             // CW kicks
             .{

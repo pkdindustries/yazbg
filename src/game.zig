@@ -76,6 +76,34 @@ pub fn reset() void {
     state.paused = false;
 }
 
+// Calculate the landing position (ghost piece Y position)
+fn calculateGhostY() i32 {
+    var ghost_y = state.piece.y;
+    while (checkmove(state.piece.x, ghost_y + 1)) : (ghost_y += 1) {}
+    return ghost_y;
+}
+
+// Emit the PlayerPositionUpdated event with current piece state
+fn emitPositionUpdate() void {
+    if (state.piece.current) |piece| {
+        var piece_index: u32 = 0;
+        for (shapes.tetraminos, 0..) |t, i| {
+            if (t.id == piece.id) {
+                piece_index = @as(u32, @intCast(i));
+                break;
+            }
+        }
+
+        events.push(.{ .PlayerPositionUpdated = .{
+            .x = state.piece.x,
+            .y = state.piece.y,
+            .rotation = state.piece.r,
+            .ghost_y = calculateGhostY(),
+            .piece_index = piece_index,
+        } }, events.Source.Game);
+    }
+}
+
 pub fn nextpiece() void {
     state.piece.current = state.piece.next;
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
@@ -85,6 +113,7 @@ pub fn nextpiece() void {
     state.piece.swapped = false;
 
     if (!state.gameover) {
+        emitPositionUpdate();
         events.push(.Spawn, events.Source.Game);
     }
     if (!checkmove(state.piece.x, state.piece.y)) {
@@ -130,6 +159,9 @@ pub fn harddrop() void {
     var y = state.piece.y;
     while (checkmove(state.piece.x, y + 1)) : (y += 1) {}
     state.piece.y = y;
+
+    // Position update before locking (for animation)
+    emitPositionUpdate();
 
     if (state.piece.current) |piece| {
         // Collect all blocks before occupying them
@@ -188,7 +220,7 @@ pub fn right() void {
     state.piece.x = x;
     state.piece.y = y;
     state.lastmove_ms = state.current_time_ms;
-    events.push(.MoveRight, events.Source.Game);
+    emitPositionUpdate();
     return;
 }
 
@@ -203,7 +235,7 @@ pub fn left() void {
     state.piece.x = x;
     state.piece.y = y;
     state.lastmove_ms = state.current_time_ms;
-    events.push(.MoveLeft, events.Source.Game);
+    emitPositionUpdate();
     return;
 }
 
@@ -218,7 +250,7 @@ pub fn down() bool {
     state.piece.x = x;
     state.piece.y = y;
     state.lastmove_ms = state.current_time_ms;
-    events.push(.MoveDown, events.Source.Game);
+    emitPositionUpdate();
     return true;
 }
 
@@ -234,13 +266,16 @@ pub fn rotate(ccw: bool) void {
     // after rotation, the piece fits, return
     if (checkmove(state.piece.x, state.piece.y)) {
         state.lastmove_ms = state.current_time_ms;
+        events.push(if (ccw) .Rotate else .RotateCCW, events.Source.Game);
+        emitPositionUpdate();
         return;
     }
 
     // try wall-kicks to fit the piece
     if (state.piece.current) |piece| {
         // Use the appropriate kick data based on rotation direction
-        const kickIndex: u32 = if (ccw) 1 else 0;
+        // Note: Swapped kickIndex to match the intended rotation direction
+        const kickIndex: u32 = if (ccw) 0 else 1;
         const kickData = piece.kicks[kickIndex];
 
         // kick and check if the moved piece fits
@@ -252,6 +287,7 @@ pub fn rotate(ccw: bool) void {
                 std.debug.print("kick\n", .{});
                 state.lastmove_ms = state.current_time_ms;
                 events.push(.Kick, events.Source.Game);
+                emitPositionUpdate();
                 return;
             }
             // revert the kick

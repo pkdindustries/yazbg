@@ -42,6 +42,14 @@ pub const Event = union(enum) {
     Hold, // player used the hold feature
     Kick, // piece was kicked (rotated) into the grid
     AutoDrop, // automatic dropping of piece based on timing
+    /// Emitted when player piece position or rotation changes, including ghost position
+    PlayerPositionUpdated: struct {
+        x: i32,           // Current grid x position
+        y: i32,           // Current grid y position
+        rotation: u32,     // Current rotation index
+        ghost_y: i32,     // Calculated landing position
+        piece_index: u32, // Index of the current piece
+    },
     // Input events
     MoveLeft,
     MoveRight,

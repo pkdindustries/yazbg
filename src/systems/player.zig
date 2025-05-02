@@ -2,11 +2,24 @@ const std = @import("std");
 const ray = @import("../raylib.zig");
 const ecs = @import("../ecs.zig");
 const ecsroot = @import("ecs");
-const game = @import("../game.zig");
 const components = @import("../components.zig");
 const animsys = @import("anim.zig");
 const gfx = @import("../gfx.zig");
 const textures = @import("../textures.zig");
+const pieces = @import("../pieces.zig");
+const events = @import("../events.zig");
+
+// Local state to track player position from events
+var current_piece_state = struct {
+    x: i32 = 4,
+    y: i32 = 0,
+    rotation: u32 = 0,
+    ghost_y: i32 = 0,
+    piece_index: u32 = 0,
+    has_piece: bool = false,
+}{};
+
+const CELL_SIZE = 35; // Default cell size
 
 fn getPlayerEntity() ?ecsroot.Entity {
     var view = ecs.getPlayerView();
@@ -60,6 +73,8 @@ pub fn init() void {
 
 // Handle a spawn event
 pub fn spawn() void {
+    if (!current_piece_state.has_piece) return;
+    
     // Make sure entity exists
     var player_entity = getPlayerEntity();
     if (player_entity == null) {
@@ -67,9 +82,9 @@ pub fn spawn() void {
         player_entity = getPlayerEntity();
     }
 
-    // Set position to match the game state without animation
-    const targetx = @as(f32, @floatFromInt(game.state.piece.x * gfx.window.cellsize));
-    const targety = @as(f32, @floatFromInt(game.state.piece.y * gfx.window.cellsize));
+    // Set position to match the current state without animation
+    const targetx = @as(f32, @floatFromInt(current_piece_state.x * CELL_SIZE));
+    const targety = @as(f32, @floatFromInt(current_piece_state.y * CELL_SIZE));
 
     // Position is set immediately for spawning, no animation
     ecs.addOrReplace(components.Position, player_entity.?, components.Position{
@@ -83,6 +98,8 @@ pub fn spawn() void {
 
 // Start a slide animation for the player piece
 pub fn move(dx: i32, dy: i32) void {
+    if (!current_piece_state.has_piece) return;
+    
     var player_entity = getPlayerEntity();
     if (player_entity == null) {
         init();
@@ -90,12 +107,12 @@ pub fn move(dx: i32, dy: i32) void {
     }
 
     // Calculate target position (where piece will end up)
-    const targetx = @as(f32, @floatFromInt(game.state.piece.x * gfx.window.cellsize));
-    const targety = @as(f32, @floatFromInt(game.state.piece.y * gfx.window.cellsize));
+    const targetx = @as(f32, @floatFromInt(current_piece_state.x * CELL_SIZE));
+    const targety = @as(f32, @floatFromInt(current_piece_state.y * CELL_SIZE));
 
     // Calculate source position (where piece is visually coming from)
-    const sourcex = targetx + @as(f32, @floatFromInt(dx * gfx.window.cellsize));
-    const sourcey = targety + @as(f32, @floatFromInt(dy * gfx.window.cellsize));
+    const sourcex = targetx + @as(f32, @floatFromInt(dx * CELL_SIZE));
+    const sourcey = targety + @as(f32, @floatFromInt(dy * CELL_SIZE));
 
     // Create animation using the animsys
     animsys.createPlayerPieceAnimation(player_entity.?, sourcex, sourcey, targetx, targety);
@@ -137,68 +154,103 @@ fn createBlockEntity(x: f32, y: f32, color: [4]u8, scale: f32, is_ghost: bool) !
 
     return entity;
 }
+// Update the player's position based on game state
+pub fn updatePlayerPosition(x: i32, y: i32, rotation: u32, ghost_y: i32, piece_index: u32) void {
+    // Store the updated position state
+    current_piece_state.x = x;
+    current_piece_state.y = y;
+    current_piece_state.rotation = rotation;
+    current_piece_state.ghost_y = ghost_y;
+    current_piece_state.piece_index = piece_index;
+    current_piece_state.has_piece = true;
+    
+    // Update player entity position
+    if (getPlayerEntity()) |entity| {
+        const pixelX = @as(f32, @floatFromInt(x * CELL_SIZE));
+        const pixelY = @as(f32, @floatFromInt(y * CELL_SIZE));
+        
+        ecs.addOrReplace(components.Position, entity, components.Position{
+            .x = pixelX,
+            .y = pixelY,
+        });
+    } else {
+        // Ensure we have a player entity
+        init();
+    }
+}
+
 // Draw the player piece and ghost preview by creating entities
 pub fn playerSystem() void {
-    if (game.state.piece.current) |p| {
-        var player_entity = getPlayerEntity();
-        if (player_entity == null) {
-            init();
-            player_entity = getPlayerEntity();
-        }
-
-        // Get the current animated position from the entity's Position component
-        var drawX: i32 = 0;
-        var drawY: i32 = 0;
-
-        if (ecs.get(components.Position, player_entity.?)) |pos| {
-            drawX = @as(i32, @intFromFloat(pos.x));
-            drawY = @as(i32, @intFromFloat(pos.y));
-        } else {
-            // If for some reason the position component is missing, use default values
-            drawX = game.state.piece.x * gfx.window.cellsize;
-            drawY = game.state.piece.y * gfx.window.cellsize;
-
-            // Update entity with current position for future animations
-            ecs.addOrReplace(components.Position, player_entity.?, components.Position{
-                .x = @floatFromInt(drawX),
-                .y = @floatFromInt(drawY),
-            });
-        }
-
-        // Clear all existing block entities
-        clearBlockEntities();
-
-        // Create entities for the active piece blocks
-        createPieceEntities(drawX, drawY, p.shape[game.state.piece.r], p.color, false);
-
-        // Create entities for ghost piece blocks (semi-transparent preview at landing position)
-        const ghostY = ghosty() * gfx.window.cellsize;
-        const ghostColor = .{ p.color[0], p.color[1], p.color[2], 60 };
-        createPieceEntities(drawX, ghostY, p.shape[game.state.piece.r], ghostColor, true);
+    if (!current_piece_state.has_piece) return;
+    
+    var player_entity = getPlayerEntity();
+    if (player_entity == null) {
+        init();
+        player_entity = getPlayerEntity();
     }
+
+    // Get the current animated position from the entity's Position component
+    var drawX: i32 = 0;
+    var drawY: i32 = 0;
+
+    if (ecs.get(components.Position, player_entity.?)) |pos| {
+        drawX = @as(i32, @intFromFloat(pos.x));
+        drawY = @as(i32, @intFromFloat(pos.y));
+    } else {
+        // If for some reason the position component is missing, use default values
+        drawX = current_piece_state.x * CELL_SIZE;
+        drawY = current_piece_state.y * CELL_SIZE;
+
+        // Update entity with current position for future animations
+        ecs.addOrReplace(components.Position, player_entity.?, components.Position{
+            .x = @floatFromInt(drawX),
+            .y = @floatFromInt(drawY),
+        });
+    }
+
+    // Clear all existing block entities
+    clearBlockEntities();
+
+    // Get the current piece from the saved piece index
+    const piece_type = pieces.tetraminos[current_piece_state.piece_index];
+    const piece_shape = piece_type.shape[current_piece_state.rotation];
+    const piece_color = piece_type.color;
+
+    // Create entities for the active piece blocks
+    createPieceEntities(drawX, drawY, piece_shape, piece_color, false);
+
+    // Create entities for ghost piece blocks (semi-transparent preview at landing position)
+    const ghostY = ghosty() * CELL_SIZE;
+    const ghostColor = .{ piece_color[0], piece_color[1], piece_color[2], 60 };
+    createPieceEntities(drawX, ghostY, piece_shape, ghostColor, true);
 }
 
 // Update piece entities without redrawing (used after animations)
 pub fn updatePieceEntities() void {
-    if (game.state.piece.current) |p| {
-        // Get the current position from the player entity
-        const player_entity = getPlayerEntity() orelse return;
+    if (!current_piece_state.has_piece) return;
+    
+    // Get the current position from the player entity
+    const player_entity = getPlayerEntity() orelse return;
+    
+    if (ecs.get(components.Position, player_entity)) |pos| {
+        const drawX = @as(i32, @intFromFloat(pos.x));
+        const drawY = @as(i32, @intFromFloat(pos.y));
 
-        if (ecs.get(components.Position, player_entity)) |pos| {
-            const drawX = @as(i32, @intFromFloat(pos.x));
-            const drawY = @as(i32, @intFromFloat(pos.y));
+        // Clear existing entities and create new ones
+        clearBlockEntities();
 
-            // Clear existing entities and create new ones
-            clearBlockEntities();
+        // Get the current piece from the saved piece index
+        const piece_type = pieces.tetraminos[current_piece_state.piece_index];
+        const piece_shape = piece_type.shape[current_piece_state.rotation];
+        const piece_color = piece_type.color;
 
-            // Create main piece entities
-            createPieceEntities(drawX, drawY, p.shape[game.state.piece.r], p.color, false);
+        // Create main piece entities
+        createPieceEntities(drawX, drawY, piece_shape, piece_color, false);
 
-            // Create ghost piece entities
-            const ghostY = ghosty() * gfx.window.cellsize;
-            const ghostColor = .{ p.color[0], p.color[1], p.color[2], 60 };
-            createPieceEntities(drawX, ghostY, p.shape[game.state.piece.r], ghostColor, true);
-        }
+        // Create ghost piece entities
+        const ghostY = ghosty() * CELL_SIZE;
+        const ghostColor = .{ piece_color[0], piece_color[1], piece_color[2], 60 };
+        createPieceEntities(drawX, ghostY, piece_shape, ghostColor, true);
     }
 }
 
@@ -209,8 +261,8 @@ pub fn createPieceEntities(x: i32, y: i32, shape: [4][4]bool, color: [4]u8, is_g
     for (shape, 0..) |row, i| {
         for (row, 0..) |cell, j| {
             if (cell) {
-                const cellX = @as(i32, @intCast(i)) * gfx.window.cellsize;
-                const cellY = @as(i32, @intCast(j)) * gfx.window.cellsize;
+                const cellX = @as(i32, @intCast(i)) * CELL_SIZE;
+                const cellY = @as(i32, @intCast(j)) * CELL_SIZE;
                 const posX = @as(f32, @floatFromInt(x + cellX));
                 const posY = @as(f32, @floatFromInt(y + cellY));
 
@@ -224,15 +276,14 @@ pub fn createPieceEntities(x: i32, y: i32, shape: [4][4]bool, color: [4]u8, is_g
     }
 }
 
-// Get ghost piece's landing position
+// Get ghost piece's landing position from current state (retrieved from events)
 pub fn ghosty() i32 {
-    // Calculate the ghost position based on the current piece position
-    var y = game.state.piece.y;
-    while (game.checkmove(game.state.piece.x, y + 1)) : (y += 1) {}
-    return y;
+    return current_piece_state.ghost_y;
 }
 
 pub fn harddrop() void {
+    if (!current_piece_state.has_piece) return;
+    
     // Create animations from current piece blocks to ghost piece positions
     std.debug.print("creating hard drop animations\n", .{});
 

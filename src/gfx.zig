@@ -483,11 +483,15 @@ pub fn process(queue: *events.EventQueue) void {
                 background.setWarpEffect(300);
             },
             .Reset => background.reset(),
-            .MoveLeft => playersys.move(1, 0),
-            .MoveRight => playersys.move(-1, 0),
-            .MoveDown => playersys.move(0, -1),
+
             .HardDropEffect => playersys.harddrop(),
             .Spawn => playersys.spawn(),
+
+            // Position update events for player system
+            .PlayerPositionUpdated => |update| {
+                // Update player system state with the new position data
+                playersys.updatePlayerPosition(update.x, update.y, update.rotation, update.ghost_y, update.piece_index);
+            },
 
             // Grid service handling
             .PieceLocked => |data| {
