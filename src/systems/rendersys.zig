@@ -5,11 +5,6 @@ const components = @import("../components.zig");
 const Grid = @import("../grid.zig").Grid;
 const game = @import("../game.zig");
 const gfx = @import("../gfx.zig");
-
-pub fn renderSystem() void {
-    drawSprites();
-}
-
 pub fn createSpriteTexture(width: i32, height: i32) !components.SpriteTexture {
     const texture = ray.LoadRenderTexture(width, height);
 
