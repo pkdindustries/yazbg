@@ -65,6 +65,7 @@ fn handleClear(lines: u8) void {
         }
 
         events.pushDeferred(.{ .LevelUp = @as(u8, @intCast(progression.level)) }, events.Source.Level);
+        events.pushDeferred(.NextBackground, events.Source.Level);
         events.pushDeferred(.{ .DropInterval = progression.dropinterval_ms }, events.Source.Level);
     }
 }

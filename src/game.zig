@@ -3,13 +3,11 @@ const std = @import("std");
 const Grid = @import("grid.zig").Grid;
 const shapes = @import("pieces.zig");
 const events = @import("events.zig");
-const CellLayer = @import("cellrenderer.zig").CellLayer;
 
 pub const YAZBG = struct {
     alloc: std.mem.Allocator = undefined,
     rng: std.Random.DefaultPrng = undefined,
-    grid: *Grid = undefined,
-    cells: *CellLayer = undefined,
+    grid: Grid = undefined,
     gameover: bool = false,
     paused: bool = false,
     // time of the last successful move (milliseconds, monotonic clock)
@@ -49,8 +47,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
         break :blk seed;
     });
 
-    state.cells = try CellLayer.init(allocator, Grid.WIDTH, Grid.HEIGHT);
-    state.grid = try Grid.init(state.cells);
+    state.grid = Grid.init();
 
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
     nextpiece();
@@ -58,8 +55,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
 
 pub fn deinit() void {
     std.debug.print("deinit game\n", .{});
-    state.grid.deinit();
-    state.cells.deinit();
+    // Grid no longer needs deinit
 }
 
 pub fn reset() void {
@@ -133,9 +129,6 @@ pub fn harddrop() void {
     var y = state.piece.y;
     while (checkmove(state.piece.x, y + 1)) : (y += 1) {}
     state.piece.y = y;
-    // Collect blocks for the PieceLocked event
-    var blocks: [4]events.CellDataPos = undefined;
-    var block_count: usize = 0;
 
     if (state.piece.current) |piece| {
         const shape = piece.shape[state.piece.r];
@@ -148,26 +141,15 @@ pub fn harddrop() void {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
 
-                        // Store block position and color for event
-                        if (block_count < blocks.len) {
-                            blocks[block_count] = .{
-                                .x = ix,
-                                .y = iy,
-                                .color = piece.color,
-                            };
-                            block_count += 1;
-                        }
-
-                        // Occupy cell in grid
-                        state.grid.occupy(iy, ix, piece.color);
+                        state.grid.occupy(ix, iy, piece.color);
                     }
                 }
             }
         }
     }
 
-    // Emit PieceLocked event with block data before updating grid
-    events.push(.{ .PieceLocked = .{ .blocks = blocks, .count = block_count } }, events.Source.Game);
+    // // Emit PieceLocked event with block data before updating grid
+    // events.push(.{ .PieceLocked = .{ .blocks = blocks, .count = block_count } }, events.Source.Game);
 
     state.lastmove_ms = state.current_time_ms;
     const cleared = state.grid.clear();

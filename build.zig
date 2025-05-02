@@ -107,9 +107,17 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
+            .omit_frame_pointer = false, // keep frame pointer
         });
         exe.root_module.strip = strip;
         exe.linkLibrary(raylib_artifact);
+
+        const ecs_dep = b.dependency("entt", .{
+            .target = target,
+            .optimize = optimize,
+        });
+        exe.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+
         b.installArtifact(exe);
 
         const run_cmd = b.addRunArtifact(exe);
@@ -120,6 +128,29 @@ pub fn build(b: *std.Build) void {
 
         const run_step = b.step("run", "Run the app");
         run_step.dependOn(&run_cmd.step);
+
+        // Benchmark executable
+        const benchmark_exe = b.addExecutable(.{
+            .name = "yazbg-benchmark",
+            .root_source_file = b.path("src/benchmark.zig"),
+            .target = target,
+            .optimize = optimize,
+            .omit_frame_pointer = false, // keep frame pointer
+        });
+        benchmark_exe.root_module.strip = strip;
+        benchmark_exe.linkLibrary(raylib_artifact);
+        benchmark_exe.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+        
+        b.installArtifact(benchmark_exe);
+        
+        const run_benchmark = b.addRunArtifact(benchmark_exe);
+        run_benchmark.step.dependOn(b.getInstallStep());
+        if (b.args) |args| {
+            run_benchmark.addArgs(args);
+        }
+        
+        const benchmark_step = b.step("benchmark", "Run the animation/render benchmark");
+        benchmark_step.dependOn(&run_benchmark.step);
 
         const unit_tests = b.addTest(.{
             .root_source_file = b.path("src/main.zig"),

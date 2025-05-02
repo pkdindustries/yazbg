@@ -4,9 +4,13 @@
     .name = .yazbg,
     .version = "0.0.1",
     .dependencies = .{
-         .raylib = .{
+        .raylib = .{
             .url = "git+https://github.com/raysan5/raylib?ref=master#f5c96302d5623950dccdca31f8dd66d6d633dbd1",
             .hash = "raylib-5.5.0-whq8uFV0zQA9NXxhpYFZk_yHW6xzg5eKGmOtMJ2DOTdU",
+        },
+        .entt = .{
+            .url = "git+https://github.com/prime31/zig-ecs?ref=HEAD#d0af139e204a420a3dd596c1f2f5e267a7438b9e",
+            .hash = "entt-1.0.0-qJPtbAB1AgDHqBxxDmRYRWqlA9x7rKez5XpebJmDKTOj",
         },
     },
 }

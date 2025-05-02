@@ -4,10 +4,15 @@ const game = @import("game.zig");
 const hud = @import("hud.zig");
 const events = @import("events.zig");
 const Grid = @import("grid.zig").Grid;
-const CellLayer = @import("cellrenderer.zig").CellLayer;
-const AnimationState = @import("cellrenderer.zig").AnimationState;
-const Animator = @import("animator.zig").Animator;
-
+const ecs = @import("ecs.zig");
+const ecsroot = @import("ecs");
+const components = @import("components.zig");
+const rendersys = @import("systems/rendersys.zig");
+const animsys = @import("systems/animsys.zig");
+const playersys = @import("systems/playersys.zig");
+const animationSystem = animsys.animationSystem;
+const playerSystem = playersys.playerSystem;
+const blocktextures = @import("blocktextures.zig");
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
     pub const OGHEIGHT: i32 = 760;
@@ -23,7 +28,7 @@ pub const Window = struct {
 
     pub fn init(self: *Window) !void {
         // Initialize window
-        ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE | ray.FLAG_VSYNC_HINT);
+        ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
         ray.InitWindow(Window.OGWIDTH, Window.OGHEIGHT, "yazbg");
 
         // Create render texture for resolution independence
@@ -122,6 +127,10 @@ pub const Background = struct {
     speedx: f32 = 0.15,
     speedy: f32 = 0.15,
 
+    // Store when warp effect should end
+    warp_end_ms: i64 = 0,
+    level: u8 = 0,
+
     pub fn init(self: *Background) !void {
         // Load background textures
         self.texture[0] = ray.LoadTexture("resources/texture/starfield.png");
@@ -161,8 +170,62 @@ pub const Background = struct {
         self.index = (self.index + 1) % self.texture.len;
     }
 
-    pub fn load(self: *Background) void {
-        _ = self; // This is just for semantic clarity - textures are already loaded
+    pub fn updateShader(self: *Background) void {
+        const current_time = @as(f32, @floatCast(ray.GetTime()));
+
+        // Update time uniform
+        ray.SetShaderValue(self.shader, self.secondsloc, &current_time, ray.SHADER_UNIFORM_FLOAT);
+
+        // Set background warp parameters based on game state
+        const now = std.time.milliTimestamp();
+        if (self.warp_end_ms > now) {
+            // Intense warp effect for special events
+            self.freqx = 25.0;
+            self.freqy = 25.0;
+            self.ampx = 10.0;
+            self.ampy = 10.0;
+            self.speedx = 25.0;
+            self.speedy = 25.0;
+        } else {
+            // Normal warp effect scaling with level
+            self.freqx = 10.0;
+            self.freqy = 10.0;
+            self.ampx = 2.0;
+            self.ampy = 2.0;
+            self.speedx = 0.15 * (@as(f32, @floatFromInt(self.level)) + 2.0);
+            self.speedy = 0.15 * (@as(f32, @floatFromInt(self.level)) + 2.0);
+        }
+
+        // Update all shader uniforms
+        ray.SetShaderValue(self.shader, self.freqxloc, &self.freqx, ray.SHADER_UNIFORM_FLOAT);
+        ray.SetShaderValue(self.shader, self.freqyloc, &self.freqy, ray.SHADER_UNIFORM_FLOAT);
+        ray.SetShaderValue(self.shader, self.ampxloc, &self.ampx, ray.SHADER_UNIFORM_FLOAT);
+        ray.SetShaderValue(self.shader, self.ampyloc, &self.ampy, ray.SHADER_UNIFORM_FLOAT);
+        ray.SetShaderValue(self.shader, self.speedxloc, &self.speedx, ray.SHADER_UNIFORM_FLOAT);
+        ray.SetShaderValue(self.shader, self.speedyloc, &self.speedy, ray.SHADER_UNIFORM_FLOAT);
+
+        // Set screen size for shader
+        const size = [2]f32{
+            @floatFromInt(Window.OGWIDTH),
+            @floatFromInt(Window.OGHEIGHT),
+        };
+        ray.SetShaderValue(self.shader, self.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
+    }
+
+    pub fn setWarpEffect(self: *Background, duration_ms: i64) void {
+        const now = std.time.milliTimestamp();
+        if (self.warp_end_ms < now + duration_ms) {
+            self.warp_end_ms = now + duration_ms;
+        }
+    }
+
+    pub fn setLevel(self: *Background, new_level: u8) void {
+        self.level = new_level;
+    }
+
+    pub fn reset(self: *Background) void {
+        self.index = 0;
+        self.level = 0;
     }
 
     pub fn draw(self: *Background) void {
@@ -179,93 +242,40 @@ pub const Background = struct {
     }
 };
 
-var window = Window{};
+pub var window = Window{};
 var background = Background{};
-
-// Graphics state variables
-// Effect timer for visual effects like warp
-var warp_end_ms: i64 = 0;
-var dropIntervalMs: i64 = 0;
-var level: u8 = 0;
-var animator: Animator = undefined;
-
 // Static effect shader
-var static: ray.Shader = undefined;
-var statictimeloc: i32 = 0;
+pub const StaticShader = struct {
+    shader: ray.Shader = undefined,
+    time_loc: i32 = 0,
 
-const PlayerPiece = struct {
-    active: bool = false,
-    start_time: i64 = 0,
-    duration: i64 = 50, // ms
-    sourcex: i32 = 0,
-    sourcey: i32 = 0,
-    targetx: i32 = 0,
-    targety: i32 = 0,
-    last_piece_x: i32 = 0,
-    last_piece_y: i32 = 0,
-
-    // Start a slide animation for the player piece
-    pub fn move(self: *PlayerPiece, dx: i32, dy: i32) void {
-        self.active = true;
-        self.start_time = std.time.milliTimestamp();
-        self.targetx = game.state.piece.x * window.cellsize;
-        self.targety = game.state.piece.y * window.cellsize;
-        self.sourcex = self.targetx + dx * window.cellsize;
-        self.sourcey = self.targety + dy * window.cellsize;
+    pub fn init(self: *StaticShader) void {
+        // Load static effect shader
+        self.shader = ray.LoadShader(null, "resources/shader/static.fs");
+        self.time_loc = ray.GetShaderLocation(self.shader, "time");
     }
 
-    // Draw the player piece and ghost preview
-    pub fn draw(self: *PlayerPiece) void {
-        if (game.state.piece.current) |p| {
-            // Calculate base position in pixels
-            const baseX = game.state.piece.x * window.cellsize;
-            const baseY = game.state.piece.y * window.cellsize;
-
-            // Start with base position
-            var drawX: f32 = @floatFromInt(baseX);
-            var drawY: f32 = @floatFromInt(baseY);
-
-            // Apply animation if active
-            if (self.active) {
-                const elapsed_time = std.time.milliTimestamp() - self.start_time;
-                const duration: f32 = @floatFromInt(self.duration);
-                const progress: f32 = std.math.clamp(@as(f32, @floatFromInt(elapsed_time)) / duration, 0.0, 1.0);
-
-                // Smoothly interpolate between source and target positions
-                drawX = std.math.lerp(@as(f32, @floatFromInt(self.sourcex)), @as(f32, @floatFromInt(self.targetx)), progress);
-                drawY = std.math.lerp(@as(f32, @floatFromInt(self.sourcey)), @as(f32, @floatFromInt(self.targety)), progress);
-
-                // End animation when complete
-                if (elapsed_time >= self.duration) {
-                    self.active = false;
-                }
-            } else {
-                // Update position tracking for next animation
-                self.last_piece_x = game.state.piece.x;
-                self.last_piece_y = game.state.piece.y;
-            }
-
-            // Convert back to integer coordinates for drawing
-            const finalX = @as(i32, @intFromFloat(drawX));
-            const finalY = @as(i32, @intFromFloat(drawY));
-
-            // Draw the active piece
-            drawpiece(finalX, finalY, p.shape[game.state.piece.r], p.color);
-
-            // Draw ghost piece (semi-transparent preview at landing position)
-            const ghostColor = .{ p.color[0], p.color[1], p.color[2], 60 };
-            drawpiece(finalX, ghosty() * window.cellsize, p.shape[game.state.piece.r], ghostColor);
-        }
+    pub fn deinit(self: *StaticShader) void {
+        // Unload the shader
+        ray.UnloadShader(self.shader);
     }
-    pub fn ghosty() i32 {
-        // Calculate the ghost position based on the current piece position
-        var y = game.state.piece.y;
-        while (game.checkmove(game.state.piece.x, y + 1)) : (y += 1) {}
-        return y;
+
+    pub fn update(self: *StaticShader) void {
+        // Update shader time uniform
+        const current_time = @as(f32, @floatCast(ray.GetTime()));
+        ray.SetShaderValue(self.shader, self.time_loc, &current_time, ray.SHADER_UNIFORM_FLOAT);
+    }
+
+    pub fn begin(self: *StaticShader) void {
+        ray.BeginShaderMode(self.shader);
+    }
+
+    pub fn end(_: *StaticShader) void {
+        ray.EndShaderMode();
     }
 };
 
-var player: PlayerPiece = .{};
+var static_shader = StaticShader{};
 
 pub fn init() !void {
     std.debug.print("init gfx\n", .{});
@@ -273,22 +283,24 @@ pub fn init() !void {
     // Initialize window
     try window.init();
 
-    // Load static effect shader for game elements
-    static = ray.LoadShader(null, "resources/shader/static.fs");
-    statictimeloc = ray.GetShaderLocation(static, "time");
+    // Initialize static shader
+    static_shader.init();
 
     // Initialize background
     try background.init();
 
-    // Initialize animator
-    animator = try Animator.init(game.state.alloc, game.state.cells);
+    // Initialize player system
+    playersys.init();
+
+    // Initialize texture and shader systems
+    try blocktextures.init();
 }
 
 pub fn deinit() void {
     std.debug.print("deinit gfx\n", .{});
 
-    // Unload the static shader
-    ray.UnloadShader(static);
+    // Clean up static shader
+    static_shader.deinit();
 
     // Clean up window resources
     window.deinit();
@@ -296,13 +308,8 @@ pub fn deinit() void {
     // Clean up background resources
     background.deinit();
 
-    // Clean up animator resources
-    animator.deinit();
-}
-
-// These global functions now call the Background struct methods
-pub fn loadbackground() void {
-    background.load();
+    // Clean up player system
+    playersys.deinit();
 }
 
 pub fn nextbackground() void {
@@ -311,126 +318,23 @@ pub fn nextbackground() void {
 
 // Update shader parameters before drawing
 fn preshade() void {
-    const current_time = @as(f32, @floatCast(ray.GetTime()));
+    // Update background warp shader
+    background.updateShader();
 
-    // Update time uniforms for both shaders
-    ray.SetShaderValue(background.shader, background.secondsloc, &current_time, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(static, statictimeloc, &current_time, ray.SHADER_UNIFORM_FLOAT);
-
-    // Set background warp parameters based on game state
-    const now = std.time.milliTimestamp();
-    if (warp_end_ms > now) {
-        // Intense warp effect for special events
-        background.freqx = 25.0;
-        background.freqy = 25.0;
-        background.ampx = 10.0;
-        background.ampy = 10.0;
-        background.speedx = 25.0;
-        background.speedy = 25.0;
-    } else {
-        // Normal warp effect scaling with level
-        background.freqx = 10.0;
-        background.freqy = 10.0;
-        background.ampx = 2.0;
-        background.ampy = 2.0;
-        background.speedx = 0.15 * (@as(f32, @floatFromInt(level)) + 2.0);
-        background.speedy = 0.15 * (@as(f32, @floatFromInt(level)) + 2.0);
-    }
-
-    // Update all shader uniforms
-    ray.SetShaderValue(background.shader, background.freqxloc, &background.freqx, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(background.shader, background.freqyloc, &background.freqy, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(background.shader, background.ampxloc, &background.ampx, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(background.shader, background.ampyloc, &background.ampy, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(background.shader, background.speedxloc, &background.speedx, ray.SHADER_UNIFORM_FLOAT);
-    ray.SetShaderValue(background.shader, background.speedyloc, &background.speedy, ray.SHADER_UNIFORM_FLOAT);
-
-    // Set screen size for shader
-    const size = [2]f32{
-        @floatFromInt(Window.OGWIDTH),
-        @floatFromInt(Window.OGHEIGHT),
-    };
-    ray.SetShaderValue(background.shader, background.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
-}
-
-fn drawcells(layer: *CellLayer) void {
-    // Iterate through all cells in the layer
-    for (layer.cells, 0..) |cell, idx| {
-        if (cell.anim_state) |anim| {
-            // Draw animated cell
-            const drawX = @as(i32, @intFromFloat(anim.position[0]));
-            const drawY = @as(i32, @intFromFloat(anim.position[1]));
-            drawbox(drawX, drawY, anim.color, anim.scale);
-        } else if (cell.data) |logic| {
-            // Draw static cell based on logical data
-            const coords = layer.coordsFromIdx(idx);
-            const drawX = @as(i32, @intCast(coords.x)) * window.cellsize;
-            const drawY = @as(i32, @intCast(coords.y)) * window.cellsize;
-            drawbox(drawX, drawY, logic.toRgba(), 1.0);
-        }
-    }
-}
-
-// Draw a tetromino piece
-fn drawpiece(x: i32, y: i32, shape: [4][4]bool, color: [4]u8) void {
-    const scale: f32 = 1.0;
-
-    for (shape, 0..) |row, i| {
-        for (row, 0..) |cell, j| {
-            if (cell) {
-                const cellX = @as(i32, @intCast(i)) * window.cellsize;
-                const cellY = @as(i32, @intCast(j)) * window.cellsize;
-                drawbox(x + cellX, y + cellY, color, scale);
-            }
-        }
-    }
-}
-
-// Draw a rounded box with scale factor applied
-fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32) void {
-    // Calculate scaled dimensions
-    const cellsize_scaled = @as(f32, @floatFromInt(window.cellsize)) * scale;
-    const padding_scaled = @as(f32, @floatFromInt(window.cellpadding)) * scale;
-    const width_scaled = cellsize_scaled - 2 * padding_scaled;
-
-    // Calculate center of cell in screen coordinates
-    const center_x = @as(f32, @floatFromInt(window.gridoffsetx + x)) +
-        @as(f32, @floatFromInt(window.cellsize)) / 2.0;
-    const center_y = @as(f32, @floatFromInt(window.gridoffsety + y)) +
-        @as(f32, @floatFromInt(window.cellsize)) / 2.0;
-
-    // Calculate top-left drawing position
-    const rect_x = center_x - width_scaled / 2.0;
-    const rect_y = center_y - width_scaled / 2.0; // Width used for height to ensure square
-
-    // Draw rounded rectangle
-    ray.DrawRectangleRounded(ray.Rectangle{
-        .x = rect_x,
-        .y = rect_y,
-        .width = width_scaled,
-        .height = width_scaled, // Same as width for perfect square
-    }, 0.4, // Roundness
-        20, // Segments
-        ray.Color{
-            .r = color[0],
-            .g = color[1],
-            .b = color[2],
-            .a = color[3],
-        });
+    // Update static shader time
+    static_shader.update();
 }
 
 pub fn frame() void {
     // Handle window resizing
     window.updateScale();
 
-    //window drag, if we want to fuck with an undecorated window
-    //window.updateDrag();
-
+    playerSystem();
+    animationSystem(); // Process all animations (core animation system)
     // Update shader uniforms
     preshade();
 
-    // Update animations
-    animator.step(0); // dt parameter isn't used since we're using timestamps
+    // Animation system now handled by ECS
 
     ray.BeginDrawing();
     {
@@ -441,15 +345,9 @@ pub fn frame() void {
             background.draw();
 
             // Apply static effect shader to game elements
-            ray.BeginShaderMode(static);
-            {
-                // Draw player piece and ghost
-                player.draw();
-
-                // Draw grid cells
-                drawcells(game.state.cells);
-            }
-            ray.EndShaderMode();
+            static_shader.begin();
+            rendersys.drawSprites();
+            static_shader.end();
 
             // Draw HUD elements
             hud.draw(.{
@@ -462,7 +360,7 @@ pub fn frame() void {
                 .og_height = Window.OGHEIGHT,
                 .next_piece = game.state.piece.next,
                 .held_piece = game.state.piece.held,
-            }, static);
+            }, static_shader.shader);
         }
         ray.EndTextureMode();
 
@@ -472,151 +370,29 @@ pub fn frame() void {
     ray.EndDrawing();
 }
 
-// Explode all cells in a given row with flying animation
-fn explodeRow(row: usize) void {
-    // Create exploding animation for each cell in row
-    for (0..Grid.WIDTH) |x| {
-        const idx = game.state.cells.index(x, row);
-        const cell_ptr = &game.state.cells.cells[idx];
-
-        if (cell_ptr.data != null) {
-            // Set random end position for explosion with much wider range
-            const xr: f32 = -2000.0 + std.crypto.random.float(f32) * 4000.0;
-            const yr: f32 = -2000.0 + std.crypto.random.float(f32) * 4000.0;
-
-            // Get current position
-            const x_pos = @as(f32, @floatFromInt(x * @as(usize, @intCast(window.cellsize))));
-            const y_pos = @as(f32, @floatFromInt(row * @as(usize, @intCast(window.cellsize))));
-
-            // Get current color
-            const color = cell_ptr.data.?.toRgba();
-
-            // Set up animation
-            const anim_state = AnimationState{
-                .source = .{ x_pos, y_pos },
-                .target = .{ xr, yr },
-                .position = .{ x_pos, y_pos },
-                .scale = 1.0,
-                .color_source = color,
-                .color_target = .{ 0, 0, 0, 0 },
-                .color = color,
-                .startedat = std.time.milliTimestamp(),
-                .duration = 1000,
-                .mode = .easein,
-                .animating = true,
-            };
-
-            // Start animation
-            animator.startAnimation(idx, anim_state) catch {};
-        }
-    }
-}
-
 pub fn process(queue: *events.EventQueue) void {
-    const now = std.time.milliTimestamp();
     for (queue.items()) |rec| {
         switch (rec.event) {
             // Original event handlers
             .LevelUp => |newlevel| {
-                background.next();
-                level = newlevel;
+                background.setLevel(newlevel);
             },
             .NextBackground => background.next(),
             .Clear => |lines| {
-                // Prolong the background warp effect proportionally to the number
-                // of lines removed so it is visible even when the grid animation
-                // finishes very quickly.
                 const extra_ms: i64 = 120 * @as(i64, @intCast(lines));
-                if (warp_end_ms < now + extra_ms) warp_end_ms = now + extra_ms;
+                background.setWarpEffect(extra_ms);
             },
             .GameOver => {
-                // Immediately intensify the warp and pick a contrasting background
-                // to highlight the end of the run.
                 background.next();
-                warp_end_ms = now + 300;
-
-                // Create the line splat effect for all rows
-                for (0..Grid.HEIGHT) |y| {
-                    explodeRow(y);
-                }
+                background.setWarpEffect(300);
             },
-            .Reset => reset(),
-            .MoveLeft => player.move(1, 0),
-            .MoveRight => player.move(-1, 0),
-            .MoveDown => player.move(0, -1),
-            // Drop interval tweaked by the level subsystem.
-            .DropInterval => |ms| dropIntervalMs = ms,
-            .Spawn => player.active = false,
-            .Debug => {
-                const active_count = animator.countActiveAnimations();
-                std.debug.print("Active animations: {}\n", .{active_count});
-                const total_count = game.state.cells.countTotalAnimations();
-                std.debug.print("Total animations: {}\n", .{total_count});
-            },
-            .RowsShiftedDown => |shift_data| {
-                const start_y = shift_data.start_y;
-                const target_y = start_y + 1; // The row where we're moving cells to
+            .Reset => background.reset(),
+            .MoveLeft => playersys.move(1, 0),
+            .MoveRight => playersys.move(-1, 0),
+            .MoveDown => playersys.move(0, -1),
+            .Spawn => playersys.spawn(),
 
-                // Animate cells shifting down
-                for (0..Grid.WIDTH) |x| {
-                    const target_idx = game.state.cells.index(x, target_y);
-
-                    // Only animate if there was data at the source position
-                    // Check the target cell because the logical pos has already been moved
-                    // by the grid.shiftrow() function
-                    if (game.state.cells.ptr(x, target_y).data != null) {
-                        // Get source and target positions
-                        const source_x = @as(f32, @floatFromInt(x * @as(usize, @intCast(window.cellsize))));
-                        const source_y = @as(f32, @floatFromInt(start_y * @as(usize, @intCast(window.cellsize))));
-                        const target_y_pos = @as(f32, @floatFromInt(target_y * @as(usize, @intCast(window.cellsize))));
-                        const color = game.state.cells.ptr(x, target_y).data.?.toRgba();
-
-                        // Set up movement animation
-                        const anim_state = AnimationState{
-                            .source = .{ source_x, source_y },
-                            .target = .{ source_x, target_y_pos },
-                            .position = .{ source_x, source_y },
-                            .scale = 1.0,
-                            .color_source = color,
-                            .color_target = color,
-                            .color = color,
-                            .startedat = std.time.milliTimestamp(),
-                            .duration = 150,
-                            .notbefore = std.time.milliTimestamp() + 100,
-                            .mode = .easeout,
-                            .animating = true,
-                        };
-
-                        // Start animation at the target position
-                        animator.startAnimation(target_idx, anim_state) catch {};
-                    }
-                }
-            },
-            .GridReset => {
-                // Stop all animations
-                var idx: usize = 0;
-                while (idx < animator.indices.items.len) {
-                    animator.stopAnimation(animator.indices.items[idx]);
-                    idx += 1;
-                }
-                animator.indices.clearRetainingCapacity();
-            },
             else => {},
         }
     }
-}
-
-/// Reset graphics to first level state
-pub fn reset() void {
-    background.index = 0;
-    level = 0;
-    background.load();
-
-    // Clear all animations
-    var idx: usize = 0;
-    while (idx < animator.indices.items.len) {
-        animator.stopAnimation(animator.indices.items[idx]);
-        idx += 1;
-    }
-    animator.indices.clearRetainingCapacity();
 }

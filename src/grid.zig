@@ -1,42 +1,154 @@
 const std = @import("std");
 const cells = @import("cell.zig");
-const CellData = cells.CellData;
-const events = @import("events.zig");
-const CellLayer = @import("cellrenderer.zig").CellLayer;
 const pieces = @import("pieces.zig");
+const events = @import("events.zig");
+const ecs = @import("ecs.zig");
+const ecsroot = @import("ecs");
+const components = @import("components.zig");
+const animsys = @import("systems/animsys.zig");
+const blocktextures = @import("blocktextures.zig");
+
 pub const Grid = struct {
     const Self = @This();
     pub const WIDTH = 10;
     pub const HEIGHT = 20;
-    layer: *CellLayer,
 
-    pub fn init(layer: *CellLayer) !*Self {
-        std.debug.print("init grid\n", .{});
-        const allocator = layer.allocator;
-        const gc = try allocator.create(Self);
+    // Bitgrid to track occupied cells
+    occupied: [HEIGHT][WIDTH]bool,
+    // Color array for occupied cells
+    colors: [HEIGHT][WIDTH][4]u8,
 
-        gc.* = Self{
-            .layer = layer,
+    pub fn init() Self {
+        return Self{
+            .occupied = [_][WIDTH]bool{[_]bool{false} ** WIDTH} ** HEIGHT,
+            .colors = [_][WIDTH][4]u8{[_][4]u8{[_]u8{0} ** 4} ** WIDTH} ** HEIGHT,
         };
-
-        return gc;
     }
 
-    pub fn deinit(self: *Self) void {
-        std.debug.print("deinit grid\n", .{});
-        const allocator = self.layer.allocator;
-        allocator.destroy(self);
+    pub fn isOccupied(self: *const Self, x: usize, y: usize) bool {
+        if (x >= WIDTH or y >= HEIGHT) return false;
+        return self.occupied[y][x];
+    }
+
+    pub fn occupy(self: *Self, gridx: usize, gridy: usize, color: [4]u8) void {
+        const entity = ecs.createEntity();
+        const gx: i32 = @intCast(gridx);
+        const gy: i32 = @intCast(gridy);
+        // Update bit-grid and color array
+        if (gridx < WIDTH and gridy < HEIGHT) {
+            self.occupied[gridy][gridx] = true;
+            self.colors[gridy][gridx] = color;
+        }
+
+        ecs.addOrReplace(components.GridPos, entity, components.GridPos{ .x = gx, .y = gy });
+        ecs.addOrReplace(components.BlockTag, entity, components.BlockTag{});
+
+        // Scale from grid coordinates to pixel coordinates
+        const cellsize_f32: f32 = 35.0; // Using default cell size, could be made configurable
+        const px = @as(f32, @floatFromInt(gridx)) * cellsize_f32;
+        const py = @as(f32, @floatFromInt(gridy)) * cellsize_f32;
+
+        ecs.addOrReplace(components.Position, entity, components.Position{ .x = px, .y = py });
+        ecs.addOrReplace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
+        _ = blocktextures.addTextureComponent(entity, color) catch |err| {
+            std.debug.print("Failed to add texture component: {}\n", .{err});
+            return;
+        };
+
+        const ttl_ms: i64 = 350;
+        animsys.createFlashAnimation(entity, 255, 0, ttl_ms);
+    }
+
+    pub fn vacate(self: *Self, gridy: i32, gridx: i32) void {
+        if (gridx < 0 or gridy < 0 or gridx >= WIDTH or gridy >= HEIGHT) return;
+
+        // Update bit-grid
+        const gx: usize = @intCast(gridx);
+        const gy: usize = @intCast(gridy);
+        self.occupied[gy][gx] = false;
+        self.colors[gy][gx] = .{ 0, 0, 0, 0 }; // Clear color
+
+        // Find and remove entity at this position
+        var blocks_view = ecs.getBlocksView();
+        var iter = blocks_view.entityIterator();
+        var found_entity: ?ecsroot.Entity = null;
+
+        while (iter.next()) |entity| {
+            if (ecs.get(components.GridPos, entity)) |grid_pos| {
+                if (grid_pos.x == gridx and grid_pos.y == gridy) {
+                    found_entity = entity;
+                    break;
+                }
+            }
+        }
+
+        if (found_entity) |entity| {
+            ecs.getWorld().destroy(entity);
+        }
+    }
+
+    pub fn clearall(self: *Self) void {
+        // Clear bit-grid and color array
+        self.occupied = [_][WIDTH]bool{[_]bool{false} ** WIDTH} ** HEIGHT;
+        self.colors = [_][WIDTH][4]u8{[_][4]u8{[_]u8{0} ** 4} ** WIDTH} ** HEIGHT;
+
+        // Remove all block entities
+        var blocks_view = ecs.getBlocksView();
+
+        // We know the maximum entities is WIDTH*HEIGHT
+        var buffer: [WIDTH * HEIGHT]ecsroot.Entity = undefined;
+        var count: usize = 0;
+
+        // Collect entities to destroy (can't modify while iterating)
+        var iter = blocks_view.entityIterator();
+        while (iter.next()) |entity| {
+            if (count < buffer.len) {
+                buffer[count] = entity;
+                count += 1;
+            }
+        }
+
+        // Destroy all collected entities
+        for (buffer[0..count]) |entity| {
+            ecs.getWorld().destroy(entity);
+        }
     }
 
     fn removeline(self: *Self, line: usize) void {
         std.debug.print("removeline {d}\n", .{line});
 
-        // Emit LineClearing event before modifying the grid
-        events.push(.{ .LineClearing = .{ .y = line } }, events.Source.Game);
+        // Clear the line in bit-grid
+        if (line < HEIGHT) {
+            for (0..WIDTH) |x| {
+                self.occupied[line][x] = false;
+                self.colors[line][x] = .{ 0, 0, 0, 0 }; // Clear color
+            }
+        }
 
-        // Clear data cells
-        for (0..WIDTH) |i| {
-            self.layer.ptr(i, line).data = null;
+        // get blocks in this line
+        var blocks_view = ecs.getBlocksView();
+
+        // We know the maximum entities in a line is WIDTH
+        var buffer: [WIDTH]ecsroot.Entity = undefined;
+        var count: usize = 0;
+
+        // Collect entities in the line
+        var iter = blocks_view.entityIterator();
+        while (iter.next()) |entity| {
+            if (ecs.get(components.GridPos, entity)) |grid_pos| {
+                if (grid_pos.y == @as(i32, @intCast(line))) {
+                    if (count < buffer.len) {
+                        buffer[count] = entity;
+                        count += 1;
+                    }
+                }
+            }
+        }
+
+        animsys.createRippledFallingRow(line, buffer[0..count]);
+        // Original entities should be destroyed immediately
+        for (buffer[0..count]) |entity| {
+            ecs.getWorld().destroy(entity);
         }
     }
 
@@ -47,24 +159,80 @@ pub const Grid = struct {
             return; // Cannot shift the last row down
         }
 
-        // Emit RowsShiftedDown event before modifying the grid
-        events.push(.{ .RowsShiftedDown = .{ .start_y = line, .count = 1 } }, events.Source.Game);
-
-        // Move each cell in the row down by one row
-        for (0..WIDTH) |i| {
-            // Shift data cells down
-            self.layer.ptr(i, line + 1).data = self.layer.ptr(i, line).data;
-            self.layer.ptr(i, line).data = null;
-        }
-    }
-
-    pub fn checkline(self: *Self, line: usize) bool {
-        for (0..WIDTH) |i| {
-            if (!self.layer.ptr(i, line).isOccupied()) {
-                return false;
+        // Update the bit-grid by moving cells from line to line+1
+        if (line + 1 < HEIGHT) {
+            for (0..WIDTH) |x| {
+                self.occupied[line + 1][x] = self.occupied[line][x];
+                self.colors[line + 1][x] = self.colors[line][x];
+                self.occupied[line][x] = false;
+                self.colors[line][x] = .{ 0, 0, 0, 0 };
             }
         }
-        return true;
+
+        // Shift all entities in this line down
+        var blocks_view = ecs.getBlocksView();
+
+        // We know the maximum entities in a line is WIDTH
+        var buffer: [WIDTH]ecsroot.Entity = undefined;
+        var pbuffer: [WIDTH]components.Position = undefined;
+        var gbuffer: [WIDTH]components.GridPos = undefined;
+        var count: usize = 0;
+
+        // Collect entities to update
+        var iter = blocks_view.entityIterator();
+        while (iter.next()) |entity| {
+            if (ecs.get(components.GridPos, entity)) |grid_pos| {
+                if (grid_pos.y == @as(i32, @intCast(line))) {
+                    if (count < buffer.len) {
+                        // Store entity
+                        buffer[count] = entity;
+
+                        // Store position
+                        if (ecs.get(components.Position, entity)) |pos| {
+                            pbuffer[count] = pos;
+                        } else {
+                            // If no position component, use default (unlikely)
+                            const cellsize_f32: f32 = 35.0;
+                            const px = @as(f32, @floatFromInt(grid_pos.x)) * cellsize_f32;
+                            const py = @as(f32, @floatFromInt(grid_pos.y)) * cellsize_f32;
+                            pbuffer[count] = .{ .x = px, .y = py };
+                        }
+
+                        // Store grid position
+                        gbuffer[count] = grid_pos;
+
+                        count += 1;
+                    }
+                }
+            }
+        }
+
+        // Update all collected entities
+        for (0..count) |idx| {
+            const entity = buffer[idx];
+            const cellsize_f32: f32 = 35.0;
+            var pos = pbuffer[idx];
+            var grid_pos = gbuffer[idx];
+
+            // Store the original position for animation
+            const start_pos_y = pos.y;
+            const target_pos_y = start_pos_y + cellsize_f32;
+
+            // Remove old components
+            ecs.getWorld().remove(components.GridPos, entity);
+            ecs.getWorld().remove(components.Position, entity);
+
+            // Add updated components (logical update happens immediately)
+            grid_pos.y += 1;
+            ecs.addOrReplace(components.GridPos, entity, grid_pos);
+
+            // Position is updated for game logic
+            pos.y = target_pos_y;
+            ecs.addOrReplace(components.Position, entity, pos);
+
+            // Add animation component
+            animsys.createRowShiftAnimation(entity, start_pos_y, target_pos_y);
+        }
     }
 
     pub fn clear(self: *Self) u8 {
@@ -87,29 +255,11 @@ pub const Grid = struct {
         return count;
     }
 
-    /// Occupy a cell with a color in data table
-    pub fn occupy(self: *Self, gridy: usize, gridx: usize, color: [4]u8) void {
-        // Create logical cell data
-        self.layer.ptr(gridx, gridy).data = CellData.fromRgba(color);
-    }
-
-    /// Remove a cell from data table
-    pub fn vacate(self: *Self, gridy: usize, gridx: usize) void {
-        // Remove from data table
-        self.layer.ptr(gridx, gridy).data = null;
-    }
-
-    pub fn clearall(self: *Self) void {
-        self.layer.clear();
-    }
-
-    pub fn print(self: *Self) void {
+    pub fn print(self: *const Self) void {
         std.debug.print("\n", .{});
-
-        // Print data cells
         for (0..HEIGHT) |y| {
             for (0..WIDTH) |x| {
-                if (self.layer.ptr(x, y).isOccupied()) {
+                if (self.isOccupied(x, y)) {
                     std.debug.print("+", .{});
                 } else {
                     std.debug.print("-", .{});
@@ -119,7 +269,18 @@ pub const Grid = struct {
         }
     }
 
-    pub fn checkmove(self: *Self, piece: ?pieces.tetramino, x: i32, y: i32, r: u32) bool {
+    pub fn checkline(self: *const Self, y: usize) bool {
+        if (y >= HEIGHT) return false;
+
+        for (0..WIDTH) |x| {
+            if (!self.occupied[y][x]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    pub fn checkmove(self: *const Self, piece: ?pieces.tetramino, x: i32, y: i32, r: u32) bool {
         if (piece) |p| {
             const shape = p.shape[r];
             for (shape, 0..) |row, j| {
@@ -127,15 +288,17 @@ pub const Grid = struct {
                     if (cell) {
                         const gx = x + @as(i32, @intCast(j));
                         const gy = y + @as(i32, @intCast(i));
-                        // cell is out of bounds
+
+                        // Cell is out of bounds
                         if (gx < 0 or gx >= WIDTH or gy < 0 or gy >= HEIGHT) {
                             return false;
                         }
 
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
-                        // cell is already occupied via logical_data only
-                        if (self.layer.ptr(ix, iy).isOccupied()) {
+
+                        // Cell is already occupied - direct bit-grid check
+                        if (self.occupied[iy][ix]) {
                             return false;
                         }
                     }
@@ -146,130 +309,118 @@ pub const Grid = struct {
     }
 };
 
-test "init" {
-    const GPA = std.heap.GeneralPurposeAllocator(.{});
-    var gpa = GPA{};
-    const allocator = gpa.allocator();
+test "grid init" {
+    // Initialize ECS world for testing
 
-    const layer = try CellLayer.init(allocator, Grid.WIDTH, Grid.HEIGHT);
-    defer layer.deinit();
+    var grid = Grid.init();
 
-    const g = try Grid.init(layer);
-    defer g.deinit();
-
-    g.occupy(0, 0, .{ 255, 255, 255, 255 });
-
-    // Print the grid
-    g.print();
-
-    // Verify that the cell has the color
-    const cell = g.layer.ptr(0, 0);
-    if (cell.data) |cell_data| {
-        const rgba = cell_data.toRgba();
-        std.debug.print("cell color: {any}\n", .{rgba});
-        try std.testing.expectEqual(@as(u8, 255), rgba[0]);
-        try std.testing.expectEqual(@as(u8, 255), rgba[1]);
-        try std.testing.expectEqual(@as(u8, 255), rgba[2]);
-        try std.testing.expectEqual(@as(u8, 255), rgba[3]);
-    } else {
-        try std.testing.expect(false);
+    // Test that grid is empty
+    for (0..Grid.HEIGHT) |y| {
+        for (0..Grid.WIDTH) |x| {
+            try std.testing.expect(!grid.isOccupied(x, y));
+        }
     }
+
+    // Test occupation
+    grid.occupy(0, 0, .{ 255, 255, 255, 255 });
+    try std.testing.expect(grid.isOccupied(0, 0));
+
+    // Test vacate
+    grid.vacate(0, 0);
+    try std.testing.expect(!grid.isOccupied(0, 0));
+}
+
+test "check line" {
+    // Initialize ECS world for testing
+
+    var grid = Grid.init();
+
+    // Fill a row
+    for (0..Grid.WIDTH) |x| {
+        grid.occupy(5, x, .{ 255, 255, 255, 255 });
+    }
+
+    try std.testing.expect(grid.checkline(5));
+    try std.testing.expect(!grid.checkline(0));
+
+    // Clear grid
+    grid.clearall();
+    try std.testing.expect(!grid.checkline(5));
 }
 
 test "rm" {
     std.debug.print("rm\n", .{});
-    const GPA = std.heap.GeneralPurposeAllocator(.{});
-    var gpa = GPA{};
-    const allocator = gpa.allocator();
 
-    const layer = try CellLayer.init(allocator, Grid.WIDTH, Grid.HEIGHT);
-    defer layer.deinit();
-
-    const g = try Grid.init(layer);
-    defer g.deinit();
+    var grid = Grid.init();
 
     // fill line 0
     for (0..Grid.WIDTH) |i| {
-        g.occupy(0, i, .{ 255, 255, 255, 255 });
+        grid.occupy(0, i, .{ 255, 255, 255, 255 });
     }
 
-    g.print();
-    g.removeline(0);
+    grid.print();
+    grid.removeline(0);
     // assert empty grid
     for (0..Grid.WIDTH) |i| {
-        try std.testing.expect(!g.layer.ptr(i, 0).isOccupied());
+        try std.testing.expect(!grid.isOccupied(i, 0));
     }
-    g.print();
+    grid.print();
 }
 
 test "shift" {
     std.debug.print("shift\n", .{});
-    const GPA = std.heap.GeneralPurposeAllocator(.{});
-    var gpa = GPA{};
-    const allocator = gpa.allocator();
 
-    const layer = try CellLayer.init(allocator, Grid.WIDTH, Grid.HEIGHT);
-    defer layer.deinit();
-
-    const g = try Grid.init(layer);
-    defer g.deinit();
+    var grid = Grid.init();
 
     // fill line 0
     for (0..Grid.WIDTH) |i| {
-        g.occupy(0, i, .{ 255, 255, 255, 255 });
+        grid.occupy(0, i, .{ 255, 255, 255, 255 });
     }
 
     // fill line 1
     for (0..Grid.WIDTH) |i| {
-        g.occupy(1, i, .{ 255, 255, 255, 255 });
+        grid.occupy(1, i, .{ 255, 255, 255, 255 });
     }
 
-    g.print();
+    grid.print();
 
-    g.shiftrow(1);
+    grid.shiftrow(1);
 
     // assert line 0 full
-    try std.testing.expect(g.checkline(0) == true);
+    try std.testing.expect(grid.checkline(0) == true);
 
     // assert line 1 is empty
     for (0..Grid.WIDTH) |i| {
-        try std.testing.expect(!g.layer.ptr(i, 1).isOccupied());
+        try std.testing.expect(!grid.isOccupied(1, i));
     }
 
-    try std.testing.expect(g.checkline(2) == true);
+    try std.testing.expect(grid.checkline(2) == true);
 
-    g.print();
+    grid.print();
 }
 
 test "clear" {
     std.debug.print("clear\n", .{});
-    const GPA = std.heap.GeneralPurposeAllocator(.{});
-    var gpa = GPA{};
-    const allocator = gpa.allocator();
 
-    const layer = try CellLayer.init(allocator, Grid.WIDTH, Grid.HEIGHT);
-    defer layer.deinit();
-
-    const g = try Grid.init(layer);
-    defer g.deinit();
+    var grid = Grid.init();
 
     // fill line 19 (bottom row)
     for (0..Grid.WIDTH) |i| {
-        g.occupy(19, i, .{ 255, 255, 255, 255 });
+        grid.occupy(19, i, .{ 255, 255, 255, 255 });
     }
 
     // Add some cells in rows 18 and 17
-    g.occupy(18, 0, .{ 255, 255, 255, 255 });
-    g.occupy(17, 0, .{ 255, 255, 255, 255 });
-    g.occupy(17, 1, .{ 255, 255, 255, 255 });
+    grid.occupy(18, 0, .{ 255, 255, 255, 255 });
+    grid.occupy(17, 0, .{ 255, 255, 255, 255 });
+    grid.occupy(17, 1, .{ 255, 255, 255, 255 });
 
     // Fill row 16 completely
     for (0..Grid.WIDTH) |i| {
-        g.occupy(16, i, .{ 255, 255, 255, 255 });
+        grid.occupy(16, i, .{ 255, 255, 255, 255 });
     }
-    g.print();
-    _ = g.clear();
-    g.print();
-    try std.testing.expect(g.checkline(19) == false);
-    try std.testing.expect(g.checkline(16) == false);
+    grid.print();
+    _ = grid.clear();
+    grid.print();
+    try std.testing.expect(grid.checkline(19) == false);
+    try std.testing.expect(grid.checkline(16) == false);
 }
