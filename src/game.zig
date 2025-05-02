@@ -266,7 +266,6 @@ pub fn rotate(ccw: bool) void {
     // after rotation, the piece fits, return
     if (checkmove(state.piece.x, state.piece.y)) {
         state.lastmove_ms = state.current_time_ms;
-        events.push(if (ccw) .Rotate else .RotateCCW, events.Source.Game);
         emitPositionUpdate();
         return;
     }
@@ -294,6 +293,7 @@ pub fn rotate(ccw: bool) void {
             std.debug.print("failed kick\n", .{});
             state.piece.x -= kick[0];
             state.piece.y -= kick[1];
+            emitPositionUpdate();
         }
     }
 
