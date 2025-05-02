@@ -88,6 +88,8 @@ fn clearBlockEntities() void {
 
 // Create entity for a single block
 fn createBlockEntity(x: f32, y: f32, color: [4]u8, scale: f32) ecsroot.Entity {
+
+    // Fallback to simple block if texture creation fails
     const entity = ecs.createEntity();
 
     ecs.add(components.Position, entity, components.Position{

@@ -1,11 +1,18 @@
 const std = @import("std");
 const ecs = @import("ecs");
+const ray = @import("raylib.zig");
 
 // rendering and general positioning (pixel coordinates)
 pub const Position = struct { x: f32, y: f32 }; // Replaces anim_state.position [cite: 464]
 
 // visual representation (color, scale, rotation)
 pub const Sprite = struct { rgba: [4]u8, size: f32, rotation: f32 = 0.0 }; // Replaces anim_state.color, scale[cite: 464], CellData.color [cite: 482]
+
+// texture to use for rendering instead of a simple rectangle
+pub const SpriteTexture = struct { 
+    texture: ray.RenderTexture2D,
+    created: bool = false, // flag to indicate if we own this texture
+};
 
 // Tag for temporary flash/fade effects
 pub const Flash = struct {
