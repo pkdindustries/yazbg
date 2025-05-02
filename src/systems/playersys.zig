@@ -89,8 +89,8 @@ fn clearBlockEntities() void {
 
 // Create entity for a single block
 fn createBlockEntity(x: f32, y: f32, color: [4]u8, scale: f32) !ecsroot.Entity {
-    const entity = blocktextures.createTexturedSprite(x, y, color, scale, 0.0) catch |err| {
-        std.debug.print("Failed to create block entity: {}\n", .{err});
+    const entity = blocktextures.createUVTexturedSprite(x, y, color, scale, 0.0) catch |err| {
+        std.debug.print("Failed to create block entity: {} {} {} {} {}\n", .{ color[0], color[1], color[2], color[3], err });
         return err;
     };
     return entity;

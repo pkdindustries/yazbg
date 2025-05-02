@@ -195,9 +195,9 @@ fn createNewEntity() void {
     const rotation = rng.float(f32) * 0.5; // Initial rotation in turns (0.5 = 180 degrees)
 
     var entity = ecs.createEntity();
-    // Position, Sprite, and SpriteTexture components
+    // Position, Sprite, and Texture components
     if (TEXTURED) {
-        entity = blocktextures.createTexturedSprite(x, y, color, size, rotation) catch |err| {
+        entity = blocktextures.createUVTexturedSprite(x, y, color, size, rotation) catch |err| {
             std.debug.print("Failed to create textured block entity: {}\n", .{err});
             return;
         };

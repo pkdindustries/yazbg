@@ -50,7 +50,7 @@ pub const Grid = struct {
 
         ecs.addOrReplace(components.Position, entity, components.Position{ .x = px, .y = py });
         ecs.addOrReplace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
-        _ = blocktextures.addTextureComponent(entity, color) catch |err| {
+        _ = blocktextures.addUVTextureComponent(entity, color) catch |err| {
             std.debug.print("Failed to add texture component: {}\n", .{err});
             return;
         };
