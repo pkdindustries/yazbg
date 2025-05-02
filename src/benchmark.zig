@@ -280,12 +280,10 @@ fn benchmarkRenderSystem() !void {
 fn drawStats(avg_anim_time_ms: f64, avg_render_time_ms: f64) void {
     var buffer: [64]u8 = undefined;
 
-    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Active Entities: {d}/{d}", .{ current_entity_count, NUM_ENTITIES }) catch unreachable, 10, 60, 25, ray.WHITE);
-    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Animation: {d:.3} ms", .{avg_anim_time_ms}) catch unreachable, 10, 80, 25, ray.WHITE);
-    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Rendering: {d:.3} ms", .{avg_render_time_ms}) catch unreachable, 10, 100, 25, ray.WHITE);
-    ray.DrawText(std.fmt.bufPrintZ(&buffer, "FPS: {d}", .{ray.GetFPS()}) catch unreachable, 10, 120, 25, ray.WHITE);
-    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Textures: {s}", .{if (TEXTURED) "ON" else "OFF"}) catch unreachable, 10, 140, 25, ray.WHITE);
-    ray.DrawText("Press ESC to exit", 10, 180, 16, ray.WHITE);
+    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Active Entities: {d}/{d}", .{ ecs.getWorld().len(components.Position), NUM_ENTITIES }) catch unreachable, 10, 60, 20, ray.WHITE);
+    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Animation: {d:.3} ms", .{avg_anim_time_ms}) catch unreachable, 10, 80, 20, ray.WHITE);
+    ray.DrawText(std.fmt.bufPrintZ(&buffer, "Rendering: {d:.3} ms", .{avg_render_time_ms}) catch unreachable, 10, 100, 20, ray.WHITE);
+    ray.DrawText("Press ESC to exit", 10, 120, 25, ray.WHITE);
 }
 
 fn createNewEntity() void {
