@@ -4,7 +4,7 @@ const ecs = @import("../ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("../components.zig");
 const gfx = @import("../gfx.zig");
-
+const blocktextures = @import("../blocktextures.zig");
 // calculate eased value based on animation progress
 pub fn applyEasing(progress: f32, easing_type: components.easing_types) f32 {
     return switch (easing_type) {
@@ -351,6 +351,9 @@ pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Enti
                 .size = 1.0,
             });
 
+            _ = blocktextures.addTextureComponent(new_entity, sprite_color) catch |err| {
+                std.debug.print("Failed to add texture component: {}\n", .{err});
+            };
             // Calculate duration with a ripple effect based on x-position
             // This creates a ripple effect as each cell falls with slight delay
             const duration_ms = @as(i64, @intFromFloat(old_position.x * 5));

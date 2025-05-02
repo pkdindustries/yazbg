@@ -6,6 +6,7 @@ const game = @import("../game.zig");
 const components = @import("../components.zig");
 const animsys = @import("animsys.zig");
 const gfx = @import("../gfx.zig");
+const blocktextures = @import("../blocktextures.zig");
 //active player piece
 var player_entity: ?ecsroot.Entity = null;
 var piece_block_entities: std.ArrayList(ecsroot.Entity) = undefined;
@@ -20,12 +21,12 @@ pub fn init() void {
     if (player_entity == null) {
         player_entity = ecs.createEntity();
 
-        ecs.add(components.Position, player_entity.?, components.Position{
+        ecs.addOrReplace(components.Position, player_entity.?, components.Position{
             .x = 0,
             .y = 0,
         });
 
-        ecs.add(components.ActivePieceTag, player_entity.?, components.ActivePieceTag{});
+        ecs.addOrReplace(components.ActivePieceTag, player_entity.?, components.ActivePieceTag{});
     }
 }
 
@@ -41,7 +42,7 @@ pub fn spawn() void {
     const targety = @as(f32, @floatFromInt(game.state.piece.y * gfx.window.cellsize));
 
     // Position is set immediately for spawning, no animation
-    ecs.add(components.Position, player_entity.?, components.Position{
+    ecs.addOrReplace(components.Position, player_entity.?, components.Position{
         .x = targetx,
         .y = targety,
     });
@@ -87,24 +88,13 @@ fn clearBlockEntities() void {
 }
 
 // Create entity for a single block
-fn createBlockEntity(x: f32, y: f32, color: [4]u8, scale: f32) ecsroot.Entity {
-
-    // Fallback to simple block if texture creation fails
-    const entity = ecs.createEntity();
-
-    ecs.add(components.Position, entity, components.Position{
-        .x = x,
-        .y = y,
-    });
-
-    ecs.add(components.Sprite, entity, components.Sprite{
-        .rgba = color,
-        .size = scale,
-    });
-
+fn createBlockEntity(x: f32, y: f32, color: [4]u8, scale: f32) !ecsroot.Entity {
+    const entity = blocktextures.createTexturedSprite(x, y, color, scale, 0.0) catch |err| {
+        std.debug.print("Failed to create block entity: {}\n", .{err});
+        return err;
+    };
     return entity;
 }
-
 // Draw the player piece and ghost preview by creating entities
 pub fn playerSystem() void {
     if (game.state.piece.current) |p| {
@@ -125,7 +115,7 @@ pub fn playerSystem() void {
             drawY = game.state.piece.y * gfx.window.cellsize;
 
             // Update entity with current position for future animations
-            ecs.add(components.Position, player_entity.?, components.Position{
+            ecs.addOrReplace(components.Position, player_entity.?, components.Position{
                 .x = @floatFromInt(drawX),
                 .y = @floatFromInt(drawY),
             });
@@ -179,7 +169,10 @@ pub fn createPieceEntities(x: i32, y: i32, shape: [4][4]bool, color: [4]u8, is_g
                 const posY = @as(f32, @floatFromInt(y + cellY));
 
                 // Create entity for this block
-                const entity = createBlockEntity(posX, posY, color, scale);
+                const entity = createBlockEntity(posX, posY, color, scale) catch |err| {
+                    std.debug.print("Failed to create block entity: {}\n", .{err});
+                    return;
+                };
 
                 // Store entity reference in appropriate list
                 if (is_ghost) {

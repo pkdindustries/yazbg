@@ -13,7 +13,7 @@ pub inline fn createEntity() ecs.Entity {
     return world.?.create();
 }
 
-pub inline fn add(comptime T: type, entity: ecs.Entity, value: anytype) void {
+pub inline fn addOrReplace(comptime T: type, entity: ecs.Entity, value: anytype) void {
     // The caller passes `value` whose type must match `T`.
     _ = @as(T, value); // type-check
     if (world.?.has(T, entity)) {
@@ -30,16 +30,6 @@ pub inline fn get(comptime T: type, entity: ecs.Entity) ?T {
 /// Whether `entity` currently owns component `T`.
 pub inline fn has(comptime T: type, entity: ecs.Entity) bool {
     return world.?.has(T, entity);
-}
-
-pub fn createRenderView() @TypeOf(world.?.view(.{ components.Position, components.Sprite }, .{})) {
-    return world.?.view(.{ components.Position, components.Sprite }, .{});
-}
-
-pub fn getActivePiece() ?ecs.Entity {
-    var view = world.?.view(.{components.ActivePieceTag}, .{});
-    var iter = view.entityIterator();
-    return iter.next();
 }
 
 pub fn getBlocksView() @TypeOf(world.?.view(.{ components.BlockTag, components.GridPos }, .{})) {

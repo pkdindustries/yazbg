@@ -6,16 +6,13 @@ const components = @import("components.zig");
 const animsys = @import("systems/animsys.zig");
 const rendersys = @import("systems/rendersys.zig");
 const gfx = @import("gfx.zig");
+const blocktextures = @import("blocktextures.zig");
 
 // Benchmark parameters
 const NUM_ENTITIES = 100000;
 const ANIMATION_DURATION_MS = 1000;
 const BENCHMARK_ITERATIONS = 1;
-
-// -----------------------------------------------------------------------------
-// Globals
-// -----------------------------------------------------------------------------
-
+const TEXTURED = true;
 // All benchmark entities
 var entities: [NUM_ENTITIES]ecsroot.Entity = undefined;
 
@@ -56,7 +53,8 @@ fn resetAnimations() void {
     const render_w = ray.GetRenderWidth();
     const render_h = ray.GetRenderHeight();
 
-    for (entities) |entity| {
+    // Only process up to current_entity_count, not the full array
+    for (entities[0..current_entity_count]) |entity| {
         // Get position
         if (ecs.get(components.Position, entity)) |pos| {
             const x = pos.x;
@@ -73,7 +71,7 @@ fn resetAnimations() void {
             const target_y = @as(f32, @floatFromInt(rng.intRangeAtMost(c_int, -render_h, render_h * 2)));
 
             // Update animation component
-            ecs.add(components.Animation, entity, components.Animation{
+            ecs.addOrReplace(components.Animation, entity, components.Animation{
                 .animate_position = true,
                 .start_pos = .{ x, y },
                 .target_pos = .{ target_x, target_y },
@@ -106,6 +104,9 @@ fn setupRenderingForBenchmark() !void {
         .width = 1024,
         .height = 768,
     };
+
+    // Initialize block textures for the benchmark
+    try blocktextures.init();
 }
 
 fn benchmarkRenderSystem() !void {
@@ -169,39 +170,56 @@ fn createNewEntity() void {
     const screen_w = ray.GetScreenWidth();
     const screen_h = ray.GetScreenHeight();
 
-    const entity = ecs.createEntity();
-    entities[current_entity_count] = entity;
-
     // Random position
     const x = @as(f32, @floatFromInt(rng.intRangeAtMost(c_int, 0, screen_w)));
     const y = @as(f32, @floatFromInt(rng.intRangeAtMost(c_int, 0, screen_h)));
 
-    // Random color
-    const r = rng.intRangeAtMost(u8, 50, 255);
-    const g = rng.intRangeAtMost(u8, 50, 255);
-    const b = rng.intRangeAtMost(u8, 50, 255);
-    const a = rng.intRangeAtMost(u8, 150, 255);
+    const block_colors = [_][4]u8{
+        .{ 255, 0, 0, 255 }, // Red
+        .{ 0, 255, 0, 255 }, // Green
+        .{ 0, 0, 255, 255 }, // Blue
+        .{ 255, 255, 0, 255 }, // Yellow
+        .{ 255, 0, 255, 255 }, // Magenta
+        .{ 0, 255, 255, 255 }, // Cyan
+        .{ 255, 165, 0, 255 }, // Orange
+        .{ 128, 0, 128, 255 }, // Purple
+    };
+
+    const color_idx = rng.intRangeAtMost(usize, 0, block_colors.len - 1);
+    const color = block_colors[color_idx];
 
     // Random size
     const size = rng.float(f32) * 2 + 0.5;
 
-    // Add position component
-    ecs.add(components.Position, entity, components.Position{
-        .x = x,
-        .y = y,
-    });
+    // Random rotation
+    const rotation = rng.float(f32) * 0.5; // Initial rotation in turns (0.5 = 180 degrees)
 
-    // Add sprite component
-    ecs.add(components.Sprite, entity, components.Sprite{
-        .rgba = .{ r, g, b, a },
-        .size = size,
-    });
+    var entity = ecs.createEntity();
+    // Position, Sprite, and SpriteTexture components
+    if (TEXTURED) {
+        entity = blocktextures.createTexturedSprite(x, y, color, size, rotation) catch |err| {
+            std.debug.print("Failed to create textured block entity: {}\n", .{err});
+            return;
+        };
+    } else {
+        ecs.addOrReplace(components.Position, entity, components.Position{
+            .x = x,
+            .y = y,
+        });
+        ecs.addOrReplace(components.Sprite, entity, components.Sprite{
+            .rgba = color,
+            .size = size,
+            .rotation = rotation,
+        });
+    }
+    // Store the entity in our array
+    entities[current_entity_count] = entity;
 
     // Add animation component (random movement)
     const target_x = @as(f32, @floatFromInt(rng.intRangeAtMost(c_int, 0, screen_w)));
     const target_y = @as(f32, @floatFromInt(rng.intRangeAtMost(c_int, 0, screen_h)));
 
-    ecs.add(components.Animation, entity, components.Animation{
+    ecs.addOrReplace(components.Animation, entity, components.Animation{
         .animate_position = true,
         .start_pos = .{ x, y },
         .target_pos = .{ target_x, target_y },
@@ -209,8 +227,8 @@ fn createNewEntity() void {
         .start_scale = size,
         .target_scale = rng.float(f32) * 2 + 0.5,
         .animate_rotation = true,
-        .start_rotation = 0.0,
-        .target_rotation = rng.float(f32) * 2.0,
+        .start_rotation = rotation,
+        .target_rotation = rotation + rng.float(f32) * 2.0,
         .start_time = std.time.milliTimestamp(),
         .duration = ANIMATION_DURATION_MS,
         .easing = @enumFromInt(rng.intRangeAtMost(u8, 0, 3)),
@@ -225,8 +243,8 @@ fn runFrame(timer: *std.time.Timer, frame_count: *u32, total_anim_time: *u64, to
     const animation_progress = @as(f32, @floatFromInt(frame_count.*)) / @as(f32, @floatFromInt(ANIMATION_DURATION_MS * 4));
     const target_entities = @min(NUM_ENTITIES, @as(usize, @intFromFloat(animation_progress * @as(f32, @floatFromInt(NUM_ENTITIES)))));
 
-    // Limit how many entities we create per frame to avoid lag spikes
-    const max_new_per_frame = 100;
+    // Limit how many entities we create per frame
+    const max_new_per_frame = 1000;
     const to_create = @min(target_entities - current_entity_count, max_new_per_frame);
 
     // Create new entities if needed
@@ -318,6 +336,8 @@ fn visualBenchmark() !void {
 fn cleanup() void {
     std.debug.print("\nCleaning up...\n", .{});
 
+    // Cleanup block textures
+
     // Close window
     ray.CloseWindow();
 
@@ -327,7 +347,7 @@ fn cleanup() void {
 
 pub fn main() !void {
     std.debug.print("Starting Animation/Render System Benchmark\n", .{});
-    std.debug.print("Entities: {d}, Iterations: {d}\n", .{ NUM_ENTITIES, BENCHMARK_ITERATIONS });
+    std.debug.print("Entities: {d}, Iterations: {d} Textures: {}\n", .{ NUM_ENTITIES, BENCHMARK_ITERATIONS, TEXTURED });
 
     // Seed global RNG
     var seed: u64 = undefined;
@@ -343,12 +363,8 @@ pub fn main() !void {
     // Run the visual benchmark instead of the performance tests
     try visualBenchmark();
 
-    // For performance benchmarks (uncomment these and comment out visualBenchmark)
-    // try benchmarkAnimationSystem();
-    // resetAnimations();
-    // try setupRenderingForBenchmark();
-    // try benchmarkRenderSystem();
-    // cleanup();
+    // Always cleanup
+    cleanup();
 
     std.debug.print("\nBenchmark complete!\n", .{});
 }

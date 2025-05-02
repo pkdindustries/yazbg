@@ -6,6 +6,7 @@ const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
 const animsys = @import("systems/animsys.zig");
+const blocktextures = @import("blocktextures.zig");
 
 pub const Grid = struct {
     const Self = @This();
@@ -33,22 +34,26 @@ pub const Grid = struct {
         const entity = ecs.createEntity();
         const gx: i32 = @intCast(gridx);
         const gy: i32 = @intCast(gridy);
-        ecs.add(components.GridPos, entity, components.GridPos{ .x = gx, .y = gy });
-        ecs.add(components.BlockTag, entity, components.BlockTag{});
-
         // Update bit-grid and color array
         if (gridx < WIDTH and gridy < HEIGHT) {
             self.occupied[gridy][gridx] = true;
             self.colors[gridy][gridx] = color;
         }
 
+        ecs.addOrReplace(components.GridPos, entity, components.GridPos{ .x = gx, .y = gy });
+        ecs.addOrReplace(components.BlockTag, entity, components.BlockTag{});
+
         // Scale from grid coordinates to pixel coordinates
         const cellsize_f32: f32 = 35.0; // Using default cell size, could be made configurable
         const px = @as(f32, @floatFromInt(gridx)) * cellsize_f32;
         const py = @as(f32, @floatFromInt(gridy)) * cellsize_f32;
 
-        ecs.add(components.Position, entity, components.Position{ .x = px, .y = py });
-        ecs.add(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
+        ecs.addOrReplace(components.Position, entity, components.Position{ .x = px, .y = py });
+        ecs.addOrReplace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
+        _ = blocktextures.addTextureComponent(entity, color) catch |err| {
+            std.debug.print("Failed to add texture component: {}\n", .{err});
+            return;
+        };
 
         const ttl_ms: i64 = 350;
         animsys.createFlashAnimation(entity, 255, 0, ttl_ms);
@@ -219,11 +224,11 @@ pub const Grid = struct {
 
             // Add updated components (logical update happens immediately)
             grid_pos.y += 1;
-            ecs.add(components.GridPos, entity, grid_pos);
+            ecs.addOrReplace(components.GridPos, entity, grid_pos);
 
             // Position is updated for game logic
             pos.y = target_pos_y;
-            ecs.add(components.Position, entity, pos);
+            ecs.addOrReplace(components.Position, entity, pos);
 
             // Add animation component
             animsys.createRowShiftAnimation(entity, start_pos_y, target_pos_y);

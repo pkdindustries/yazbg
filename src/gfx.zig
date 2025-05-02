@@ -12,7 +12,7 @@ const animsys = @import("systems/animsys.zig");
 const playersys = @import("systems/playersys.zig");
 const animationSystem = animsys.animationSystem;
 const playerSystem = playersys.playerSystem;
-
+const blocktextures = @import("blocktextures.zig");
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
     pub const OGHEIGHT: i32 = 760;
@@ -291,6 +291,8 @@ pub fn init() !void {
 
     // Initialize player system
     playersys.init();
+
+    try blocktextures.init();
 }
 
 pub fn deinit() void {
