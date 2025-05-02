@@ -7,12 +7,137 @@ const animsys = @import("systems/anim.zig");
 const rendersys = @import("systems/render.zig");
 const gfx = @import("gfx.zig");
 const blocktextures = @import("blocktextures.zig");
+const Grid = @import("grid.zig").Grid;
+const pieces = @import("pieces.zig");
+
+// -----------------------------------------------------------------------------
+// Grid/Game-logic micro-benchmark
+// -----------------------------------------------------------------------------
+
+// How many random collision-checks to run. Reduced to 50k when including gridsvc
+// to avoid too many entity creations but still get meaningful measurements.
+const GRID_BENCH_ITERATIONS: usize = 500_0000;
+
+fn benchmarkGridLogic() !void {
+    ray.SetTraceLogLevel(ray.LOG_ERROR);
+
+    std.debug.print("\nRunning Grid/Game-logic benchmark\n", .{});
+
+    // We need ECS to test the grid service
+    try setupEcs();
+    defer ecs.deinit();
+
+    // Setup raylib window for textures to work
+    ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT);
+    ray.InitWindow(640, 480, "Grid Benchmark");
+    defer ray.CloseWindow();
+
+    // Initialize window settings needed for block textures
+    gfx.window = .{
+        .cellsize = 35,
+        .cellpadding = 2,
+        .gridoffsetx = 10,
+        .gridoffsety = 10,
+        .width = 640,
+        .height = 480,
+    };
+
+    // Initialize block textures for gridsvc
+    try blocktextures.init();
+    defer blocktextures.deinit();
+
+    var grid = Grid.init();
+
+    // Import gridsvc
+    const gridsvc = @import("systems/gridsvc.zig");
+
+    // Timer for the whole loop
+    var timer = try std.time.Timer.start();
+
+    const rng = prng.random();
+
+    // Main tight loop – perform random `checkmove` calls and gridsvc updates
+    std.debug.print("Starting grid benchmark with {d} iterations...\n", .{GRID_BENCH_ITERATIONS});
+    var i: usize = 0;
+    while (i < GRID_BENCH_ITERATIONS) : (i += 1) {
+        // Random tetramino and rotation
+        const piece_idx: u32 = rng.intRangeAtMost(u32, 0, 6);
+        const piece = pieces.tetraminos[piece_idx];
+        const rot: u32 = rng.intRangeAtMost(u32, 0, 3);
+
+        // Random position – allow a small out-of-bounds range to exercise the
+        // boundary checks inside `checkmove`.
+        const x: i32 = rng.intRangeAtMost(i32, -2, Grid.WIDTH + 1);
+        const y: i32 = rng.intRangeAtMost(i32, -2, Grid.HEIGHT + 1);
+
+        // Perform the collision test
+        const result = grid.checkmove(piece, x, y, rot);
+
+        // If valid move and within bounds, update the ECS state with gridsvc
+        // Find the width and height by examining the shape
+        const width = 4; // tetrominos are always 4x4 maximum
+        const height = 4;
+        if (result and x >= 0 and y >= 0 and x + width <= Grid.WIDTH and y + height <= Grid.HEIGHT) {
+            // Every 1000th iteration, actually occupy cells to avoid too much spam
+            if (i % 1000 == 0) {
+                // Occupy cells with the piece color (randomly select a color)
+                const color_idx = rng.intRangeAtMost(usize, 0, 7);
+                const colors = [_][4]u8{
+                    .{ 255, 0, 0, 255 }, // red
+                    .{ 0, 255, 0, 255 }, // green
+                    .{ 0, 0, 255, 255 }, // blue
+                    .{ 255, 255, 0, 255 }, // yellow
+                    .{ 0, 255, 255, 255 }, // cyan
+                    .{ 255, 0, 255, 255 }, // magenta
+                    .{ 255, 128, 0, 255 }, // orange
+                    .{ 128, 128, 255, 255 }, // purple
+                };
+
+                // Occupy cells based on the piece shape
+                for (0..height) |py| {
+                    for (0..width) |px| {
+                        if (piece.shape[rot][py][px]) {
+                            const abs_x: usize = @intCast(x + @as(i32, @intCast(px)));
+                            const abs_y: usize = @intCast(y + @as(i32, @intCast(py)));
+                            gridsvc.occupyCell(abs_x, abs_y, colors[color_idx]);
+                        }
+                    }
+                }
+
+                // Every 5000th iteration, also test clearing cells
+                if (i % 5000 == 0) {
+                    // Clear a random row
+                    const row = rng.intRangeAtMost(usize, 0, Grid.HEIGHT - 1);
+                    gridsvc.removeLineCells(row);
+
+                    // And shift a random row
+                    const shift_row = rng.intRangeAtMost(usize, 0, Grid.HEIGHT - 2);
+                    gridsvc.shiftRowCells(shift_row);
+
+                    // Every 20000th iteration, clear everything
+                    if (i % 20000 == 0) {
+                        gridsvc.clearAllCells();
+                    }
+                }
+            }
+        }
+    }
+
+    const elapsed = timer.read();
+    const elapsed_ms: f64 = @as(f64, @floatFromInt(elapsed)) / 1_000_000.0;
+    const iter_per_ms: f64 = @as(f64, @floatFromInt(GRID_BENCH_ITERATIONS)) / elapsed_ms;
+
+    std.debug.print("\n==== GRID BENCHMARK RESULTS ====\n", .{});
+    std.debug.print("Grid checked {d} iterations in {d:.3} ms\n", .{ GRID_BENCH_ITERATIONS, elapsed_ms });
+    std.debug.print("Performance: {d:.0} iterations/ms\n", .{iter_per_ms});
+    std.debug.print("===============================\n", .{});
+}
 
 // Benchmark parameters
 const NUM_ENTITIES = 100000;
 const ANIMATION_DURATION_MS = 5000;
 const BENCHMARK_ITERATIONS = 1;
-var TEXTURED = false;
+var TEXTURED = true;
 // All benchmark entities
 var entities: [NUM_ENTITIES]ecsroot.Entity = undefined;
 
@@ -282,7 +407,7 @@ fn runFrame(timer: *std.time.Timer, frame_count: *u32, total_anim_time: *u64, to
     batch_frame_count += 1;
 
     // Print info every 10000 entities (only when we cross a milestone)
-    const milestone = current_entity_count / 100;
+    const milestone = current_entity_count / 10000;
     if (milestone > last_entity_milestone and current_entity_count > 0) {
         const batch_avg_anim_time_ms = @as(f64, @floatFromInt(batch_anim_time)) / @as(f64, @floatFromInt(batch_frame_count)) / 1_000_000.0;
         const batch_avg_render_time_ms = @as(f64, @floatFromInt(batch_render_time)) / @as(f64, @floatFromInt(batch_frame_count)) / 1_000_000.0;
@@ -299,6 +424,8 @@ fn runFrame(timer: *std.time.Timer, frame_count: *u32, total_anim_time: *u64, to
 }
 
 fn visualBenchmark() !void {
+    ray.SetTraceLogLevel(ray.LOG_ERROR);
+
     std.debug.print("\nStarting Visual Benchmark (animation demo)...\n", .{});
     std.debug.print("Press ESC to exit\n", .{});
 
@@ -356,7 +483,10 @@ pub fn main() !void {
     std.crypto.random.bytes(std.mem.asBytes(&seed));
     prng = std.Random.DefaultPrng.init(seed);
 
-    // Setup
+    // Run grid/game-logic benchmark first (no ECS or rendering involved)
+    try benchmarkGridLogic();
+
+    // Setup for animation/render benchmark
     try setupEcs();
     // Setup rendering
     try setupRenderingForBenchmark();
