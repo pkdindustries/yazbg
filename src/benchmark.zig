@@ -92,38 +92,6 @@ fn resetAnimations() void {
     }
 }
 
-fn benchmarkAnimationSystem() !void {
-    std.debug.print("\nBenchmarking Animation System...\n", .{});
-
-    var timer = try std.time.Timer.start();
-    var total_time: u64 = 0;
-
-    for (0..BENCHMARK_ITERATIONS) |i| {
-        // Reset timer
-        timer.reset();
-
-        // Run animation system
-        animsys.animationSystem();
-
-        // Record elapsed time
-        const elapsed = timer.read();
-        total_time += elapsed;
-
-        // Print progress every 10 iterations
-        if ((i + 1) % 10 == 0) {
-            std.debug.print("Iteration {d}/{d}: {d} ns\n", .{ i + 1, BENCHMARK_ITERATIONS, elapsed });
-        }
-    }
-
-    const avg_time = total_time / BENCHMARK_ITERATIONS;
-    const avg_time_ms = @as(f64, @floatFromInt(avg_time)) / 1_000_000.0;
-
-    std.debug.print("\nAnimation System Benchmark Results:\n", .{});
-    std.debug.print("Total entities: {d}\n", .{NUM_ENTITIES});
-    std.debug.print("Average time: {d:.4} ms\n", .{avg_time_ms});
-    std.debug.print("Entities per ms: {d:.2}\n", .{@as(f64, @floatFromInt(NUM_ENTITIES)) / avg_time_ms});
-}
-
 fn setupRenderingForBenchmark() !void {
     std.debug.print("\nSetting up rendering for benchmark...\n", .{});
     ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
@@ -294,19 +262,14 @@ fn runFrame(timer: *std.time.Timer, frame_count: *u32, total_anim_time: *u64, to
     total_render_time.* += render_time;
     batch_render_time += render_time;
     batch_frame_count += 1;
-    
+
     // Print info every 10000 entities (only when we cross a milestone)
     const milestone = current_entity_count / 10000;
     if (milestone > last_entity_milestone and current_entity_count > 0) {
         const batch_avg_anim_time_ms = @as(f64, @floatFromInt(batch_anim_time)) / @as(f64, @floatFromInt(batch_frame_count)) / 1_000_000.0;
         const batch_avg_render_time_ms = @as(f64, @floatFromInt(batch_render_time)) / @as(f64, @floatFromInt(batch_frame_count)) / 1_000_000.0;
-        std.debug.print("Entities: {d}, FPS: {d}, Anim: {d:.3} ms, Draw: {d:.3} ms\n", .{ 
-            current_entity_count, 
-            ray.GetFPS(),
-            batch_avg_anim_time_ms,
-            batch_avg_render_time_ms
-        });
-        
+        std.debug.print("Entities: {d}, FPS: {d}, Anim: {d:.3} ms, Draw: {d:.3} ms\n", .{ current_entity_count, ray.GetFPS(), batch_avg_anim_time_ms, batch_avg_render_time_ms });
+
         // Reset batch counters
         batch_frame_count = 0;
         batch_anim_time = 0;
