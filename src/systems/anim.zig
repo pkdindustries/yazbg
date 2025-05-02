@@ -224,6 +224,7 @@ pub fn createFadeAnimation(entity: ecsroot.Entity, from_alpha: u8, to_alpha: u8,
         .start_time = std.time.milliTimestamp(),
         .duration = duration_ms,
         .easing = easing_type,
+        .remove_when_done = true,
     };
 
     world.add(entity, anim);
@@ -410,7 +411,7 @@ pub fn createPlayerPieceHardDrop(piece_blocks: []const @import("../events.zig").
         const start_x = @as(f32, @floatFromInt(block.x));
         const block_start_y = @as(f32, @floatFromInt(start_y + @as(i32, @intCast(block.y - start_y))));
         const block_target_y = @as(f32, @floatFromInt(target_y + @as(i32, @intCast(block.y - start_y))));
-        
+
         // Create a new entity for the hard drop animation
         const new_entity = world.create();
 

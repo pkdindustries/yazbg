@@ -228,9 +228,9 @@ pub fn harddrop() void {
                             .y = piece_pos.y,
                         });
 
-                        // Add Sprite component with the same color
+                        // Add Sprite component with the same color, full opacity
                         ecs.getWorld().add(new_entity, components.Sprite{
-                            .rgba = color,
+                            .rgba = .{ color[0], color[1], color[2], 60 },
                             .size = 1.0,
                         });
 
