@@ -14,6 +14,7 @@ https://www.raylib.com/
 ```bash
 git clone https://github.com/pkdindustries/yazbg
 cd yazbg
+zig build benchmark
 zig build run
 ```
 
