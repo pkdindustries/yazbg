@@ -25,7 +25,6 @@ pub const YAZBG = struct {
         x: i32 = 0,
         y: i32 = 0,
         r: u32 = 0,
-        start_y: i32 = 0, // Starting Y position (for animations)
     } = .{},
 };
 
