@@ -68,7 +68,7 @@ pub fn process(queue: *events.EventQueue) void {
             .MoveRight => playSound(.click),
             .MoveDown => playSound(.click),
             .Rotate, .RotateCCW => playSound(.woosh),
-            .HardDrop => playSound(.woosh),
+            .HardDropEffect => |_| playSound(.woosh),
             .SwapPiece => playSound(.click),
             .Pause => playSound(.click),
             .Kick => playSound(.clack),

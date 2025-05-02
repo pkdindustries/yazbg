@@ -486,6 +486,7 @@ pub fn process(queue: *events.EventQueue) void {
             .MoveLeft => playersys.move(1, 0),
             .MoveRight => playersys.move(-1, 0),
             .MoveDown => playersys.move(0, -1),
+            .HardDropEffect => playersys.harddrop(),
             .Spawn => playersys.spawn(),
 
             // Grid service handling
@@ -505,7 +506,6 @@ pub fn process(queue: *events.EventQueue) void {
                 }
             },
             .GridReset => gridsvc.clearAllCells(),
-
             else => {},
         }
     }

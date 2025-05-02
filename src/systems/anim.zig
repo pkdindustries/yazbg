@@ -151,12 +151,20 @@ pub fn animationSystem() void {
                     num_entities += 1;
                 }
             }
+
+            // Check if we should destroy the entity
+            if (animation.destroy_entity_when_done) {
+                world.destroy(entity);
+            }
         }
     }
 
     // remove Animation component from completed animations
     for (entities_to_update[0..num_entities]) |entity| {
-        world.remove(components.Animation, entity);
+        // Only if entity still exists (might have been destroyed if destroy_entity_when_done was true)
+        if (world.valid(entity)) {
+            world.remove(components.Animation, entity);
+        }
     }
 }
 
@@ -389,5 +397,51 @@ pub fn createPlayerPieceAnimation(entity: ecsroot.Entity, from_x: f32, from_y: f
             to_x, to_y, // Target position
             50, // 50ms duration (same as original player animation)
             .ease_in_out);
+    }
+}
+
+// Create hard drop animation effect for player piece blocks
+pub fn createPlayerPieceHardDrop(piece_blocks: []const @import("../events.zig").CellDataPos, count: usize, start_y: i32, target_y: i32) void {
+    const world = ecs.getWorld();
+
+    // Create animation for each piece block
+    for (piece_blocks[0..count]) |block| {
+        // Get block position in world coordinates
+        const start_x = @as(f32, @floatFromInt(block.x));
+        const block_start_y = @as(f32, @floatFromInt(start_y + @as(i32, @intCast(block.y - start_y))));
+        const block_target_y = @as(f32, @floatFromInt(target_y + @as(i32, @intCast(block.y - start_y))));
+        
+        // Create a new entity for the hard drop animation
+        const new_entity = world.create();
+
+        // Add Position component
+        world.add(new_entity, components.Position{
+            .x = start_x,
+            .y = block_start_y,
+        });
+
+        // Add Sprite component with the block color
+        world.add(new_entity, components.Sprite{
+            .rgba = block.color,
+            .size = 1.0,
+        });
+
+        _ = textures.addBlockTextureWithAtlas(new_entity, block.color) catch |err| {
+            std.debug.print("Failed to add texture component: {}\n", .{err});
+        };
+
+        // Create animation component with fast drop
+        const anim = components.Animation{
+            .animate_position = true,
+            .start_pos = .{ start_x, block_start_y },
+            .target_pos = .{ start_x, block_target_y },
+            .start_time = std.time.milliTimestamp(),
+            .duration = 100, // Fast animation (100ms)
+            .easing = .ease_in,
+            .remove_when_done = true,
+            .destroy_entity_when_done = true, // Destroy the entity when animation completes
+        };
+
+        world.add(new_entity, anim);
     }
 }

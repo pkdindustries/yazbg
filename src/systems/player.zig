@@ -197,6 +197,69 @@ pub fn ghosty() i32 {
     return y;
 }
 
+pub fn harddrop() void {
+    // Create animations from current piece blocks to ghost piece positions
+    std.debug.print("creating hard drop animations\n", .{});
+
+    if (piece_block_entities.items.len == 0) return;
+    if (ghost_block_entities.items.len == 0) {
+        return; // Nothing to animate
+    }
+
+    // We need to create animations for each piece block
+    for (piece_block_entities.items) |piece_entity| {
+        if (ecs.get(components.Position, piece_entity)) |piece_pos| {
+            // Find the corresponding ghost block that has the same X position
+            for (ghost_block_entities.items) |ghost_entity| {
+                if (ecs.get(components.Position, ghost_entity)) |ghost_pos| {
+                    if (@trunc(piece_pos.x) == @trunc(ghost_pos.x)) {
+                        // Get color from the piece block
+                        var color = [4]u8{ 255, 255, 255, 255 };
+                        if (ecs.get(components.Sprite, piece_entity)) |sprite| {
+                            color = sprite.rgba;
+                        }
+
+                        // Create a new entity for the hard drop animation
+                        const new_entity = ecs.getWorld().create();
+
+                        // Add Position component
+                        ecs.getWorld().add(new_entity, components.Position{
+                            .x = piece_pos.x,
+                            .y = piece_pos.y,
+                        });
+
+                        // Add Sprite component with the same color
+                        ecs.getWorld().add(new_entity, components.Sprite{
+                            .rgba = color,
+                            .size = 1.0,
+                        });
+
+                        // Add texture
+                        _ = textures.addBlockTextureWithAtlas(new_entity, color) catch |err| {
+                            std.debug.print("Failed to add texture component: {}\n", .{err});
+                        };
+
+                        // Create animation component with fast drop to ghost position
+                        const anim = components.Animation{
+                            .animate_position = true,
+                            .start_pos = .{ piece_pos.x, piece_pos.y },
+                            .target_pos = .{ ghost_pos.x, ghost_pos.y },
+                            .start_time = std.time.milliTimestamp(),
+                            .duration = 100, // Fast animation (100ms)
+                            .easing = .ease_in,
+                            .remove_when_done = true,
+                            .destroy_entity_when_done = true, // Destroy the entity when animation completes
+                        };
+
+                        ecs.getWorld().add(new_entity, anim);
+                        break; // Found the corresponding ghost block, move to next piece block
+                    }
+                }
+            }
+        }
+    }
+}
+
 // Clean up when the game ends
 pub fn deinit() void {
     clearBlockEntities();

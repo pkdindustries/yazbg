@@ -25,6 +25,7 @@ pub const YAZBG = struct {
         x: i32 = 0,
         y: i32 = 0,
         r: u32 = 0,
+        start_y: i32 = 0, // Starting Y position (for animations)
     } = .{},
 };
 
@@ -158,6 +159,8 @@ pub fn harddrop() void {
             }
         }
 
+        // Signal to the player system to create hard drop animations
+        events.push(.HardDropEffect, events.Source.Game);
         // Emit a single PieceLocked event with all blocks
         events.push(.{ .PieceLocked = .{ .blocks = blocks, .count = block_count } }, events.Source.Game);
     }

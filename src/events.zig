@@ -48,7 +48,8 @@ pub const Event = union(enum) {
     MoveDown,
     Rotate,
     RotateCCW,
-    HardDrop,
+    HardDropEffect,
+    HardDrop, // player hard-dropped the piece
     SwapPiece,
     Pause,
     Reset,
