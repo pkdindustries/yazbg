@@ -24,12 +24,12 @@ pub fn drawSprites() void {
         const draw_x = @as(i32, @intFromFloat(pos.x));
         const draw_y = @as(i32, @intFromFloat(pos.y));
 
-        drawbox(draw_x, draw_y, sprite.rgba, sprite.size);
+        drawbox(draw_x, draw_y, sprite.rgba, sprite.size, sprite.rotation);
     }
 }
 
-// Draw a rounded box with scale factor applied
-pub fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32) void {
+// Draw a rounded box with scale factor applied and rotation
+pub fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32, rotation: f32) void {
     // Calculate scaled dimensions
     const cellsize_scaled = @as(f32, @floatFromInt(gfx.window.cellsize)) * scale;
     const padding_scaled = @as(f32, @floatFromInt(gfx.window.cellpadding)) * scale;
@@ -45,18 +45,28 @@ pub fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32) void {
     const rect_x = center_x - width_scaled / 2.0;
     const rect_y = center_y - width_scaled / 2.0; // Width used for height to ensure square
 
-    // Draw rounded rectangle
-    ray.DrawRectangleRounded(ray.Rectangle{
+    // Create a rectangle centered on the draw position
+    const rect = ray.Rectangle{
         .x = rect_x,
         .y = rect_y,
         .width = width_scaled,
         .height = width_scaled, // Same as width for perfect square
-    }, 0.4, // Roundness
-        20, // Segments
-        ray.Color{
-            .r = color[0],
-            .g = color[1],
-            .b = color[2],
-            .a = color[3],
-        });
+    };
+
+    const ray_color = ray.Color{
+        .r = color[0],
+        .g = color[1],
+        .b = color[2],
+        .a = color[3],
+    };
+
+    if (rotation != 0) {
+        ray.DrawRectanglePro(rect, ray.Vector2{ .x = width_scaled / 2.0, .y = width_scaled / 2.0 }, // Origin (center of rectangle)
+            rotation * 360.0, // Convert rotations to degrees (e.g., 1.0 = 360 degrees)
+            ray_color);
+    } else {
+        ray.DrawRectangleRounded(rect, 0.4, // Roundness
+            20, // Segments
+            ray_color);
+    }
 }

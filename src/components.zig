@@ -4,8 +4,8 @@ const ecs = @import("ecs");
 // rendering and general positioning (pixel coordinates)
 pub const Position = struct { x: f32, y: f32 }; // Replaces anim_state.position [cite: 464]
 
-// visual representation (color, scale)
-pub const Sprite = struct { rgba: [4]u8, size: f32 }; // Replaces anim_state.color, scale[cite: 464], CellData.color [cite: 482]
+// visual representation (color, scale, rotation)
+pub const Sprite = struct { rgba: [4]u8, size: f32, rotation: f32 = 0.0 }; // Replaces anim_state.color, scale[cite: 464], CellData.color [cite: 482]
 
 // Tag for temporary flash/fade effects
 pub const Flash = struct {
@@ -26,6 +26,7 @@ pub const Animation = struct {
     animate_alpha: bool = false,
     animate_scale: bool = false,
     animate_color: bool = false,
+    animate_rotation: bool = false,
 
     // Position animation (if animate_position=true)
     start_pos: ?[2]f32 = null,
@@ -42,6 +43,10 @@ pub const Animation = struct {
     // Color animation (if animate_color=true)
     start_color: ?[3]u8 = null, // RGB only (no alpha)
     target_color: ?[3]u8 = null, // RGB only (no alpha)
+    
+    // Rotation animation (if animate_rotation=true)
+    start_rotation: ?f32 = null,
+    target_rotation: ?f32 = null,
 
     // Timing
     start_time: i64, // when animation started (milliseconds)

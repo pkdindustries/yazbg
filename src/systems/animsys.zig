@@ -6,7 +6,7 @@ const components = @import("../components.zig");
 const gfx = @import("../gfx.zig");
 
 // calculate eased value based on animation progress
-fn applyEasing(progress: f32, easing_type: components.easing_types) f32 {
+pub fn applyEasing(progress: f32, easing_type: components.easing_types) f32 {
     return switch (easing_type) {
         .linear => progress,
         .ease_in => std.math.pow(f32, progress, 2.0),
@@ -64,6 +64,12 @@ fn updateSprite(sprite: *components.Sprite, animation: components.Animation, eas
                 (@as(f32, @floatFromInt(target_color[i])) - @as(f32, @floatFromInt(start_color[i]))) *
                     eased_progress);
         }
+    }
+    if (animation.animate_rotation and animation.start_rotation != null and animation.target_rotation != null) {
+        const start_rotation = animation.start_rotation.?;
+        const target_rotation = animation.target_rotation.?;
+        // interpolate rotation
+        sprite.rotation = start_rotation + (target_rotation - start_rotation) * eased_progress;
     }
 }
 
@@ -130,6 +136,10 @@ pub fn animationSystem() void {
                         sprite_ptr.rgba[0] = animation.start_color.?[0];
                         sprite_ptr.rgba[1] = animation.start_color.?[1];
                         sprite_ptr.rgba[2] = animation.start_color.?[2];
+                    }
+
+                    if (animation.animate_rotation and animation.start_rotation != null) {
+                        sprite_ptr.rotation = animation.start_rotation.?;
                     }
                 }
             }
@@ -258,6 +268,31 @@ pub fn createMoveAndFadeAnimation(entity: ecsroot.Entity, from_x: f32, from_y: f
     world.add(entity, anim);
 }
 
+// Create combined animation (position + rotation)
+pub fn createMoveAndRotateAnimation(entity: ecsroot.Entity, from_x: f32, from_y: f32, to_x: f32, to_y: f32, from_rotation: f32, to_rotation: f32, duration_ms: i64, easing_type: components.easing_types) void {
+    const world = ecs.getWorld();
+
+    // remove any existing animation component first
+    if (world.has(components.Animation, entity)) {
+        world.remove(components.Animation, entity);
+    }
+
+    // create the animation with multiple properties
+    const anim = components.Animation{
+        .animate_position = true,
+        .start_pos = .{ from_x, from_y },
+        .target_pos = .{ to_x, to_y },
+        .animate_rotation = true,
+        .start_rotation = from_rotation,
+        .target_rotation = to_rotation,
+        .start_time = std.time.milliTimestamp(),
+        .duration = duration_ms,
+        .easing = easing_type,
+    };
+
+    world.add(entity, anim);
+}
+
 // Simple flash animation: fade the sprite's alpha from start_alpha to target_alpha
 // over the given duration, then automatically reset it back to the starting alpha
 // when the animation is finished.
@@ -320,13 +355,16 @@ pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Enti
             // This creates a ripple effect as each cell falls with slight delay
             const duration_ms = @as(i64, @intFromFloat(old_position.x * 5));
 
-            // Create animation component directly
+            // Create animation component directly with rotation
             const anim = components.Animation{
                 .animate_position = true,
                 .start_pos = .{ old_position.x, start_y_pos },
                 .target_pos = .{ old_position.x, target_y_pos },
+                .animate_rotation = true, // Add rotation
+                .start_rotation = 0.0, // Start at 0 degrees rotation
+                .target_rotation = 2.0, // Rotate twice (720 degrees) as it falls
                 .start_time = std.time.milliTimestamp(),
-                .duration = duration_ms,
+                .duration = 800 + duration_ms, // Longer duration for a more noticeable effect
                 .easing = .ease_out,
                 .remove_when_done = true,
             };
@@ -334,6 +372,28 @@ pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Enti
             world.add(new_entity, anim);
         }
     }
+}
+
+// Create a rotation animation
+pub fn createRotationAnimation(entity: ecsroot.Entity, from_rotation: f32, to_rotation: f32, duration_ms: i64, easing_type: components.easing_types) void {
+    const world = ecs.getWorld();
+
+    // remove any existing animation component first
+    if (world.has(components.Animation, entity)) {
+        world.remove(components.Animation, entity);
+    }
+
+    // create the animation
+    const anim = components.Animation{
+        .animate_rotation = true,
+        .start_rotation = from_rotation,
+        .target_rotation = to_rotation,
+        .start_time = std.time.milliTimestamp(),
+        .duration = duration_ms,
+        .easing = easing_type,
+    };
+
+    world.add(entity, anim);
 }
 
 // Create an animation for the player piece movement
