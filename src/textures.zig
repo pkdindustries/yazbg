@@ -129,7 +129,7 @@ fn ensureEntry(color_ptr: *const [4]u8) !void {
     const col: i32 = @as(i32, @intCast(tile_index % TILES_PER_ROW));
     const row: i32 = @as(i32, @intCast(tile_index / TILES_PER_ROW));
 
-    const uv = calculateUV(col, row, tile_px, atlas_px);
+    const uv = gfx.calculateUV(col, row, tile_px, atlas_px);
 
     std.debug.print("Tile {}: col={}, row={}, UV=[{d:.6}, {d:.6}, {d:.6}, {d:.6}]\n", .{ tile_index, col, row, uv[0], uv[1], uv[2], uv[3] });
 
@@ -139,21 +139,6 @@ fn ensureEntry(color_ptr: *const [4]u8) !void {
     };
 
     try color_lut.put(color, entry);
-}
-
-/// Converts an RGBA color array to a raylib Color struct.
-fn colorToRayColor(color: [4]u8) ray.Color {
-    return ray.Color{ .r = color[0], .g = color[1], .b = color[2], .a = color[3] };
-}
-
-/// Creates a lighter version of the given color.
-fn createLighterColor(color: [4]u8, amount: u16) ray.Color {
-    return ray.Color{
-        .r = @as(u8, @intCast(@min(255, @as(u16, color[0]) + amount))),
-        .g = @as(u8, @intCast(@min(255, @as(u16, color[1]) + amount))),
-        .b = @as(u8, @intCast(@min(255, @as(u16, color[2]) + amount))),
-        .a = color[3],
-    };
 }
 
 /// Allocates a new texture atlas page.
@@ -177,16 +162,6 @@ fn allocatePage() !void {
     ray.EndTextureMode();
 
     try pages.append(.{ .tex = tex_ptr, .next_tile = 0 });
-}
-
-/// Calculates normalized UV coordinates for a tile in the atlas.
-fn calculateUV(col: i32, row: i32, tile_size: i32, atlas_size: i32) UV {
-    const mu0 = @as(f32, @floatFromInt(col * tile_size)) / @as(f32, @floatFromInt(atlas_size));
-    const mv0 = @as(f32, @floatFromInt(row * tile_size)) / @as(f32, @floatFromInt(atlas_size));
-    const mu1 = @as(f32, @floatFromInt((col + 1) * tile_size)) / @as(f32, @floatFromInt(atlas_size));
-    const mv1 = @as(f32, @floatFromInt((row + 1) * tile_size)) / @as(f32, @floatFromInt(atlas_size));
-
-    return .{ mu0, mv0, mu1, mv1 };
 }
 
 /// Draws a rounded block with highlight into `tile_index` of `page_tex`.
@@ -216,8 +191,8 @@ fn drawBlockIntoTile(page_tex: *const ray.RenderTexture2D, tile_index: u16, colo
         .height = rect.height / 3,
     };
 
-    const ray_color = colorToRayColor(color);
-    const light_color = createLighterColor(color, 20);
+    const ray_color = gfx.toRayColor(color);
+    const light_color = gfx.createLighterColor(color, 20);
 
     ray.BeginTextureMode(page_tex.*);
     ray.DrawRectangleRounded(highlight_rect, 0.4, 8, light_color);

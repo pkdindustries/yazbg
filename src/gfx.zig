@@ -372,6 +372,100 @@ pub fn frame() void {
     ray.EndDrawing();
 }
 
+// Convert RGBA array to raylib Color
+pub fn toRayColor(color: [4]u8) ray.Color {
+    return ray.Color{
+        .r = color[0],
+        .g = color[1],
+        .b = color[2],
+        .a = color[3],
+    };
+}
+
+// Creates a lighter version of the given color
+pub fn createLighterColor(color: [4]u8, amount: u16) ray.Color {
+    return ray.Color{
+        .r = @as(u8, @intCast(@min(255, @as(u16, color[0]) + amount))),
+        .g = @as(u8, @intCast(@min(255, @as(u16, color[1]) + amount))),
+        .b = @as(u8, @intCast(@min(255, @as(u16, color[2]) + amount))),
+        .a = color[3],
+    };
+}
+
+// Calculate the center position of a cell in screen coordinates
+pub fn getCellCenter(x: i32, y: i32) struct { x: f32, y: f32 } {
+    return .{
+        .x = @as(f32, @floatFromInt(window.gridoffsetx + x)) +
+            @as(f32, @floatFromInt(window.cellsize)) / 2.0,
+        .y = @as(f32, @floatFromInt(window.gridoffsety + y)) +
+            @as(f32, @floatFromInt(window.cellsize)) / 2.0,
+    };
+}
+
+// Convert rotation value to degrees
+pub fn rotationToDegrees(rotation: f32) f32 {
+    return rotation * 360.0;
+}
+
+// Draw a render texture with scaling and rotation
+pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4]f32, tint: [4]u8, scale: f32, rotation: f32) void {
+    const DEBUG = false;
+
+    // Calculate scaled dimensions
+    const cellsize_scaled = @as(f32, @floatFromInt(window.cellsize)) * scale;
+
+    // Get center of cell
+    const center = getCellCenter(x, y);
+
+    // Source rectangle (using UV coordinates)
+    const texture_width = @as(f32, @floatFromInt(texture.*.texture.width));
+    const texture_height = @as(f32, @floatFromInt(texture.*.texture.height));
+
+    // Fix for render texture handling in raylib - RenderTextures are y-flipped
+    const src = ray.Rectangle{
+        .x = uv[0] * texture_width,
+        .y = (1.0 - uv[3]) * texture_height, // Start from bottom of the region
+        .width = (uv[2] - uv[0]) * texture_width,
+        .height = (uv[3] - uv[1]) * texture_height, // Use positive height
+    };
+
+    if (DEBUG)
+        std.debug.print("Src rect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}\n", .{ src.x, src.y, src.width, src.height });
+
+    // Destination rectangle (centered on the position with proper scaling)
+    const dest = ray.Rectangle{
+        .x = center.x,
+        .y = center.y,
+        .width = cellsize_scaled,
+        .height = cellsize_scaled,
+    };
+
+    if (DEBUG)
+        std.debug.print("Dest rect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}\n", .{ dest.x, dest.y, dest.width, dest.height });
+
+    // Origin (center of the texture)
+    const origin = ray.Vector2{
+        .x = cellsize_scaled / 2.0,
+        .y = cellsize_scaled / 2.0,
+    };
+
+    if (DEBUG)
+        std.debug.print("Drawing with rotation: {d:.1}°, tint: [{}, {}, {}, {}]\n", .{ rotationToDegrees(rotation), tint[0], tint[1], tint[2], tint[3] });
+
+    // Draw the texture with rotation
+    ray.DrawTexturePro(texture.*.texture, src, dest, origin, rotationToDegrees(rotation), toRayColor(tint));
+}
+
+// Calculates normalized UV coordinates for a tile in the atlas
+pub fn calculateUV(col: i32, row: i32, tile_size: i32, atlas_size: i32) [4]f32 {
+    const mu0 = @as(f32, @floatFromInt(col * tile_size)) / @as(f32, @floatFromInt(atlas_size));
+    const mv0 = @as(f32, @floatFromInt(row * tile_size)) / @as(f32, @floatFromInt(atlas_size));
+    const mu1 = @as(f32, @floatFromInt((col + 1) * tile_size)) / @as(f32, @floatFromInt(atlas_size));
+    const mv1 = @as(f32, @floatFromInt((row + 1) * tile_size)) / @as(f32, @floatFromInt(atlas_size));
+
+    return .{ mu0, mv0, mu1, mv1 };
+}
+
 pub fn process(queue: *events.EventQueue) void {
     for (queue.items()) |rec| {
         switch (rec.event) {
