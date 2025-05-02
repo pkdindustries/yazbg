@@ -5,7 +5,7 @@ const events = @import("events.zig");
 const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
-const animsys = @import("systems/animsys.zig");
+const animsys = @import("systems/anim.zig");
 const blocktextures = @import("blocktextures.zig");
 
 pub const Grid = struct {

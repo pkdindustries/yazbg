@@ -3,8 +3,8 @@ const ray = @import("raylib.zig");
 const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
-const animsys = @import("systems/animsys.zig");
-const rendersys = @import("systems/rendersys.zig");
+const animsys = @import("systems/anim.zig");
+const rendersys = @import("systems/render.zig");
 const gfx = @import("gfx.zig");
 const blocktextures = @import("blocktextures.zig");
 

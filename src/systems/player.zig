@@ -4,7 +4,7 @@ const ecs = @import("../ecs.zig");
 const ecsroot = @import("ecs");
 const game = @import("../game.zig");
 const components = @import("../components.zig");
-const animsys = @import("animsys.zig");
+const animsys = @import("anim.zig");
 const gfx = @import("../gfx.zig");
 const blocktextures = @import("../blocktextures.zig");
 //active player piece

@@ -337,7 +337,7 @@ pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Enti
             const start_y_pos = old_position.y;
 
             // Target position is off the bottom of the screen - use original height
-            const target_y_pos = @as(f32, @floatFromInt(gfx.Window.OGHEIGHT + 100));
+            const target_y_pos = @as(f32, @floatFromInt(gfx.Window.OGHEIGHT + 500));
 
             // Add Position component with the same x position
             world.add(new_entity, components.Position{
@@ -365,7 +365,7 @@ pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Enti
                 .target_pos = .{ old_position.x, target_y_pos },
                 .animate_rotation = true, // Add rotation
                 .start_rotation = 0.0, // Start at 0 degrees rotation
-                .target_rotation = 2.0, // Rotate twice (720 degrees) as it falls
+                .target_rotation = 4.0, // Rotate twice (720 degrees) as it falls
                 .start_time = std.time.milliTimestamp(),
                 .duration = 800 + duration_ms, // Longer duration for a more noticeable effect
                 .easing = .ease_out,
@@ -375,28 +375,6 @@ pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Enti
             world.add(new_entity, anim);
         }
     }
-}
-
-// Create a rotation animation
-pub fn createRotationAnimation(entity: ecsroot.Entity, from_rotation: f32, to_rotation: f32, duration_ms: i64, easing_type: components.easing_types) void {
-    const world = ecs.getWorld();
-
-    // remove any existing animation component first
-    if (world.has(components.Animation, entity)) {
-        world.remove(components.Animation, entity);
-    }
-
-    // create the animation
-    const anim = components.Animation{
-        .animate_rotation = true,
-        .start_rotation = from_rotation,
-        .target_rotation = to_rotation,
-        .start_time = std.time.milliTimestamp(),
-        .duration = duration_ms,
-        .easing = easing_type,
-    };
-
-    world.add(entity, anim);
 }
 
 // Create an animation for the player piece movement
@@ -410,7 +388,6 @@ pub fn createPlayerPieceAnimation(entity: ecsroot.Entity, from_x: f32, from_y: f
         createMoveAnimation(entity, from_x, from_y, // Start position
             to_x, to_y, // Target position
             50, // 50ms duration (same as original player animation)
-            .linear // Linear easing for consistent movement
-        );
+            .ease_in_out);
     }
 }
