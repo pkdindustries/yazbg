@@ -351,7 +351,7 @@ pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Enti
                 .size = 1.0,
             });
 
-            _ = blocktextures.addUVTextureComponent(new_entity, sprite_color) catch |err| {
+            _ = blocktextures.addTextureComponent(new_entity, sprite_color) catch |err| {
                 std.debug.print("Failed to add texture component: {}\n", .{err});
             };
             // Calculate duration with a ripple effect based on x-position

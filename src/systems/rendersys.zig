@@ -9,52 +9,36 @@ const gfx = @import("../gfx.zig");
 pub fn drawSprites() void {
     const world = ecs.getWorld();
 
-    // First pass: entities with UV textures (using the atlas)
-    var uvtexture_view = world.view(.{ components.Sprite, components.Position, components.UVTexture }, .{});
-    var uvtexture_it = uvtexture_view.entityIterator();
+    // First pass: entities with textures
+    var texture_view = world.view(.{ components.Sprite, components.Position, components.SpriteTexture }, .{});
+    var texture_it = texture_view.entityIterator();
 
-    while (uvtexture_it.next()) |entity| {
-        const sprite = uvtexture_view.get(components.Sprite, entity);
-        const pos = uvtexture_view.get(components.Position, entity);
-        const uvt = uvtexture_view.get(components.UVTexture, entity);
+    while (texture_it.next()) |entity| {
+        const sprite = texture_view.get(components.Sprite, entity);
+        const pos = texture_view.get(components.Position, entity);
+        const st = texture_view.get(components.SpriteTexture, entity);
 
         // Draw the texture with rotation and scaling
         const draw_x = @as(i32, @intFromFloat(pos.x));
         const draw_y = @as(i32, @intFromFloat(pos.y));
 
-        drawUVTexture(draw_x, draw_y, uvt.texture, uvt.uv, sprite.rgba, sprite.size, sprite.rotation);
+        drawTexture(draw_x, draw_y, st.texture, sprite.rgba, sprite.size, sprite.rotation);
     }
 
-    // // Second pass: entities with regular textures (legacy)
-    // var texture_view = world.view(.{ components.Sprite, components.Position, components.Texture }, .{components.UVTexture});
-    // var texture_it = texture_view.entityIterator();
+    // Second pass: entities without textures (using standard box rendering)
+    var view = world.view(.{ components.Sprite, components.Position }, .{components.SpriteTexture});
+    var it = view.entityIterator();
 
-    // while (texture_it.next()) |entity| {
-    //     const sprite = texture_view.get(components.Sprite, entity);
-    //     const pos = texture_view.get(components.Position, entity);
-    //     const st = texture_view.get(components.Texture, entity);
+    while (it.next()) |entity| {
+        const sprite = view.get(components.Sprite, entity);
+        const pos = view.get(components.Position, entity);
 
-    //     // Draw the texture with rotation and scaling
-    //     const draw_x = @as(i32, @intFromFloat(pos.x));
-    //     const draw_y = @as(i32, @intFromFloat(pos.y));
+        // Draw the static block
+        const draw_x = @as(i32, @intFromFloat(pos.x));
+        const draw_y = @as(i32, @intFromFloat(pos.y));
 
-    //     drawTexture(draw_x, draw_y, st.texture, sprite.rgba, sprite.size, sprite.rotation);
-    // }
-
-    // entities without textures (using standard box rendering)
-    // var view = world.view(.{ components.Sprite, components.Position }, .{components.Texture, components.UVTexture});
-    // var it = view.entityIterator();
-
-    // while (it.next()) |entity| {
-    //     const sprite = view.get(components.Sprite, entity);
-    //     const pos = view.get(components.Position, entity);
-
-    //     // Draw the static block
-    //     const draw_x = @as(i32, @intFromFloat(pos.x));
-    //     const draw_y = @as(i32, @intFromFloat(pos.y));
-
-    //     drawbox(draw_x, draw_y, sprite.rgba, sprite.size, sprite.rotation);
-    // }
+        drawbox(draw_x, draw_y, sprite.rgba, sprite.size, sprite.rotation);
+    }
 }
 
 // Draw a rounded box with scale factor applied and rotation
@@ -100,20 +84,8 @@ pub fn drawbox(x: i32, y: i32, color: [4]u8, scale: f32, rotation: f32) void {
     }
 }
 
-// Draw a render texture or texture from an atlas with scaling and rotation
+// Draw a render texture with scaling and rotation
 pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, tint: [4]u8, scale: f32, rotation: f32) void {
-    // For regular textures, use the entire texture as source
-    const uv = [4]f32{ 0, 0, 1, 1 };
-    drawTextureWithUV(x, y, texture, uv, tint, scale, rotation);
-}
-
-// Draw a texture from an atlas using UV coordinates
-pub fn drawUVTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4]f32, tint: [4]u8, scale: f32, rotation: f32) void {
-    drawTextureWithUV(x, y, texture, uv, tint, scale, rotation);
-}
-
-// Common implementation for both texture drawing functions
-fn drawTextureWithUV(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4]f32, tint: [4]u8, scale: f32, rotation: f32) void {
     // Calculate scaled dimensions
     const cellsize_scaled = @as(f32, @floatFromInt(gfx.window.cellsize)) * scale;
 
@@ -123,12 +95,12 @@ fn drawTextureWithUV(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4
     const center_y = @as(f32, @floatFromInt(gfx.window.gridoffsety + y)) +
         @as(f32, @floatFromInt(gfx.window.cellsize)) / 2.0;
 
-    // Source rectangle (portion of the atlas texture defined by UV coordinates)
+    // Source rectangle (entire texture)
     const src = ray.Rectangle{
-        .x = uv[0] * @as(f32, @floatFromInt(texture.*.texture.width)),
-        .y = uv[1] * @as(f32, @floatFromInt(texture.*.texture.height)),
-        .width = (uv[2] - uv[0]) * @as(f32, @floatFromInt(texture.*.texture.width)),
-        .height = -(uv[3] - uv[1]) * @as(f32, @floatFromInt(texture.*.texture.height)), // Negative to flip the texture vertically (render texture is flipped)
+        .x = 0,
+        .y = 0,
+        .width = @as(f32, @floatFromInt(texture.*.texture.width)),
+        .height = -@as(f32, @floatFromInt(texture.*.texture.height)), // Negative to flip the texture vertically (render texture is flipped)
     };
 
     // Destination rectangle (centered on the position with proper scaling)
@@ -154,6 +126,6 @@ fn drawTextureWithUV(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4
     };
 
     // Draw the texture with rotation
-    ray.DrawTexturePro(texture.*.texture, src, dest, origin, rotation * 360.0, // Convert rotations to degrees
+    ray.DrawTexturePro(texture.*.texture, src, dest, origin, rotation * 360.0, // Convert rotations to degrees (e.g., 1.0 = 360 degrees)
         ray_color);
 }

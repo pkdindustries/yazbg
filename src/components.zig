@@ -9,17 +9,23 @@ pub const Position = struct { x: f32, y: f32 }; // Replaces anim_state.position 
 pub const Sprite = struct { rgba: [4]u8, size: f32, rotation: f32 = 0.0 }; // Replaces anim_state.color, scale[cite: 464], CellData.color [cite: 482]
 
 // texture to use for rendering instead of a simple rectangle
-pub const Texture = struct {
+/// A shared render texture that can be drawn by many entities.
+///
+/// We only store a *pointer* to the RenderTexture2D in the component instead
+/// of the full struct.  The struct itself is owned either by the texture cache
+/// in `blocktextures.zig` or by a texture that was explicitly created for a
+/// single sprite using `rendersys.createSpriteTexture`.  Using a pointer keeps
+/// the component size small (one machine word + a flag) and avoids copying the
+/// fairly large RenderTexture2D value around for every entity, which showed up
+/// as a significant CPU-side cost when tens of thousands of entities each had
+/// their own SpriteTexture component.
+pub const SpriteTexture = struct {
     /// Pointer to the shared render texture.
     texture: *const ray.RenderTexture2D,
-    created: bool = false,
-};
 
-pub const UVTexture = struct {
-    /// Texture coordinates for the sprite.
-    uv: [4]f32,
-    /// Texture to use for rendering instead of a simple rectangle
-    texture: *const ray.RenderTexture2D,
+    /// Whether this entity exclusively owns the texture (and therefore is
+    /// responsible for freeing it).  Textures coming from the cache return
+    /// `false` here; those created via `createSpriteTexture` return `true`.
     created: bool = false,
 };
 
@@ -59,7 +65,7 @@ pub const Animation = struct {
     // Color animation (if animate_color=true)
     start_color: ?[3]u8 = null, // RGB only (no alpha)
     target_color: ?[3]u8 = null, // RGB only (no alpha)
-
+    
     // Rotation animation (if animate_rotation=true)
     start_rotation: ?f32 = null,
     target_rotation: ?f32 = null,
