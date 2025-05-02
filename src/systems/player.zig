@@ -7,34 +7,64 @@ const components = @import("../components.zig");
 const animsys = @import("anim.zig");
 const gfx = @import("../gfx.zig");
 const textures = @import("../textures.zig");
-//active player piece
-var player_entity: ?ecsroot.Entity = null;
-var piece_block_entities: std.ArrayList(ecsroot.Entity) = undefined;
-var ghost_block_entities: std.ArrayList(ecsroot.Entity) = undefined;
+
+fn getPlayerEntity() ?ecsroot.Entity {
+    var view = ecs.getPlayerView();
+
+    var it = view.entityIterator();
+    if (it.next()) |entity| {
+        return entity;
+    }
+    return null;
+}
+
+fn getPieceBlocks() std.ArrayList(ecsroot.Entity) {
+    var result = std.ArrayList(ecsroot.Entity).init(std.heap.page_allocator);
+
+    var view = ecs.getPieceBlocksView();
+
+    var it = view.entityIterator();
+    while (it.next()) |entity| {
+        result.append(entity) catch {};
+    }
+
+    return result;
+}
+
+fn getGhostBlocks() std.ArrayList(ecsroot.Entity) {
+    var result = std.ArrayList(ecsroot.Entity).init(std.heap.page_allocator);
+
+    var view = ecs.getGhostBlocksView();
+
+    var it = view.entityIterator();
+    while (it.next()) |entity| {
+        result.append(entity) catch {};
+    }
+
+    return result;
+}
 
 pub fn init() void {
-    // Initialize entity lists
-    piece_block_entities = std.ArrayList(ecsroot.Entity).init(std.heap.page_allocator);
-    ghost_block_entities = std.ArrayList(ecsroot.Entity).init(std.heap.page_allocator);
-
     // Create player piece entity if it doesn't exist
-    if (player_entity == null) {
-        player_entity = ecs.createEntity();
+    if (getPlayerEntity() == null) {
+        const entity = ecs.createEntity();
 
-        ecs.addOrReplace(components.Position, player_entity.?, components.Position{
+        ecs.addOrReplace(components.Position, entity, components.Position{
             .x = 0,
             .y = 0,
         });
 
-        ecs.addOrReplace(components.ActivePieceTag, player_entity.?, components.ActivePieceTag{});
+        ecs.addOrReplace(components.ActivePieceTag, entity, components.ActivePieceTag{});
     }
 }
 
 // Handle a spawn event
 pub fn spawn() void {
     // Make sure entity exists
+    var player_entity = getPlayerEntity();
     if (player_entity == null) {
         init();
+        player_entity = getPlayerEntity();
     }
 
     // Set position to match the game state without animation
@@ -53,8 +83,10 @@ pub fn spawn() void {
 
 // Start a slide animation for the player piece
 pub fn move(dx: i32, dy: i32) void {
+    var player_entity = getPlayerEntity();
     if (player_entity == null) {
         init();
+        player_entity = getPlayerEntity();
     }
 
     // Calculate target position (where piece will end up)
@@ -75,31 +107,43 @@ pub fn move(dx: i32, dy: i32) void {
 // Clear existing block entities and create new ones based on current piece
 fn clearBlockEntities() void {
     // Clear piece blocks
-    for (piece_block_entities.items) |entity| {
+    var piece_blocks = getPieceBlocks();
+    defer piece_blocks.deinit();
+    for (piece_blocks.items) |entity| {
         ecs.getWorld().destroy(entity);
     }
-    piece_block_entities.clearRetainingCapacity();
 
     // Clear ghost blocks
-    for (ghost_block_entities.items) |entity| {
+    var ghost_blocks = getGhostBlocks();
+    defer ghost_blocks.deinit();
+    for (ghost_blocks.items) |entity| {
         ecs.getWorld().destroy(entity);
     }
-    ghost_block_entities.clearRetainingCapacity();
 }
 
 // Create entity for a single block
-fn createBlockEntity(x: f32, y: f32, color: [4]u8, scale: f32) !ecsroot.Entity {
+fn createBlockEntity(x: f32, y: f32, color: [4]u8, scale: f32, is_ghost: bool) !ecsroot.Entity {
     const entity = textures.createBlockTextureWithAtlas(x, y, color, scale, 0.0) catch |err| {
         std.debug.print("Failed to create block entity: {}\n", .{err});
         return err;
     };
+
+    // Add appropriate tag component
+    if (is_ghost) {
+        ecs.addOrReplace(components.GhostBlockTag, entity, components.GhostBlockTag{});
+    } else {
+        ecs.addOrReplace(components.PieceBlockTag, entity, components.PieceBlockTag{});
+    }
+
     return entity;
 }
 // Draw the player piece and ghost preview by creating entities
 pub fn playerSystem() void {
     if (game.state.piece.current) |p| {
+        var player_entity = getPlayerEntity();
         if (player_entity == null) {
             init();
+            player_entity = getPlayerEntity();
         }
 
         // Get the current animated position from the entity's Position component
@@ -137,8 +181,10 @@ pub fn playerSystem() void {
 // Update piece entities without redrawing (used after animations)
 pub fn updatePieceEntities() void {
     if (game.state.piece.current) |p| {
-        // Get the current position
-        if (ecs.get(components.Position, player_entity.?)) |pos| {
+        // Get the current position from the player entity
+        const player_entity = getPlayerEntity() orelse return;
+
+        if (ecs.get(components.Position, player_entity)) |pos| {
             const drawX = @as(i32, @intFromFloat(pos.x));
             const drawY = @as(i32, @intFromFloat(pos.y));
 
@@ -168,22 +214,11 @@ pub fn createPieceEntities(x: i32, y: i32, shape: [4][4]bool, color: [4]u8, is_g
                 const posX = @as(f32, @floatFromInt(x + cellX));
                 const posY = @as(f32, @floatFromInt(y + cellY));
 
-                // Create entity for this block
-                const entity = createBlockEntity(posX, posY, color, scale) catch |err| {
+                // Create entity for this block with appropriate tag
+                _ = createBlockEntity(posX, posY, color, scale, is_ghost) catch |err| {
                     std.debug.print("Failed to create block entity: {}\n", .{err});
                     return;
                 };
-
-                // Store entity reference in appropriate list
-                if (is_ghost) {
-                    ghost_block_entities.append(entity) catch |err| {
-                        std.debug.print("Failed to append ghost entity: {}\n", .{err});
-                    };
-                } else {
-                    piece_block_entities.append(entity) catch |err| {
-                        std.debug.print("Failed to append piece entity: {}\n", .{err});
-                    };
-                }
             }
         }
     }
@@ -201,16 +236,20 @@ pub fn harddrop() void {
     // Create animations from current piece blocks to ghost piece positions
     std.debug.print("creating hard drop animations\n", .{});
 
-    if (piece_block_entities.items.len == 0) return;
-    if (ghost_block_entities.items.len == 0) {
-        return; // Nothing to animate
-    }
+    var piece_blocks = getPieceBlocks();
+    defer piece_blocks.deinit();
+
+    var ghost_blocks = getGhostBlocks();
+    defer ghost_blocks.deinit();
+
+    if (piece_blocks.items.len == 0) return;
+    if (ghost_blocks.items.len == 0) return; // Nothing to animate
 
     // We need to create animations for each piece block
-    for (piece_block_entities.items) |piece_entity| {
+    for (piece_blocks.items) |piece_entity| {
         if (ecs.get(components.Position, piece_entity)) |piece_pos| {
             // Find the corresponding ghost block that has the same X position
-            for (ghost_block_entities.items) |ghost_entity| {
+            for (ghost_blocks.items) |ghost_entity| {
                 if (ecs.get(components.Position, ghost_entity)) |ghost_pos| {
                     if (@trunc(piece_pos.x) == @trunc(ghost_pos.x)) {
                         // Get color from the piece block
@@ -264,11 +303,8 @@ pub fn harddrop() void {
 pub fn deinit() void {
     clearBlockEntities();
 
-    if (player_entity) |entity| {
+    // Find and destroy the player entity
+    if (getPlayerEntity()) |entity| {
         ecs.getWorld().destroy(entity);
-        player_entity = null;
     }
-
-    piece_block_entities.deinit();
-    ghost_block_entities.deinit();
 }

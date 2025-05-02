@@ -110,3 +110,5 @@ pub const BlockTag = struct {}; // Marker for settled blocks
 pub const PieceKind = struct { shape: *const [4][4][4]bool, color: [4]u8 }; // From game.state.piece.current [cite: 128]
 pub const Rotation = struct { index: u2 }; // From game.state.piece.r [cite: 129]
 pub const ActivePieceTag = struct {}; // Marker for the single active piece entity
+pub const PieceBlockTag = struct {}; // Marker for blocks belonging to active piece
+pub const GhostBlockTag = struct {}; // Marker for blocks belonging to ghost preview

@@ -36,6 +36,18 @@ pub fn getBlocksView() @TypeOf(world.?.view(.{ components.BlockTag, components.G
     return world.?.view(.{ components.BlockTag, components.GridPos }, .{});
 }
 
+pub fn getPlayerView() @TypeOf(world.?.view(.{components.ActivePieceTag}, .{})) {
+    return world.?.view(.{components.ActivePieceTag}, .{});
+}
+
+pub fn getPieceBlocksView() @TypeOf(world.?.view(.{components.PieceBlockTag}, .{})) {
+    return world.?.view(.{components.PieceBlockTag}, .{});
+}
+
+pub fn getGhostBlocksView() @TypeOf(world.?.view(.{components.GhostBlockTag}, .{})) {
+    return world.?.view(.{components.GhostBlockTag}, .{});
+}
+
 pub fn getWorld() *ecs.Registry {
     return &world.?;
 }
