@@ -13,6 +13,8 @@ const playersys = @import("systems/player.zig");
 const animationSystem = animsys.animationSystem;
 const playerSystem = playersys.playerSystem;
 const blocktextures = @import("blocktextures.zig");
+const gridsvc = @import("systems/gridsvc.zig");
+
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
     pub const OGHEIGHT: i32 = 760;
@@ -391,6 +393,24 @@ pub fn process(queue: *events.EventQueue) void {
             .MoveRight => playersys.move(-1, 0),
             .MoveDown => playersys.move(0, -1),
             .Spawn => playersys.spawn(),
+
+            // Grid service handling
+            .PieceLocked => |data| {
+                for (0..data.count) |i| {
+                    const block = data.blocks[i];
+                    gridsvc.occupyCell(block.x, block.y, block.color);
+                }
+            },
+            .LineClearing => |data| {
+                gridsvc.removeLineCells(data.y);
+            },
+            .RowsShiftedDown => |data| {
+                // Handle row shifts from line clearing
+                for (0..data.count) |i| {
+                    gridsvc.shiftRowCells(data.start_y + i);
+                }
+            },
+            .GridReset => gridsvc.clearAllCells(),
 
             else => {},
         }

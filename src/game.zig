@@ -131,6 +131,10 @@ pub fn harddrop() void {
     state.piece.y = y;
 
     if (state.piece.current) |piece| {
+        // Collect all blocks before occupying them
+        var blocks: [4]events.CellDataPos = undefined;
+        var block_count: usize = 0;
+
         const shape = piece.shape[state.piece.r];
         for (shape, 0..) |row, i| {
             for (row, 0..) |cell, j| {
@@ -141,15 +145,22 @@ pub fn harddrop() void {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
 
-                        state.grid.occupy(ix, iy, piece.color);
+                        // Add to blocks array
+                        if (block_count < blocks.len) {
+                            blocks[block_count] = .{ .x = ix, .y = iy, .color = piece.color };
+                            block_count += 1;
+                        }
+
+                        // Update the grid's internal state
+                        state.grid.occupyBlocks(ix, iy, piece.color);
                     }
                 }
             }
         }
-    }
 
-    // // Emit PieceLocked event with block data before updating grid
-    // events.push(.{ .PieceLocked = .{ .blocks = blocks, .count = block_count } }, events.Source.Game);
+        // Emit a single PieceLocked event with all blocks
+        events.push(.{ .PieceLocked = .{ .blocks = blocks, .count = block_count } }, events.Source.Game);
+    }
 
     state.lastmove_ms = state.current_time_ms;
     const cleared = state.grid.clear();
@@ -261,13 +272,7 @@ pub fn dropready() bool {
     return !frozen() and (state.current_time_ms - state.lastmove_ms >= state.dropinterval_ms);
 }
 
-// No longer needed as we directly determine the kick index based on rotation direction
-// fn finddirection(oldr: u32, newr: u32) u32 {
-//     if (oldr > newr or (oldr == 0 and newr == 3) or (oldr == 3 and newr == 0)) return 1;
-//     return 0;
-// }
-
-/// Handle progression events emitted by level (e.g., drop interval changes).
+// handle progression events emitted by level (e.g., drop interval changes).
 pub fn process(queue: *events.EventQueue) void {
     for (queue.items()) |rec| {
         // debug: print event, source, and timestamp
