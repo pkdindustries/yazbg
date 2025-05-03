@@ -74,7 +74,7 @@ pub fn init() void {
 // Handle a spawn event
 pub fn spawn() void {
     if (!current_piece_state.has_piece) return;
-    
+
     // Make sure entity exists
     var player_entity = getPlayerEntity();
     if (player_entity == null) {
@@ -93,31 +93,6 @@ pub fn spawn() void {
     });
 
     // Update visual representation with current piece
-    updatePieceEntities();
-}
-
-// Start a slide animation for the player piece
-pub fn move(dx: i32, dy: i32) void {
-    if (!current_piece_state.has_piece) return;
-    
-    var player_entity = getPlayerEntity();
-    if (player_entity == null) {
-        init();
-        player_entity = getPlayerEntity();
-    }
-
-    // Calculate target position (where piece will end up)
-    const targetx = @as(f32, @floatFromInt(current_piece_state.x * CELL_SIZE));
-    const targety = @as(f32, @floatFromInt(current_piece_state.y * CELL_SIZE));
-
-    // Calculate source position (where piece is visually coming from)
-    const sourcex = targetx + @as(f32, @floatFromInt(dx * CELL_SIZE));
-    const sourcey = targety + @as(f32, @floatFromInt(dy * CELL_SIZE));
-
-    // Create animation using the animsys
-    animsys.createPlayerPieceAnimation(player_entity.?, sourcex, sourcey, targetx, targety);
-
-    // Update piece entities after move
     updatePieceEntities();
 }
 
@@ -163,12 +138,12 @@ pub fn updatePlayerPosition(x: i32, y: i32, rotation: u32, ghost_y: i32, piece_i
     current_piece_state.ghost_y = ghost_y;
     current_piece_state.piece_index = piece_index;
     current_piece_state.has_piece = true;
-    
+
     // Update player entity position
     if (getPlayerEntity()) |entity| {
         const pixelX = @as(f32, @floatFromInt(x * CELL_SIZE));
         const pixelY = @as(f32, @floatFromInt(y * CELL_SIZE));
-        
+
         ecs.addOrReplace(components.Position, entity, components.Position{
             .x = pixelX,
             .y = pixelY,
@@ -182,7 +157,7 @@ pub fn updatePlayerPosition(x: i32, y: i32, rotation: u32, ghost_y: i32, piece_i
 // Draw the player piece and ghost preview by creating entities
 pub fn playerSystem() void {
     if (!current_piece_state.has_piece) return;
-    
+
     var player_entity = getPlayerEntity();
     if (player_entity == null) {
         init();
@@ -228,10 +203,10 @@ pub fn playerSystem() void {
 // Update piece entities without redrawing (used after animations)
 pub fn updatePieceEntities() void {
     if (!current_piece_state.has_piece) return;
-    
+
     // Get the current position from the player entity
     const player_entity = getPlayerEntity() orelse return;
-    
+
     if (ecs.get(components.Position, player_entity)) |pos| {
         const drawX = @as(i32, @intFromFloat(pos.x));
         const drawY = @as(i32, @intFromFloat(pos.y));
@@ -283,15 +258,13 @@ pub fn ghosty() i32 {
 
 pub fn harddrop() void {
     if (!current_piece_state.has_piece) return;
-    
+
     // Create animations from current piece blocks to ghost piece positions
     std.debug.print("creating hard drop animations\n", .{});
 
-    var piece_blocks = getPieceBlocks();
-    defer piece_blocks.deinit();
+    const piece_blocks = getPieceBlocks();
 
-    var ghost_blocks = getGhostBlocks();
-    defer ghost_blocks.deinit();
+    const ghost_blocks = getGhostBlocks();
 
     if (piece_blocks.items.len == 0) return;
     if (ghost_blocks.items.len == 0) return; // Nothing to animate
