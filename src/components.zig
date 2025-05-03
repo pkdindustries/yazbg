@@ -98,6 +98,9 @@ pub const Animation = struct {
     // animation finishes (useful for one-shot flash effects where the property
     // should return to its original value).
     revert_when_done: bool = false,
+    
+    // Callback function to execute when animation completes
+    on_complete: ?*const fn (entity: ecs.Entity) void = null,
 };
 
 // --- Components for later steps (define now for clarity) ---

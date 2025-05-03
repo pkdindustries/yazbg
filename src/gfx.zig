@@ -429,9 +429,6 @@ pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4]f
         .height = (uv[3] - uv[1]) * texture_height, // Use positive height
     };
 
-    if (builtin.mode == .Debug)
-        std.debug.print("Src rect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}\n", .{ src.x, src.y, src.width, src.height });
-
     // Destination rectangle (centered on the position with proper scaling)
     const dest = ray.Rectangle{
         .x = center.x,
@@ -440,17 +437,11 @@ pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4]f
         .height = cellsize_scaled,
     };
 
-    if (builtin.mode == .Debug)
-        std.debug.print("Dest rect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}\n", .{ dest.x, dest.y, dest.width, dest.height });
-
     // Origin (center of the texture)
     const origin = ray.Vector2{
         .x = cellsize_scaled / 2.0,
         .y = cellsize_scaled / 2.0,
     };
-
-    if (builtin.mode == .Debug)
-        std.debug.print("Drawing with rotation: {d:.1}°, tint: [{}, {}, {}, {}]\n", .{ rotationToDegrees(rotation), tint[0], tint[1], tint[2], tint[3] });
 
     // Draw the texture with rotation
     ray.DrawTexturePro(texture.*.texture, src, dest, origin, rotationToDegrees(rotation), toRayColor(tint));

@@ -269,7 +269,6 @@ pub fn harddrop() void {
     // We need to create animations for each piece block
     for (piece_blocks.items) |piece_entity| {
         if (ecs.get(components.Position, piece_entity)) |piece_pos| {
-            std.debug.print("creating hard drop animations\n", .{});
             // Find the corresponding ghost block that has the same X position
             for (ghost_blocks.items) |ghost_entity| {
                 if (ecs.get(components.Position, ghost_entity)) |ghost_pos| {
