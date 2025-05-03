@@ -94,20 +94,23 @@ pub fn removeLineCells(line: usize) void {
         }
     }
 
-    animsys.createRippledFallingRow(line, buffer[0..count]);
-    // Original entities should be destroyed immediately
+    // detach the cleared-line blocks from the logical grid
     for (buffer[0..count]) |entity| {
-        ecs.getWorld().destroy(entity);
+        ecs.getWorld().remove(components.GridPos, entity);
+        ecs.getWorld().remove(components.BlockTag, entity);
     }
+
+    // these self destruct
+    animsys.createRippledFallingRow(line, buffer[0..count]);
 }
 
+var shiftbuffer: [10]ecsroot.Entity = undefined;
+var shiftpbuffer: [10]components.Position = undefined;
+var shiftgbuffer: [10]components.GridPos = undefined;
 pub fn shiftRowCells(line: usize) void {
     // Sshift all entities in this line down
     var blocks_view = ecs.getBlocksView();
 
-    var buffer: [10]ecsroot.Entity = undefined;
-    var pbuffer: [10]components.Position = undefined;
-    var gbuffer: [10]components.GridPos = undefined;
     var count: usize = 0;
 
     // Collect entities to update
@@ -115,23 +118,23 @@ pub fn shiftRowCells(line: usize) void {
     while (iter.next()) |entity| {
         if (ecs.get(components.GridPos, entity)) |grid_pos| {
             if (grid_pos.y == @as(i32, @intCast(line))) {
-                if (count < buffer.len) {
+                if (count < shiftbuffer.len) {
                     // Store entity
-                    buffer[count] = entity;
+                    shiftbuffer[count] = entity;
 
                     // Store position
                     if (ecs.get(components.Position, entity)) |pos| {
-                        pbuffer[count] = pos;
+                        shiftpbuffer[count] = pos;
                     } else {
                         // If no position component, use default (unlikely)
                         const cellsize_f32: f32 = 35.0;
                         const px = @as(f32, @floatFromInt(grid_pos.x)) * cellsize_f32;
                         const py = @as(f32, @floatFromInt(grid_pos.y)) * cellsize_f32;
-                        pbuffer[count] = .{ .x = px, .y = py };
+                        shiftpbuffer[count] = .{ .x = px, .y = py };
                     }
 
                     // Store grid position
-                    gbuffer[count] = grid_pos;
+                    shiftgbuffer[count] = grid_pos;
 
                     count += 1;
                 }
@@ -141,10 +144,10 @@ pub fn shiftRowCells(line: usize) void {
 
     // Update all collected entities
     for (0..count) |idx| {
-        const entity = buffer[idx];
+        const entity = shiftbuffer[idx];
         const cellsize_f32: f32 = 35.0;
-        var pos = pbuffer[idx];
-        var grid_pos = gbuffer[idx];
+        var pos = shiftpbuffer[idx];
+        var grid_pos = shiftgbuffer[idx];
 
         // Store the original position for animation
         const start_pos_y = pos.y;

@@ -329,60 +329,44 @@ pub fn createFlashAnimation(entity: ecsroot.Entity, start_alpha: u8, target_alph
 pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Entity) void {
     const world = ecs.getWorld();
 
-    // Create new animation entities based on the cleared row's entities
-    for (existing_entities) |old_entity| {
-        // Get position and sprite from the original entity
-        if (ecs.get(components.Position, old_entity)) |old_position| {
-            var sprite_color = [4]u8{ 255, 255, 255, 255 };
+    for (existing_entities) |entity| {
+        const position_opt = ecs.get(components.Position, entity);
+        if (position_opt == null) continue; // Shouldn't happen but be safe.
 
-            if (ecs.get(components.Sprite, old_entity)) |old_sprite| {
-                sprite_color = old_sprite.rgba;
-            }
+        const pos = position_opt.?;
 
-            // Create a new entity for the falling animation
-            const new_entity = world.create();
-
-            // Start position is the same as the original entity
-            const start_y_pos = old_position.y;
-
-            // Target position is off the bottom of the screen - use original height
-            const target_y_pos = @as(f32, @floatFromInt(gfx.Window.OGHEIGHT + 500));
-
-            // Add Position component with the same x position
-            world.add(new_entity, components.Position{
-                .x = old_position.x,
-                .y = start_y_pos,
-            });
-
-            // Add Sprite component with the same color
-            world.add(new_entity, components.Sprite{
-                .rgba = sprite_color,
-                .size = 1.0,
-            });
-
-            _ = textures.addBlockTextureWithAtlas(new_entity, sprite_color) catch |err| {
-                std.debug.print("Failed to add texture component: {}\n", .{err});
-            };
-            // Calculate duration with a ripple effect based on x-position
-            // This creates a ripple effect as each cell falls with slight delay
-            const duration_ms = @as(i64, @intFromFloat(old_position.x * 5));
-
-            // Create animation component directly with rotation
-            const anim = components.Animation{
-                .animate_position = true,
-                .start_pos = .{ old_position.x, start_y_pos },
-                .target_pos = .{ old_position.x, target_y_pos },
-                .animate_rotation = true, // Add rotation
-                .start_rotation = 0.0, // Start at 0 degrees rotation
-                .target_rotation = 4.0, // Rotate twice (720 degrees) as it falls
-                .start_time = std.time.milliTimestamp(),
-                .duration = 800 + duration_ms, // Longer duration for a more noticeable effect
-                .easing = .ease_out,
-                .remove_when_done = true,
-            };
-
-            world.add(new_entity, anim);
+        // Ensure the entity has a Sprite so it can still be rendered once the GridPos
+        // component is removed. If not present we add a basic white one.
+        if (!ecs.has(components.Sprite, entity)) {
+            world.add(entity, components.Sprite{ .rgba = .{ 255, 255, 255, 255 }, .size = 1.0 });
         }
+
+        // Calculate destination off-screen.
+        const target_y_pos: f32 = @floatFromInt(gfx.Window.OGHEIGHT + 500);
+
+        // Small ripple delay based on x position so cells on the left start first.
+        const delay_ms: i64 = @as(i64, @intFromFloat(pos.x * 5.0));
+
+        // `destroy_entity_when_done` so memory is eventually reclaimed
+        const anim = components.Animation{
+            .animate_position = true,
+            .start_pos = .{ pos.x, pos.y },
+            .target_pos = .{ pos.x, target_y_pos },
+            .animate_rotation = true,
+            .start_rotation = 0.0,
+            .target_rotation = 4.0,
+            .start_time = std.time.milliTimestamp(),
+            .duration = 800 + delay_ms,
+            .delay = 50,
+            .easing = .ease_out,
+            .remove_when_done = true,
+            .destroy_entity_when_done = true,
+        };
+
+        if (world.has(components.Animation, entity)) {
+            world.remove(components.Animation, entity);
+        }
+        world.add(entity, anim);
     }
 }
 
@@ -397,7 +381,7 @@ pub fn createPlayerPieceAnimation(entity: ecsroot.Entity, from_x: f32, from_y: f
         createMoveAnimation(entity, from_x, from_y, // Start position
             to_x, to_y, // Target position
             50, // 50ms duration (same as original player animation)
-            .ease_in_out);
+            .linear);
     }
 }
 

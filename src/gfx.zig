@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const ray = @import("raylib.zig");
 const game = @import("game.zig");
 const hud = @import("hud.zig");
@@ -409,7 +410,6 @@ pub fn rotationToDegrees(rotation: f32) f32 {
 
 // Draw a render texture with scaling and rotation
 pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4]f32, tint: [4]u8, scale: f32, rotation: f32) void {
-    const DEBUG = false;
 
     // Calculate scaled dimensions
     const cellsize_scaled = @as(f32, @floatFromInt(window.cellsize)) * scale;
@@ -429,7 +429,7 @@ pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4]f
         .height = (uv[3] - uv[1]) * texture_height, // Use positive height
     };
 
-    if (DEBUG)
+    if (builtin.mode == .Debug)
         std.debug.print("Src rect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}\n", .{ src.x, src.y, src.width, src.height });
 
     // Destination rectangle (centered on the position with proper scaling)
@@ -440,7 +440,7 @@ pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4]f
         .height = cellsize_scaled,
     };
 
-    if (DEBUG)
+    if (builtin.mode == .Debug)
         std.debug.print("Dest rect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}\n", .{ dest.x, dest.y, dest.width, dest.height });
 
     // Origin (center of the texture)
@@ -449,7 +449,7 @@ pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4]f
         .y = cellsize_scaled / 2.0,
     };
 
-    if (DEBUG)
+    if (builtin.mode == .Debug)
         std.debug.print("Drawing with rotation: {d:.1}°, tint: [{}, {}, {}, {}]\n", .{ rotationToDegrees(rotation), tint[0], tint[1], tint[2], tint[3] });
 
     // Draw the texture with rotation

@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 /// Position and color data for cell events
 pub const CellDataPos = struct {
@@ -44,10 +45,10 @@ pub const Event = union(enum) {
     AutoDrop, // automatic dropping of piece based on timing
     /// Emitted when player piece position or rotation changes, including ghost position
     PlayerPositionUpdated: struct {
-        x: i32,           // Current grid x position
-        y: i32,           // Current grid y position
-        rotation: u32,     // Current rotation index
-        ghost_y: i32,     // Calculated landing position
+        x: i32, // Current grid x position
+        y: i32, // Current grid y position
+        rotation: u32, // Current rotation index
+        ghost_y: i32, // Calculated landing position
         piece_index: u32, // Index of the current piece
     },
     // Input events
@@ -82,7 +83,7 @@ pub const TimestampedEvent = struct {
 
 /// Very small fixed‑size queue – enough for one frame.
 pub const EventQueue = struct {
-    const MAX = 256;
+    const MAX = 1024; // live a little
     events: [MAX]TimestampedEvent = undefined,
     len: usize = 0,
 
@@ -95,7 +96,10 @@ pub const EventQueue = struct {
                 .event = e,
             };
             self.len += 1;
-            std.debug.print("{any}\n", .{self.events[self.len - 1]});
+
+            if (builtin.mode == .Debug) {
+                std.debug.print("{any}\n", .{self.events[self.len - 1]});
+            }
         } else {
             // Silently drop when overflow – should never happen in this game.
             std.debug.print("EventQueue overflow – dropping event {any} (source={any})\n", .{ e, source });

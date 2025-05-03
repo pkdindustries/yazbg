@@ -95,7 +95,7 @@ pub fn draw(ctx: DrawContext, static_shader: ray.Shader) void {
     // Score / lines / level block ------------------------------------------------
     if (std.fmt.bufPrintZ(&textbuf, "score\n{}\n\nlines\n{}\n\nlevel\n{}", .{ state.score, state.lines, state.level })) |score_txt| {
         var color = ray.GREEN;
-        if (false) {
+        if (true) {
             scramblefx(score_txt, 10);
             color = ray.RED;
         }
