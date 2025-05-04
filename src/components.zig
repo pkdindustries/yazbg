@@ -22,7 +22,39 @@ pub const Shader = struct {
     shader: *const ray.Shader,
     /// Whether this component owns the shader (responsible for unloading)
     created: bool = false,
-    uniforms: std.StringHashMap(ShaderUniform) = undefined,
+    /// HashMap of uniform name to value
+    uniforms: std.StringHashMap(ShaderUniform),
+    
+    pub fn init(allocator: std.mem.Allocator) Shader {
+        return .{
+            .shader = undefined,
+            .created = false,
+            .uniforms = std.StringHashMap(ShaderUniform).init(allocator),
+        };
+    }
+    
+    pub fn deinit(self: *Shader) void {
+        self.uniforms.deinit();
+        if (self.created) {
+            ray.UnloadShader(self.shader.*);
+        }
+    }
+    
+    pub fn setFloat(self: *Shader, name: []const u8, value: f32) !void {
+        try self.uniforms.put(name, ShaderUniform{ .float = value });
+    }
+    
+    pub fn setVec2(self: *Shader, name: []const u8, value: [2]f32) !void {
+        try self.uniforms.put(name, ShaderUniform{ .vec2 = value });
+    }
+    
+    pub fn setVec3(self: *Shader, name: []const u8, value: [3]f32) !void {
+        try self.uniforms.put(name, ShaderUniform{ .vec3 = value });
+    }
+    
+    pub fn setVec4(self: *Shader, name: []const u8, value: [4]f32) !void {
+        try self.uniforms.put(name, ShaderUniform{ .vec4 = value });
+    }
 };
 
 pub const UniformType = enum {
@@ -90,7 +122,7 @@ pub const Animation = struct {
 
     // Callback when complete
     remove_when_done: bool = true, // whether to remove this component when animation completes
-    
+
     // Whether to destroy the entire entity when animation completes
     destroy_entity_when_done: bool = false,
 
@@ -98,7 +130,7 @@ pub const Animation = struct {
     // animation finishes (useful for one-shot flash effects where the property
     // should return to its original value).
     revert_when_done: bool = false,
-    
+
     // Callback function to execute when animation completes
     on_complete: ?*const fn (entity: ecs.Entity) void = null,
 };

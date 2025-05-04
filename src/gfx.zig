@@ -14,6 +14,7 @@ const playersys = @import("systems/player.zig");
 const animationSystem = animsys.animationSystem;
 const playerSystem = playersys.playerSystem;
 const textures = @import("textures.zig");
+const shaders = @import("shaders.zig");
 const gridsvc = @import("systems/gridsvc.zig");
 
 pub const Window = struct {
@@ -297,6 +298,7 @@ pub fn init() !void {
 
     // Initialize texture and shader systems
     try textures.init();
+    try shaders.init();
 }
 
 pub fn deinit() void {
@@ -313,6 +315,10 @@ pub fn deinit() void {
 
     // Clean up player system
     playersys.deinit();
+
+    // Clean up texture and shader systems
+    textures.deinit();
+    shaders.deinit();
 }
 
 pub fn nextbackground() void {
@@ -326,6 +332,9 @@ fn preshade() void {
 
     // Update static shader time
     static_shader.update();
+
+    // Update per-entity shader uniforms
+    shaders.updateTimeUniforms();
 }
 
 pub fn frame() void {

@@ -23,7 +23,7 @@ pub const Event = union(enum) {
     GameOver,
 
     // Gameplay lifecycle events (pure game‑logic → graphics/audio/UI)
-    Spawn, // a new active piece appeared
+    Spawn, // a new   piece appeared
     /// Emitted when a piece is locked onto the grid with block positions and colors
     PieceLocked: struct {
         blocks: [4]CellDataPos,
@@ -50,15 +50,18 @@ pub const Event = union(enum) {
         rotation: u32, // Current rotation index
         ghost_y: i32, // Calculated landing position
         piece_index: u32, // Index of the current piece
+        next_piece_index: u32, // Index of the next piece
+        hold_piece_index: u32, // Index of the held piece
     },
-    // Input events
+
+    // input events
     MoveLeft,
     MoveRight,
     MoveDown,
     Rotate,
     RotateCCW,
     HardDropEffect,
-    HardDrop, // player hard-dropped the piece
+    HardDrop,
     SwapPiece,
     Pause,
     Reset,
@@ -81,7 +84,6 @@ pub const TimestampedEvent = struct {
     event: Event,
 };
 
-/// Very small fixed‑size queue – enough for one frame.
 pub const EventQueue = struct {
     const MAX = 1024; // live a little
     events: [MAX]TimestampedEvent = undefined,

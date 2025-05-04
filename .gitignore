@@ -3,3 +3,4 @@ zig-out/
 .vscode/
 CLAUDE.md
 .claude/settings.local.json
+.zigversion

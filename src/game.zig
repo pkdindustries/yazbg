@@ -99,6 +99,8 @@ fn emitPositionUpdate() void {
             .rotation = state.piece.r,
             .ghost_y = calculateGhostY(),
             .piece_index = piece_index,
+            .next_piece_index = 1,
+            .hold_piece_index = 2,
         } }, events.Source.Game);
     }
 }
@@ -137,6 +139,10 @@ pub fn swappiece() void {
     state.piece.swapped = true;
     state.lastmove_ms = state.current_time_ms;
 
+    // Position update after swapping
+    emitPositionUpdate();
+
+    // Hold event
     events.push(.Hold, events.Source.Game);
     return;
 }

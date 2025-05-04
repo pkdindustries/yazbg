@@ -27,6 +27,11 @@ pub inline fn get(comptime T: type, entity: ecs.Entity) ?T {
     return if (world.?.has(T, entity)) world.?.getConst(T, entity) else null;
 }
 
+/// Get component for entity without null check (must call has() first)
+pub inline fn getUnchecked(comptime T: type, entity: ecs.Entity) *T {
+    return world.?.assure(T).get(entity);
+}
+
 /// Whether `entity` currently owns component `T`.
 pub inline fn has(comptime T: type, entity: ecs.Entity) bool {
     return world.?.has(T, entity);
