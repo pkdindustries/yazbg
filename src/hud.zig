@@ -78,7 +78,7 @@ var textbuf: [1000]u8 = undefined;
 /// Render the HUD (score, next & held pieces, pause/game‑over overlays).
 /// Should be called while drawing to the off‑screen game texture, after the
 /// playfield has been rendered.
-pub fn draw(ctx: DrawContext, static_shader: ray.Shader) void {
+pub fn draw(ctx: DrawContext) void {
     // Consistent line spacing for multiline text blocks
     ray.SetTextLineSpacing(1.0);
 
@@ -118,9 +118,7 @@ pub fn draw(ctx: DrawContext, static_shader: ray.Shader) void {
 
     // Pause overlay --------------------------------------------------------------
     if (state.paused) {
-        ray.BeginShaderMode(static_shader);
         ray.DrawRectangle(0, 0, ctx.og_width, ctx.og_height, ray.Color{ .r = 0, .g = 0, .b = 0, .a = 100 });
-        ray.EndShaderMode();
 
         if (std.fmt.bufPrintZ(&textbuf, "PAUSED", .{})) |paused_txt| {
             scramblefx(paused_txt, 10);

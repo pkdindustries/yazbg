@@ -4,7 +4,6 @@ const ray = @import("raylib.zig");
 const game = @import("game.zig");
 const hud = @import("hud.zig");
 const events = @import("events.zig");
-const Grid = @import("grid.zig").Grid;
 const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
@@ -233,8 +232,8 @@ pub const Background = struct {
     }
 
     pub fn draw(self: *Background) void {
-        // Apply the warp shader when drawing the background
-        ray.BeginShaderMode(self.shader);
+        // // Apply the warp shader when drawing the background
+        // ray.BeginShaderMode(self.shader);
 
         // Source and destination rectangles
         const src = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(self.texture[self.index].width), .height = @floatFromInt(self.texture[self.index].height) };
@@ -242,70 +241,30 @@ pub const Background = struct {
 
         // Draw background texture with shader applied
         ray.DrawTexturePro(self.texture[self.index], src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
-        ray.EndShaderMode();
+        // ray.EndShaderMode();
     }
 };
 
 pub var window = Window{};
 var background = Background{};
-// Static effect shader
-pub const StaticShader = struct {
-    shader: ray.Shader = undefined,
-    time_loc: i32 = 0,
-
-    pub fn init(self: *StaticShader) void {
-        // Load static effect shader
-        self.shader = ray.LoadShader(null, "resources/shader/static.fs");
-        self.time_loc = ray.GetShaderLocation(self.shader, "time");
-    }
-
-    pub fn deinit(self: *StaticShader) void {
-        // Unload the shader
-        ray.UnloadShader(self.shader);
-    }
-
-    pub fn update(self: *StaticShader) void {
-        // Update shader time uniform
-        const current_time = @as(f32, @floatCast(ray.GetTime()));
-        ray.SetShaderValue(self.shader, self.time_loc, &current_time, ray.SHADER_UNIFORM_FLOAT);
-    }
-
-    pub fn begin(self: *StaticShader) void {
-        ray.BeginShaderMode(self.shader);
-    }
-
-    pub fn end(_: *StaticShader) void {
-        ray.EndShaderMode();
-    }
-};
-
-var static_shader = StaticShader{};
 
 pub fn init() !void {
     std.debug.print("init gfx\n", .{});
 
     // Initialize window
     try window.init();
-
-    // Initialize static shader
-    static_shader.init();
-
+    // Initialize texture and shader systems
+    try textures.init();
+    try shaders.init();
     // Initialize background
     try background.init();
 
     // Initialize player system
     playersys.init();
-
-    // Initialize texture and shader systems
-    try textures.init();
-    try shaders.init();
 }
 
 pub fn deinit() void {
     std.debug.print("deinit gfx\n", .{});
-
-    // Clean up static shader
-    static_shader.deinit();
 
     // Clean up window resources
     window.deinit();
@@ -325,41 +284,25 @@ pub fn nextbackground() void {
     background.next();
 }
 
-// Update shader parameters before drawing
-fn preshade() void {
-    // Update background warp shader
-    background.updateShader();
-
-    // Update static shader time
-    static_shader.update();
-
-    // Update per-entity shader uniforms
-    shaders.updateTimeUniforms();
-}
-
 pub fn frame() void {
     // Handle window resizing
     window.updateScale();
 
     playerSystem();
     animationSystem(); // Process all animations (core animation system)
-    // Update shader uniforms
-    preshade();
 
-    // Animation system now handled by ECS
+    // Update shader uniforms
+    background.updateShader();
+    shaders.updateTimeUniforms();
 
     ray.BeginDrawing();
     {
         // Draw to render texture at original resolution
         ray.BeginTextureMode(window.texture);
         {
-            // Draw background with warp effect
             background.draw();
 
-            // Apply static effect shader to game elements
-            static_shader.begin();
             rendersys.drawSprites();
-            static_shader.end();
 
             // Draw HUD elements
             hud.draw(.{
@@ -372,7 +315,7 @@ pub fn frame() void {
                 .og_height = Window.OGHEIGHT,
                 .next_piece = game.state.piece.next,
                 .held_piece = game.state.piece.held,
-            }, static_shader.shader);
+            });
         }
         ray.EndTextureMode();
 
@@ -430,7 +373,6 @@ pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4]f
     const texture_width = @as(f32, @floatFromInt(texture.*.texture.width));
     const texture_height = @as(f32, @floatFromInt(texture.*.texture.height));
 
-    // Fix for render texture handling in raylib - RenderTextures are y-flipped
     const src = ray.Rectangle{
         .x = uv[0] * texture_width,
         .y = (1.0 - uv[3]) * texture_height, // Start from bottom of the region

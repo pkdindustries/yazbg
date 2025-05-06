@@ -20,15 +20,15 @@ void main()
     float freq = frequency;   // Frequency of the pulse
     float intens = intensity; // Intensity of the pulse
     
-    // Calculate pulse effect based on time
+    // Calculate pulse effect based on time - more dramatic swing
     float pulse = (sin(time * freq) + 1.0) * 0.5 * intens;
     
     // Sample the texture
     vec4 texelColor = texture(texture0, fragTexCoord);
     
-    // Apply pulse effect by brightening the texture
-    vec4 pulseColor = texelColor * (1.0 + pulse);
+    // Create a color that pulses between white and a vibrant color
+    vec3 pulseColor = mix(vec3(1.0, 1.0, 1.0), vec3(0.2, 0.6, 1.0), pulse);
     
-    // Final color: adjusted by pulse and tinted by fragment color
-    finalColor = pulseColor * fragColor * colDiffuse;
+    // Final color: pulse color with original alpha, tinted by fragment color
+    finalColor = vec4(pulseColor, texelColor.a) * fragColor * colDiffuse;
 }

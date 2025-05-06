@@ -152,6 +152,32 @@ pub fn build(b: *std.Build) void {
         const benchmark_step = b.step("benchmark", "Run the animation/render benchmark");
         benchmark_step.dependOn(&run_benchmark.step);
 
+        // -------------------------------------------------------------
+        // Shader system standalone test executable
+        // -------------------------------------------------------------
+
+        const shader_test_exe = b.addExecutable(.{
+            .name = "yazbg-shader-test",
+            .root_source_file = b.path("src/shader_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .omit_frame_pointer = false, // keep frame pointer for easier debugging
+        });
+        shader_test_exe.root_module.strip = strip;
+        shader_test_exe.linkLibrary(raylib_artifact);
+        shader_test_exe.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+
+        b.installArtifact(shader_test_exe);
+
+        const run_shader_test = b.addRunArtifact(shader_test_exe);
+        run_shader_test.step.dependOn(b.getInstallStep());
+        if (b.args) |args| {
+            run_shader_test.addArgs(args);
+        }
+
+        const shader_test_step = b.step("shader-test", "Run the shader system test");
+        shader_test_step.dependOn(&run_shader_test.step);
+
         const unit_tests = b.addTest(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
