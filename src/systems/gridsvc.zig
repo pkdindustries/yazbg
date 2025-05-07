@@ -7,6 +7,7 @@ const ecsroot = @import("ecs");
 const components = @import("../components.zig");
 const animsys = @import("anim.zig");
 const textures = @import("../textures.zig");
+const shaders = @import("../shaders.zig");
 
 pub fn occupyCell(gridx: usize, gridy: usize, color: [4]u8) void {
     const entity = ecs.createEntity();
@@ -26,6 +27,11 @@ pub fn occupyCell(gridx: usize, gridy: usize, color: [4]u8) void {
     _ = textures.addBlockTextureWithAtlas(entity, color) catch |err| {
         std.debug.print("Failed to add texture component: {}\n", .{err});
         return;
+    };
+
+    // Add static shader to the occupied block
+    shaders.addShaderToEntity(entity, "static") catch |err| {
+        std.debug.print("Failed to add static shader: {}\n", .{err});
     };
 
     const ttl_ms: i64 = 350;

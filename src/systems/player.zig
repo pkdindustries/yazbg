@@ -196,7 +196,7 @@ pub fn playerSystem() void {
 
     // Create entities for ghost piece blocks (semi-transparent preview at landing position)
     const ghostY = ghosty() * CELL_SIZE;
-    const ghostColor = .{ piece_color[0], piece_color[1], piece_color[2], 170 }; // Increased alpha for better visibility
+    const ghostColor = .{ piece_color[0], piece_color[1], piece_color[2], 200 }; // Increased alpha for better visibility
     createPieceEntities(drawX, ghostY, piece_shape, ghostColor, true);
 }
 
@@ -254,34 +254,6 @@ pub fn createPieceEntities(x: i32, y: i32, shape: [4][4]bool, color: [4]u8, is_g
 // Get ghost piece's landing position from current state (retrieved from events)
 pub fn ghosty() i32 {
     return current_piece_state.ghost_y;
-}
-
-// Apply a custom shader to all blocks of the active piece
-pub fn applyShaderToPiece(_: []const u8, frequency: f32, intensity: f32) void {
-    if (!current_piece_state.has_piece) return;
-
-    // Get all piece blocks (not ghost blocks)
-    var piece_blocks = getPieceBlocks();
-    defer piece_blocks.deinit();
-
-    for (piece_blocks.items) |entity| {
-        // // Add or replace the shader component
-        // shaders.addShaderToEntity(entity, shader_name) catch |err| {
-        //     std.debug.print("Failed to add shader to piece block: {}\n", .{err});
-        //     continue;
-        // };
-
-        // Set shader parameters
-        if (ecs.has(components.Shader, entity)) {
-            var shader_comp = ecs.getUnchecked(components.Shader, entity);
-            shader_comp.setFloat("frequency", frequency) catch |err| {
-                std.debug.print("Failed to set shader frequency: {}\n", .{err});
-            };
-            shader_comp.setFloat("intensity", intensity) catch |err| {
-                std.debug.print("Failed to set shader intensity: {}\n", .{err});
-            };
-        }
-    }
 }
 
 pub fn harddrop() void {

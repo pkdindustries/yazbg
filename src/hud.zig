@@ -35,12 +35,10 @@ pub fn process(queue: *events.EventQueue) void {
             .Clear => |raw_lines| {
                 const lines: i32 = @intCast(raw_lines);
                 state.lines += lines;
-                // Score is now handled by level.zig and received via ScoreUpdate events
             },
             .LevelUp => |_| {
                 std.debug.print("process level up\n", .{});
                 state.level += 1;
-                // Score bonus is now handled by level.zig and received via ScoreUpdate events
             },
             .ScoreUpdate => |points| {
                 state.score += points;

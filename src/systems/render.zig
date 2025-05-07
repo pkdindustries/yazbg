@@ -11,6 +11,7 @@ const DEBUG = false;
 pub fn drawSprites() void {
     const world = ecs.getWorld();
 
+    shaders.updateTimeUniforms();
     // First pass: render entities WITHOUT custom shaders
     var regular_view = world.view(.{ components.Sprite, components.Position, components.Texture }, .{components.Shader});
     var regular_it = regular_view.entityIterator();
@@ -34,6 +35,9 @@ pub fn drawSprites() void {
         const pos = shader_view.get(components.Position, entity);
         const st = shader_view.get(components.Texture, entity);
         const shader_comp = shader_view.get(components.Shader, entity);
+        shaders.updateShaderUniforms(entity) catch |err| {
+            std.debug.print("Error updating shader uniforms: {}\n", .{err});
+        };
 
         // Apply entity-specific shader
         ray.BeginShaderMode(shader_comp.shader.*);

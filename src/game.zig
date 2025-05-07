@@ -327,8 +327,8 @@ pub fn process(queue: *events.EventQueue) void {
             .MoveLeft => left(),
             .MoveRight => right(),
             .MoveDown => if (!down()) harddrop(),
-            .Rotate => rotate(true), // UP key now rotates CCW (standard convention)
-            .RotateCCW => rotate(false), // Z key now rotates CW
+            .Rotate => rotate(true),
+            .RotateCCW => rotate(false),
             .HardDrop => harddrop(),
             .AutoDrop => if (!down()) harddrop(),
             .SwapPiece => swappiece(),

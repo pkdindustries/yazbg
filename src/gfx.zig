@@ -289,19 +289,12 @@ pub fn frame() void {
     window.updateScale();
 
     playerSystem();
-    animationSystem(); // Process all animations (core animation system)
-
-    // Update shader uniforms
-    background.updateShader();
-    shaders.updateTimeUniforms();
-
-    ray.BeginDrawing();
+    animationSystem();
     {
-        // Draw to render texture at original resolution
+        ray.BeginDrawing();
         ray.BeginTextureMode(window.texture);
         {
-            background.draw();
-
+            ray.ClearBackground(ray.BLACK);
             rendersys.drawSprites();
 
             // Draw HUD elements
