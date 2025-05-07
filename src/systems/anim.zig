@@ -74,7 +74,7 @@ fn updateSprite(sprite: *components.Sprite, animation: components.Animation, eas
 }
 
 // main animation system that updates all animated entities
-pub fn animationSystem() void {
+pub fn update() void {
     const world = ecs.getWorld();
 
     // view entities with Animation component

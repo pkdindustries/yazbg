@@ -10,8 +10,6 @@ const components = @import("components.zig");
 const rendersys = @import("systems/render.zig");
 const animsys = @import("systems/anim.zig");
 const playersys = @import("systems/player.zig");
-const animationSystem = animsys.animationSystem;
-const playerSystem = playersys.playerSystem;
 const textures = @import("textures.zig");
 const shaders = @import("shaders.zig");
 const gridsvc = @import("systems/gridsvc.zig");
@@ -288,8 +286,8 @@ pub fn frame() void {
     // Handle window resizing
     window.updateScale();
 
-    playerSystem();
-    animationSystem();
+    playersys.update();
+    animsys.update();
     {
         ray.BeginDrawing();
         ray.BeginTextureMode(window.texture);

@@ -155,7 +155,7 @@ pub fn updatePlayerPosition(x: i32, y: i32, rotation: u32, ghost_y: i32, piece_i
 }
 
 // Draw the player piece and ghost preview by creating entities
-pub fn playerSystem() void {
+pub fn update() void {
     if (!current_piece_state.has_piece) return;
 
     var player_entity = getPlayerEntity();
