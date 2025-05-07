@@ -337,56 +337,58 @@ pub fn createLighterColor(color: [4]u8, amount: u16) ray.Color {
 }
 
 // Calculate the center position of a cell in screen coordinates
-pub fn getCellCenter(x: i32, y: i32) struct { x: f32, y: f32 } {
-    return .{
-        .x = @as(f32, @floatFromInt(window.gridoffsetx + x)) +
-            @as(f32, @floatFromInt(window.cellsize)) / 2.0,
-        .y = @as(f32, @floatFromInt(window.gridoffsety + y)) +
-            @as(f32, @floatFromInt(window.cellsize)) / 2.0,
-    };
-}
-
-// Convert rotation value to degrees
+// Convert rotation value (0.0 – 1.0) to degrees
 pub fn rotationToDegrees(rotation: f32) f32 {
     return rotation * 360.0;
 }
 
-// Draw a render texture with scaling and rotation
-pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4]f32, tint: [4]u8, scale: f32, rotation: f32) void {
+/// Draw a texture with scaling and rotation.
+pub fn drawTexture(
+    x: i32,
+    y: i32,
+    texture: *const ray.RenderTexture2D,
+    uv: [4]f32,
+    tint: [4]u8,
+    scale: f32,
+    rotation: f32,
+) void {
 
-    // Calculate scaled dimensions
+    // Calculate the scaled sprite size (width == height).
     const cellsize_scaled = @as(f32, @floatFromInt(window.cellsize)) * scale;
 
-    // Get center of cell
-    const center = getCellCenter(x, y);
-
-    // Source rectangle (using UV coordinates)
+    // Source rectangle (using UV coordinates).
     const texture_width = @as(f32, @floatFromInt(texture.*.texture.width));
     const texture_height = @as(f32, @floatFromInt(texture.*.texture.height));
 
     const src = ray.Rectangle{
         .x = uv[0] * texture_width,
-        .y = (1.0 - uv[3]) * texture_height, // Start from bottom of the region
+        .y = (1.0 - uv[3]) * texture_height, // bottom-left origin in raylib
         .width = (uv[2] - uv[0]) * texture_width,
-        .height = (uv[3] - uv[1]) * texture_height, // Use positive height
+        .height = (uv[3] - uv[1]) * texture_height,
     };
 
-    // Destination rectangle (centered on the position with proper scaling)
+    // Destination rectangle – top-left corner at (x, y).
     const dest = ray.Rectangle{
-        .x = center.x,
-        .y = center.y,
+        .x = @as(f32, @floatFromInt(x)),
+        .y = @as(f32, @floatFromInt(y)),
         .width = cellsize_scaled,
         .height = cellsize_scaled,
     };
 
-    // Origin (center of the texture)
+    // Rotate around the centre of the sprite.
     const origin = ray.Vector2{
         .x = cellsize_scaled / 2.0,
         .y = cellsize_scaled / 2.0,
     };
 
-    // Draw the texture with rotation
-    ray.DrawTexturePro(texture.*.texture, src, dest, origin, rotationToDegrees(rotation), toRayColor(tint));
+    ray.DrawTexturePro(
+        texture.*.texture,
+        src,
+        dest,
+        origin,
+        rotationToDegrees(rotation),
+        toRayColor(tint),
+    );
 }
 
 // Calculates normalized UV coordinates for a tile in the atlas

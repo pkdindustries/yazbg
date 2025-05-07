@@ -8,6 +8,7 @@ const components = @import("../components.zig");
 const animsys = @import("anim.zig");
 const textures = @import("../textures.zig");
 const shaders = @import("../shaders.zig");
+const gfx = @import("../gfx.zig");
 
 pub fn occupyCell(gridx: usize, gridy: usize, color: [4]u8) void {
     const entity = ecs.createEntity();
@@ -17,10 +18,10 @@ pub fn occupyCell(gridx: usize, gridy: usize, color: [4]u8) void {
     ecs.addOrReplace(components.GridPos, entity, components.GridPos{ .x = gx, .y = gy });
     ecs.addOrReplace(components.BlockTag, entity, components.BlockTag{});
 
-    // Scale from grid coordinates to pixel coordinates
-    const cellsize_f32: f32 = 35.0; // Using default cell size, could be made configurable
-    const px = @as(f32, @floatFromInt(gridx)) * cellsize_f32;
-    const py = @as(f32, @floatFromInt(gridy)) * cellsize_f32;
+    // Translate logical grid coordinates into absolute pixel positions (top-left).
+    const cellsize_f32: f32 = @as(f32, @floatFromInt(gfx.window.cellsize));
+    const px = @as(f32, @floatFromInt(gfx.window.gridoffsetx)) + @as(f32, @floatFromInt(gridx)) * cellsize_f32;
+    const py = @as(f32, @floatFromInt(gfx.window.gridoffsety)) + @as(f32, @floatFromInt(gridy)) * cellsize_f32;
 
     ecs.addOrReplace(components.Position, entity, components.Position{ .x = px, .y = py });
     ecs.addOrReplace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
@@ -133,9 +134,9 @@ pub fn shiftRowCells(line: usize) void {
                         shiftpbuffer[count] = pos;
                     } else {
                         // If no position component, use default (unlikely)
-                        const cellsize_f32: f32 = 35.0;
-                        const px = @as(f32, @floatFromInt(grid_pos.x)) * cellsize_f32;
-                        const py = @as(f32, @floatFromInt(grid_pos.y)) * cellsize_f32;
+                        const cellsize_f32: f32 = @as(f32, @floatFromInt(gfx.window.cellsize));
+                        const px = @as(f32, @floatFromInt(gfx.window.gridoffsetx)) + @as(f32, @floatFromInt(grid_pos.x)) * cellsize_f32;
+                        const py = @as(f32, @floatFromInt(gfx.window.gridoffsety)) + @as(f32, @floatFromInt(grid_pos.y)) * cellsize_f32;
                         shiftpbuffer[count] = .{ .x = px, .y = py };
                     }
 
@@ -151,7 +152,7 @@ pub fn shiftRowCells(line: usize) void {
     // Update all collected entities
     for (0..count) |idx| {
         const entity = shiftbuffer[idx];
-        const cellsize_f32: f32 = 35.0;
+        const cellsize_f32: f32 = @as(f32, @floatFromInt(gfx.window.cellsize));
         var pos = shiftpbuffer[idx];
         var grid_pos = shiftgbuffer[idx];
 

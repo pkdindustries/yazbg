@@ -19,7 +19,9 @@ var current_piece_state = struct {
     has_piece: bool = false,
 }{};
 
-const CELL_SIZE = 35; // Default cell size
+fn cellSize() f32 {
+    return @as(f32, @floatFromInt(gfx.window.cellsize));
+}
 
 fn getPlayerEntity() ?ecsroot.Entity {
     var view = ecs.getPlayerView();
@@ -82,9 +84,10 @@ pub fn spawn() void {
         player_entity = getPlayerEntity();
     }
 
-    // Set position to match the current state without animation
-    const targetx = @as(f32, @floatFromInt(current_piece_state.x * CELL_SIZE));
-    const targety = @as(f32, @floatFromInt(current_piece_state.y * CELL_SIZE));
+    // Translate logical grid position to absolute pixels (top-left).
+    const cs = cellSize();
+    const targetx = @as(f32, @floatFromInt(gfx.window.gridoffsetx)) + @as(f32, @floatFromInt(current_piece_state.x)) * cs;
+    const targety = @as(f32, @floatFromInt(gfx.window.gridoffsety)) + @as(f32, @floatFromInt(current_piece_state.y)) * cs;
 
     // Position is set immediately for spawning, no animation
     ecs.addOrReplace(components.Position, player_entity.?, components.Position{
@@ -141,8 +144,9 @@ pub fn updatePlayerPosition(x: i32, y: i32, rotation: u32, ghost_y: i32, piece_i
 
     // Update player entity position
     if (getPlayerEntity()) |entity| {
-        const pixelX = @as(f32, @floatFromInt(x * CELL_SIZE));
-        const pixelY = @as(f32, @floatFromInt(y * CELL_SIZE));
+        const cs = cellSize();
+        const pixelX = @as(f32, @floatFromInt(gfx.window.gridoffsetx)) + @as(f32, @floatFromInt(x)) * cs;
+        const pixelY = @as(f32, @floatFromInt(gfx.window.gridoffsety)) + @as(f32, @floatFromInt(y)) * cs;
 
         ecs.addOrReplace(components.Position, entity, components.Position{
             .x = pixelX,
@@ -173,8 +177,9 @@ pub fn update() void {
         drawY = @as(i32, @intFromFloat(pos.y));
     } else {
         // If for some reason the position component is missing, use default values
-        drawX = current_piece_state.x * CELL_SIZE;
-        drawY = current_piece_state.y * CELL_SIZE;
+        const cs_i32: i32 = gfx.window.cellsize;
+        drawX = gfx.window.gridoffsetx + current_piece_state.x * cs_i32;
+        drawY = gfx.window.gridoffsety + current_piece_state.y * cs_i32;
 
         // Update entity with current position for future animations
         ecs.addOrReplace(components.Position, player_entity.?, components.Position{
@@ -195,7 +200,7 @@ pub fn update() void {
     createPieceEntities(drawX, drawY, piece_shape, piece_color, false);
 
     // Create entities for ghost piece blocks (semi-transparent preview at landing position)
-    const ghostY = ghosty() * CELL_SIZE;
+    const ghostY = gfx.window.gridoffsety + ghosty() * gfx.window.cellsize;
     const ghostColor = .{ piece_color[0], piece_color[1], piece_color[2], 200 }; // Increased alpha for better visibility
     createPieceEntities(drawX, ghostY, piece_shape, ghostColor, true);
 }
@@ -223,7 +228,7 @@ pub fn updatePieceEntities() void {
         createPieceEntities(drawX, drawY, piece_shape, piece_color, false);
 
         // Create ghost piece entities
-        const ghostY = ghosty() * CELL_SIZE;
+        const ghostY = gfx.window.gridoffsety + ghosty() * gfx.window.cellsize;
         const ghostColor = .{ piece_color[0], piece_color[1], piece_color[2], 120 }; // Increased alpha for better visibility
         createPieceEntities(drawX, ghostY, piece_shape, ghostColor, true);
     }
@@ -236,8 +241,9 @@ pub fn createPieceEntities(x: i32, y: i32, shape: [4][4]bool, color: [4]u8, is_g
     for (shape, 0..) |row, i| {
         for (row, 0..) |cell, j| {
             if (cell) {
-                const cellX = @as(i32, @intCast(i)) * CELL_SIZE;
-                const cellY = @as(i32, @intCast(j)) * CELL_SIZE;
+                const cs_i32: i32 = gfx.window.cellsize;
+                const cellX = @as(i32, @intCast(i)) * cs_i32;
+                const cellY = @as(i32, @intCast(j)) * cs_i32;
                 const posX = @as(f32, @floatFromInt(x + cellX));
                 const posY = @as(f32, @floatFromInt(y + cellY));
 

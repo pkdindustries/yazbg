@@ -2,7 +2,6 @@ const std = @import("std");
 const ray = @import("../raylib.zig");
 const ecs = @import("../ecs.zig");
 const components = @import("../components.zig");
-const Grid = @import("../grid.zig").Grid;
 const game = @import("../game.zig");
 const gfx = @import("../gfx.zig");
 const shaders = @import("../shaders.zig");
@@ -11,7 +10,6 @@ const DEBUG = false;
 pub fn drawSprites() void {
     const world = ecs.getWorld();
 
-    shaders.updateTimeUniforms();
     // First pass: render entities WITHOUT custom shaders
     var regular_view = world.view(.{ components.Sprite, components.Position, components.Texture }, .{components.Shader});
     var regular_it = regular_view.entityIterator();
