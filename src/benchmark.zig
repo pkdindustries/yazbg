@@ -284,9 +284,6 @@ fn runFrame(timer: *std.time.Timer, frame_count: *u32, total_anim_time: *u64, to
     ray.BeginDrawing();
     ray.ClearBackground(ray.BLACK);
 
-    // Update shader time uniforms
-    shaders.updateTimeUniforms();
-
     // Draw entities
     rendersys.drawSprites();
 
