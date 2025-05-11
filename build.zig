@@ -152,6 +152,32 @@ pub fn build(b: *std.Build) void {
         const benchmark_step = b.step("benchmark", "Run the animation/render benchmark");
         benchmark_step.dependOn(&run_benchmark.step);
 
+        // -----------------------------------------------------------------
+        // Mesh2D minimal test executable
+        // -----------------------------------------------------------------
+
+        const mesh_test_exe = b.addExecutable(.{
+            .name = "yazbg-mesh-test",
+            .root_source_file = b.path("src/mesh_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .omit_frame_pointer = false, // keep frame pointer for debugging
+        });
+        mesh_test_exe.root_module.strip = strip;
+        mesh_test_exe.linkLibrary(raylib_artifact);
+        mesh_test_exe.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+
+        b.installArtifact(mesh_test_exe);
+
+        const run_mesh_test = b.addRunArtifact(mesh_test_exe);
+        run_mesh_test.step.dependOn(b.getInstallStep());
+        if (b.args) |args| {
+            run_mesh_test.addArgs(args);
+        }
+
+        const mesh_test_step = b.step("mesh-test", "Run the Mesh2D rendering path test");
+        mesh_test_step.dependOn(&run_mesh_test.step);
+
         const unit_tests = b.addTest(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,

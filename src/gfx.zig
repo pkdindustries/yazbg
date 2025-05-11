@@ -34,12 +34,12 @@ pub const Window = struct {
 
         // Create render texture for resolution independence
         self.texture = ray.LoadRenderTexture(Window.OGWIDTH, Window.OGHEIGHT);
-        ray.SetTextureFilter(self.texture.texture, ray.TEXTURE_FILTER_TRILINEAR);
+        ray.SetTextureFilter(self.texture.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);
 
         // Initialize font
         self.font = ray.LoadFont("resources/font/space.ttf");
         ray.GenTextureMipmaps(&self.font.texture);
-        ray.SetTextureFilter(self.font.texture, ray.TEXTURE_FILTER_TRILINEAR);
+        ray.SetTextureFilter(self.font.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);
     }
 
     pub fn deinit(self: *Window) void {

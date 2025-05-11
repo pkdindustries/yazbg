@@ -23,6 +23,7 @@ pub fn init() !void {
     // Pre-load common shaders
     try loadShader("static", "resources/shader/static.fs");
     try loadShader("warp", "resources/shader/warp.fs");
+    try loadShader("nearest_cell", "resources/shader/nearest_cell.fs");
 
     std.debug.print("Shader system initialized with {} shaders\n", .{shaders.count()});
 }
@@ -154,6 +155,10 @@ pub fn updateShaderUniforms(entity: ecsroot.Entity) !void {
                 },
                 .vec4 => |value| {
                     ray.SetShaderValue(shader.*, location, &value, ray.SHADER_UNIFORM_VEC4);
+                },
+                .texture => |tex_ptr| {
+                    // Bind texture to the shader uniform slot
+                    ray.SetShaderValueTexture(shader.*, location, tex_ptr.*);
                 },
             }
         }

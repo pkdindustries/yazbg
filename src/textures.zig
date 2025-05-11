@@ -154,7 +154,7 @@ fn allocatePage() !void {
 
     std.debug.print("Created new texture atlas page: id={}, size={}x{}\n", .{ tex_ptr.*.id, atlas_px, atlas_px });
 
-    ray.SetTextureFilter(tex_ptr.*.texture, ray.TEXTURE_FILTER_BILINEAR);
+    ray.SetTextureFilter(tex_ptr.*.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);
 
     // reset
     ray.BeginTextureMode(tex_ptr.*);
