@@ -43,8 +43,7 @@ fn createMeshEntity(color: [4]u8) !void {
     // Request (or lazily generate) a tile in the atlas for this colour.
     const entry = try textures.getEntry(color);
 
-    std.debug.print("Got texture entry with id: {}, UV: [{d}, {d}, {d}, {d}]\n",
-        .{entry.tex.*.texture.id, entry.uv[0], entry.uv[1], entry.uv[2], entry.uv[3]});
+    std.debug.print("Got texture entry with id: {}, UV: [{d}, {d}, {d}, {d}]\n", .{ entry.tex.*.texture.id, entry.uv[0], entry.uv[1], entry.uv[2], entry.uv[3] });
 
     // Fill the quad's UVs with the atlas coordinates (same order as vertices).
     // entry.uv = [u0, v0, u1, v1] using top-left origin in our convention.
@@ -55,8 +54,7 @@ fn createMeshEntity(color: [4]u8) !void {
 
     // Debug: print all vertices
     for (quad_vertices, 0..) |v, i| {
-        std.debug.print("Vertex {}: pos=[{d}, {d}], uv=[{d}, {d}]\n",
-            .{i, v.pos[0], v.pos[1], v.uv[0], v.uv[1]});
+        std.debug.print("Vertex {}: pos=[{d}, {d}], uv=[{d}, {d}]\n", .{ i, v.pos[0], v.pos[1], v.uv[0], v.uv[1] });
     }
 
     const entity = ecs.createEntity();
@@ -69,8 +67,8 @@ fn createMeshEntity(color: [4]u8) !void {
 
     // Use a more sensible size with tint that shows the texture properly
     ecs.addOrReplace(components.Sprite, entity, components.Sprite{
-        .rgba = .{ 255, 100, 100, 255 },  // Reddish tint to match the block color
-        .size = 5.0,  // reasonable size that doesn't overwhelm the screen
+        .rgba = .{ 255, 100, 100, 255 }, // Reddish tint to match the block color
+        .size = 5.0, // reasonable size that doesn't overwhelm the screen
         .rotation = 0.0,
     });
 
@@ -114,7 +112,7 @@ pub fn main() !void {
     try textures.init();
 
     // Create several test blocks with different colors to test mesh rendering
-    try createMeshEntity(.{ 255, 0, 0, 255 });     // Red - should be clearly visible
+    try createMeshEntity(.{ 255, 0, 0, 255 }); // Red - should be clearly visible
 
     // Create a second entity at a different position so we can verify multiple meshes work
     const entity2 = ecs.createEntity();
@@ -123,8 +121,8 @@ pub fn main() !void {
         .y = 200.0,
     });
     ecs.addOrReplace(components.Sprite, entity2, components.Sprite{
-        .rgba = .{ 100, 100, 255, 255 },  // Bluish tint to match the block color
-        .size = 5.0,  // reasonable size that doesn't overwhelm the screen
+        .rgba = .{ 100, 100, 255, 255 }, // Bluish tint to match the block color
+        .size = 5.0, // reasonable size that doesn't overwhelm the screen
         .rotation = 0.0,
     });
 
@@ -140,39 +138,37 @@ pub fn main() !void {
     std.debug.print("Entity created successfully!\n", .{});
 
     std.debug.print("Created entities: Mesh2D count = {}\n", .{ecs.getWorld().len(components.Mesh2D)});
-
     // ---- Main loop ----
+    // Create render texture for consistent rendering with main game
+    const render_texture = ray.LoadRenderTexture(gfx.window.width, gfx.window.height);
+    defer ray.UnloadRenderTexture(render_texture);
+
     while (!ray.WindowShouldClose()) {
         ray.BeginDrawing();
-        defer ray.EndDrawing();
 
-        // Clear with dark gray instead of black for better visibility of meshes
-        ray.ClearBackground(ray.DARKGRAY);
+        // First render to texture (like main game does)
+        ray.BeginTextureMode(render_texture);
+        {
+            // Clear with dark gray instead of black for better visibility of meshes
+            ray.ClearBackground(ray.DARKGRAY);
 
-        // Debug: show number of entities with Mesh2D component.
-        const count = ecs.getWorld().len(components.Mesh2D);
-        if (count == 0) {
-            std.debug.print("WARNING: no Mesh2D entities found!\n", .{});
-        } else {
-            std.debug.print("Found {} mesh entities during this frame\n", .{count});
+            // Draw all ECS entities via the existing renderer.
+            rendersys.drawSprites();
+
+            // Draw debug info on screen
+            ray.DrawText("Mesh2D test – press ESC to quit", 10, 10, 20, ray.WHITE);
+
+            // Draw FPS counter at the top
+            ray.DrawFPS(10, 70);
         }
+        ray.EndTextureMode();
 
-        // Draw all ECS entities via the existing renderer.
-        rendersys.drawSprites();
+        // Draw the render texture with y-axis flipped
+        const src = ray.Rectangle{ .x = 0, .y = 0, .width = @as(f32, @floatFromInt(render_texture.texture.width)), .height = -@as(f32, @floatFromInt(render_texture.texture.height)) };
+        const dest = ray.Rectangle{ .x = 0, .y = 0, .width = @as(f32, @floatFromInt(gfx.window.width)), .height = @as(f32, @floatFromInt(gfx.window.height)) };
+        ray.DrawTexturePro(render_texture.texture, src, dest, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
 
-        // Draw debug info on screen
-        ray.DrawText("Mesh2D test – press ESC to quit", 10, 10, 20, ray.WHITE);
-
-        const fps = ray.GetFPS();
-        const fps_text = std.fmt.allocPrint(std.heap.c_allocator, "FPS: {}", .{fps}) catch "FPS: ??";
-        defer std.heap.c_allocator.free(fps_text);
-        ray.DrawText(fps_text.ptr, 10, 40, 20, ray.GREEN);
-
-        // Draw small reference shape as a blue square to confirm rendering is working
-        ray.DrawRectangle(400, 300, 30, 30, ray.BLUE);
-
-        // Draw FPS counter at the top
-        ray.DrawFPS(10, 70);
+        ray.EndDrawing();
     }
 
     // ---- Shutdown ----

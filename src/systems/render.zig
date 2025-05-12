@@ -75,87 +75,24 @@ fn drawMeshEntity(mesh: *const components.Mesh2D, pos: *const components.Positio
     const pivot_y: f32 = cellsize_scaled / 2.0;
 
     // Debug info
-    std.debug.print("Drawing mesh with texture ID: {}\n", .{mesh.texture.*.texture.id});
-    std.debug.print("Mesh has {} vertices and {} indices\n", .{ mesh.vertices.len, mesh.indices.len });
-    std.debug.print("Position: x={d}, y={d}, size={d}\n", .{ pos.x, pos.y, sprite.size });
-    std.debug.print("Color: r={}, g={}, b={}, a={}\n", .{ sprite.rgba[0], sprite.rgba[1], sprite.rgba[2], sprite.rgba[3] });
-
-    // Draw a very small outline to mark the mesh position without overwhelming the view
-    const small_debug_size = @as(i32, @intFromFloat(cellsize_scaled * 0.3));
-    ray.DrawRectangleLines(
-        @as(i32, @intFromFloat(pos.x)),
-        @as(i32, @intFromFloat(pos.y)),
-        small_debug_size,
-        small_debug_size,
-        ray.ColorAlpha(ray.GOLD, 0.8) // Using gold with high alpha for visibility
-    );
-
-    // Draw a solid texture rectangle to debug the texture itself
-    // This uses the higher-level raylib functions which should be more reliable
-    const src_rect = ray.Rectangle{
-        .x = 0,
-        .y = 0,
-        .width = @as(f32, @floatFromInt(mesh.texture.*.texture.width)),
-        .height = @as(f32, @floatFromInt(mesh.texture.*.texture.height)),
-    };
-    const dest_rect = ray.Rectangle{
-        .x = pos.x + @as(f32, @floatFromInt(gfx.window.cellsize * 2)),
-        .y = pos.y,
-        .width = @as(f32, @floatFromInt(gfx.window.cellsize * 2)),
-        .height = @as(f32, @floatFromInt(gfx.window.cellsize * 2)),
-    };
-
-    ray.DrawTexturePro(
-        mesh.texture.*.texture,
-        src_rect,
-        dest_rect,
-        .{ .x = 0, .y = 0 }, // origin
-        0.0, // rotation
-        ray.WHITE // tint
-    );
+    // std.debug.print("Drawing mesh with texture ID: {}\n", .{mesh.texture.*.texture.id});
+    // std.debug.print("Mesh has {} vertices and {} indices\n", .{ mesh.vertices.len, mesh.indices.len });
+    // std.debug.print("Position: x={d}, y={d}, size={d}\n", .{ pos.x, pos.y, sprite.size });
+    // std.debug.print("Color: r={}, g={}, b={}, a={}\n", .{ sprite.rgba[0], sprite.rgba[1], sprite.rgba[2], sprite.rgba[3] });
 
     // Ensure we're using alpha blending
     ray.rlSetBlendMode(ray.BLEND_ALPHA);
 
-    // Now try the texture-based approach
     // Bind the texture for rendering so the mesh is textured correctly.
     // Important: Make sure we're binding the correct texture ID from the render texture
     const texture_id = mesh.texture.*.texture.id;
-    std.debug.print("Using texture ID: {} for mesh rendering\n", .{texture_id});
 
-    // Double check if texture ID is valid
-    if (texture_id == 0) {
-        std.debug.print("WARNING: Invalid texture ID of 0!\n", .{});
-        // Draw a solid fallback shape so we can at least see something
-        ray.DrawRectangle(
-            @as(i32, @intFromFloat(pos.x)),
-            @as(i32, @intFromFloat(pos.y)),
-            @as(i32, @intFromFloat(cellsize_scaled)),
-            @as(i32, @intFromFloat(cellsize_scaled)),
-            ray.ColorAlpha(ray.PURPLE, 0.7)
-        );
-    }
-    ray.rlSetTexture(texture_id);
+    // Now try the direct rlgl approach as well
+    // Make sure texture state is properly enabled
+    ray.rlEnableTexture(texture_id);
 
     // Set the color for the mesh vertices
     ray.rlColor4ub(sprite.rgba[0], sprite.rgba[1], sprite.rgba[2], sprite.rgba[3]);
-
-    // Draw a debug outline of where the mesh should be for comparison
-    const quad_size = cellsize_scaled;
-    const quad_x = @as(i32, @intFromFloat(pos.x));
-    const quad_y = @as(i32, @intFromFloat(pos.y));
-
-    // Use thick lines and high contrast to make sure it's visible
-    const thickness = 3;
-    for (0..thickness) |i| {
-        ray.DrawRectangleLines(
-            quad_x - @as(i32, @intCast(i)),
-            quad_y - @as(i32, @intCast(i)),
-            @as(i32, @intFromFloat(quad_size)) + @as(i32, @intCast(i*2)),
-            @as(i32, @intFromFloat(quad_size)) + @as(i32, @intCast(i*2)),
-            ray.RED
-        );
-    }
 
     ray.rlBegin(ray.RL_TRIANGLES);
 
@@ -176,7 +113,10 @@ fn drawMeshEntity(mesh: *const components.Mesh2D, pos: *const components.Positio
 
     ray.rlEnd();
 
-    // Reset texture (defensive) – 0 tells rlgl to use default white texture
+    // Disable texturing after our textured triangles
+    ray.rlDisableTexture();
+
+    // Reset states to default (defensive)
     ray.rlSetTexture(0);
 }
 
@@ -202,7 +142,7 @@ fn commitVertex(
     const wx = pos.x + rx;
     const wy = pos.y + ry;
 
-    std.debug.print("Vertex: pos={d},{d} uv={d},{d} -> world={d},{d}\n", .{ v.pos[0], v.pos[1], v.uv[0], v.uv[1], wx, wy });
+    // std.debug.print("Vertex: pos={d},{d} uv={d},{d} -> world={d},{d}\n", .{ v.pos[0], v.pos[1], v.uv[0], v.uv[1], wx, wy });
 
     // Ensure UVs are within valid range (0.0-1.0)
     const u = std.math.clamp(v.uv[0], 0.0, 1.0);
@@ -210,7 +150,7 @@ fn commitVertex(
     const v_coord = std.math.clamp(1.0 - v.uv[1], 0.0, 1.0);
 
     // Set texture coordinates and vertex position
-    std.debug.print("Using flipped UV: u={d}, v={d}\n", .{ u, v_coord });
+    // std.debug.print("Using flipped UV: u={d}, v={d}\n", .{ u, v_coord });
     ray.rlTexCoord2f(u, v_coord);
     ray.rlVertex2f(wx, wy);
 }
