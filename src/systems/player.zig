@@ -89,22 +89,7 @@ pub fn spawn() void {
 
 // Clear existing block entities and create new ones based on current piece
 fn clearBlockEntities() void {
-    // Clear piece blocks
-    var piece_it = getPieceBlocks();
-    while (piece_it.next()) |entity| {
-        ecs.getWorld().destroy(entity);
-    }
-
-    // Clear ghost blocks
-    var ghost_it = getGhostBlocks();
-    while (ghost_it.next()) |entity| {
-        ecs.getWorld().destroy(entity);
-    }
-}
-
-// Create entity for a single block
-fn createBlockEntity(x: f32, y: f32, color: [4]u8, scale: f32, is_ghost: bool) !ecsroot.Entity {
-    return blocks.createBlockEntity(x, y, color, scale, is_ghost);
+    blocks.clearAllBlockEntities();
 }
 
 // Update the player's position based on game state
@@ -159,20 +144,11 @@ pub fn update() void {
         drawX = @as(i32, @intFromFloat(pos.x));
         drawY = @as(i32, @intFromFloat(pos.y));
     } else {
-        // If for some reason the position component is missing, calculate position from piece state
-        const cs_i32: i32 = gfx.window.cellsize;
-        drawX = gfx.window.gridoffsetx + piece_state.x * cs_i32;
-        drawY = gfx.window.gridoffsety + piece_state.y * cs_i32;
-
-        // Update entity with current position for future animations
-        ecs.addOrReplace(components.Position, player_entity.?, components.Position{
-            .x = @floatFromInt(drawX),
-            .y = @floatFromInt(drawY),
-        });
+        std.debug.print("Player entity has no Position component\n", .{});
+        return;
     }
-
     // Clear all existing block entities
-    clearBlockEntities();
+    blocks.clearAllBlockEntities();
 
     // Get the current piece from the saved piece index
     const piece_type = pieces.tetraminos[piece_state.piece_index];
@@ -180,12 +156,12 @@ pub fn update() void {
     const piece_color = piece_type.color;
 
     // Create entities for the active piece blocks
-    createPieceEntities(drawX, drawY, piece_shape, piece_color, false);
+    blocks.createPieceEntities(drawX, drawY, piece_shape, piece_color, false);
 
     // Create entities for ghost piece blocks (semi-transparent preview at landing position)
     const ghostY = gfx.window.gridoffsety + piece_state.ghost_y * gfx.window.cellsize;
-    const ghostColor = .{ piece_color[0], piece_color[1], piece_color[2], 200 }; // Increased alpha for better visibility
-    createPieceEntities(drawX, ghostY, piece_shape, ghostColor, true);
+    // Use directly the createGhostPiece function from blocks module
+    blocks.createGhostPiece(drawX, ghostY, piece_shape, piece_color);
 }
 
 // Update piece entities without redrawing (used after animations)
@@ -210,18 +186,12 @@ pub fn updatePieceEntities() void {
         const piece_color = piece_type.color;
 
         // Create main piece entities
-        createPieceEntities(drawX, drawY, piece_shape, piece_color, false);
+        blocks.createPieceEntities(drawX, drawY, piece_shape, piece_color, false);
 
         // Create ghost piece entities
         const ghostY = gfx.window.gridoffsety + piece_state.ghost_y * gfx.window.cellsize;
-        const ghostColor = .{ piece_color[0], piece_color[1], piece_color[2], 120 }; // Semi-transparent
-        createPieceEntities(drawX, ghostY, piece_shape, ghostColor, true);
+        blocks.createGhostPiece(drawX, ghostY, piece_shape, piece_color);
     }
-}
-
-// Create entities for a tetris piece (either main piece or ghost)
-pub fn createPieceEntities(x: i32, y: i32, shape: [4][4]bool, color: [4]u8, is_ghost: bool) void {
-    blocks.createPieceEntities(x, y, shape, color, is_ghost);
 }
 
 // Get ghost piece's landing position from current state
@@ -289,7 +259,7 @@ pub fn harddrop() void {
 
                         // Add Sprite component with the same color, reduced opacity
                         ecs.getWorld().add(new_entity, components.Sprite{
-                            .rgba = .{ color[0], color[1], color[2], 60 },
+                            .rgba = .{ color[0], color[1], color[2], 100 },
                             .size = 1.0,
                         });
 

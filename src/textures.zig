@@ -5,13 +5,13 @@ const ecsroot = @import("ecs");
 const components = @import("components.zig");
 const gfx = @import("gfx.zig");
 
-// least vibe looking vibed module. courtesy o3.
-// must be transliterated from someones c code
-// i actually.. like it?
+// Common color type definitions
+pub const Color = [4]u8;
+pub const ColorRGBA = ray.Color;
 
 // 0-1 (u0, v0, u1, v1) normalized texture coordinates.
 // flipped to raylib's coordinate system by render
-const UV = [4]f32;
+pub const UV = [4]f32;
 
 pub const AtlasEntry = struct {
     tex: *const ray.RenderTexture2D, // texture atlas
@@ -33,7 +33,7 @@ var atlas_px: i32 = 0; // width / height of one page in px
 var pages: std.ArrayList(Page) = undefined;
 
 // Hash-map color → entry (pointer to page texture + UV rectangle)
-var color_lut: std.AutoHashMap([4]u8, AtlasEntry) = undefined;
+var color_lut: std.AutoHashMap(Color, AtlasEntry) = undefined;
 
 /// needs gfx.window.cellsize
 pub fn init() !void {
@@ -43,7 +43,7 @@ pub fn init() !void {
     atlas_px = tile_px * TILES_PER_ROW;
 
     pages = std.ArrayList(Page).init(alloc);
-    color_lut = std.AutoHashMap([4]u8, AtlasEntry).init(alloc);
+    color_lut = std.AutoHashMap(Color, AtlasEntry).init(alloc);
 }
 
 /// Unload all pages and free memory.
@@ -57,7 +57,7 @@ pub fn deinit() void {
 }
 
 // Get an existing entry from the cache, doesn't create a new one
-pub fn getEntry(color: [4]u8) !AtlasEntry {
+pub fn getEntry(color: Color) !AtlasEntry {
     if (color_lut.get(color)) |entry| {
         return entry;
     }
@@ -65,7 +65,7 @@ pub fn getEntry(color: [4]u8) !AtlasEntry {
 }
 
 // Create a new entry using the provided draw function
-pub fn createEntry(color: [4]u8, draw_fn: DrawIntoTileFn) !AtlasEntry {
+pub fn createEntry(color: Color, draw_fn: DrawIntoTileFn) !AtlasEntry {
     // Check if it already exists first
     if (color_lut.get(color)) |entry| {
         return entry;
@@ -79,7 +79,7 @@ pub fn createEntry(color: [4]u8, draw_fn: DrawIntoTileFn) !AtlasEntry {
     return entry;
 }
 
-fn ensureEntry(color_ptr: *const [4]u8, draw_fn: DrawIntoTileFn) !void {
+fn ensureEntry(color_ptr: *const Color, draw_fn: DrawIntoTileFn) !void {
     const color = color_ptr.*;
 
     if (color_lut.contains(color)) return; // already cached
@@ -141,4 +141,4 @@ fn allocatePage() !void {
 }
 
 /// Function pointer type for drawing into a tile
-pub const DrawIntoTileFn = fn(page_tex: *const ray.RenderTexture2D, tile_x: i32, tile_y: i32, tile_size: i32, color: [4]u8) void;
+pub const DrawIntoTileFn = fn (page_tex: *const ray.RenderTexture2D, tile_x: i32, tile_y: i32, tile_size: i32, color: Color) void;
