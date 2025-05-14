@@ -116,14 +116,6 @@ pub const Background = struct {
     texture: [8]ray.Texture2D = undefined,
     shader_entity: ecsroot.Entity = undefined,
 
-    // Shader parameters
-    freqx: f32 = 10.0,
-    freqy: f32 = 10.0,
-    ampx: f32 = 2.0,
-    ampy: f32 = 2.0,
-    speedx: f32 = 0.15,
-    speedy: f32 = 0.15,
-
     // Store when warp effect should end
     warp_end_ms: i64 = 0,
     level: u8 = 0,
@@ -146,12 +138,12 @@ pub const Background = struct {
         // Set initial shader parameters
         var shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
         try shader_component.setFloat("seconds", 0.0);
-        try shader_component.setFloat("freqX", self.freqx);
-        try shader_component.setFloat("freqY", self.freqy);
-        try shader_component.setFloat("ampX", self.ampx);
-        try shader_component.setFloat("ampY", self.ampy);
-        try shader_component.setFloat("speedX", self.speedx);
-        try shader_component.setFloat("speedY", self.speedy);
+        try shader_component.setFloat("freqX", 10.0);
+        try shader_component.setFloat("freqY", 10.0);
+        try shader_component.setFloat("ampX", 2.0);
+        try shader_component.setFloat("ampY", 2.0);
+        try shader_component.setFloat("speedX", 0.15);
+        try shader_component.setFloat("speedY", 0.15);
 
         const size = [2]f32{
             @floatFromInt(Window.OGWIDTH),
@@ -175,38 +167,33 @@ pub const Background = struct {
     }
 
     pub fn updateShader(self: *Background) !void {
+        // Get shader component
+        var shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
+
         // Set background warp parameters based on game state
         const now = std.time.milliTimestamp();
         if (self.warp_end_ms > now) {
             // Intense warp effect for special events
-            self.freqx = 25.0;
-            self.freqy = 25.0;
-            self.ampx = 10.0;
-            self.ampy = 10.0;
-            self.speedx = 25.0;
-            self.speedy = 25.0;
+            try shader_component.setFloat("freqX", 25.0);
+            try shader_component.setFloat("freqY", 25.0);
+            try shader_component.setFloat("ampX", 10.0);
+            try shader_component.setFloat("ampY", 10.0);
+            try shader_component.setFloat("speedX", 25.0);
+            try shader_component.setFloat("speedY", 25.0);
         } else {
             // Normal warp effect scaling with level
-            self.freqx = 10.0;
-            self.freqy = 10.0;
-            self.ampx = 2.0;
-            self.ampy = 2.0;
-            self.speedx = 0.15 * (@as(f32, @floatFromInt(self.level)) + 2.0);
-            self.speedy = 0.15 * (@as(f32, @floatFromInt(self.level)) + 2.0);
+            const speed_factor = 0.15 * (@as(f32, @floatFromInt(self.level)) + 2.0);
+            try shader_component.setFloat("freqX", 10.0);
+            try shader_component.setFloat("freqY", 10.0);
+            try shader_component.setFloat("ampX", 2.0);
+            try shader_component.setFloat("ampY", 2.0);
+            try shader_component.setFloat("speedX", speed_factor);
+            try shader_component.setFloat("speedY", speed_factor);
         }
 
-        // Update shader uniforms
-        var shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
+        // Update time uniform
         const current_time = @as(f32, @floatCast(ray.GetTime()));
         try shader_component.setFloat("seconds", current_time);
-        try shader_component.setFloat("freqX", self.freqx);
-        try shader_component.setFloat("freqY", self.freqy);
-        try shader_component.setFloat("ampX", self.ampx);
-        try shader_component.setFloat("ampY", self.ampy);
-        try shader_component.setFloat("speedX", self.speedx);
-        try shader_component.setFloat("speedY", self.speedy);
-
-        // Update shader uniforms before rendering
         try shaders.updateShaderUniforms(self.shader_entity);
     }
 
