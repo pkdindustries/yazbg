@@ -7,6 +7,36 @@ const gfx = @import("gfx.zig");
 const textures = @import("textures.zig");
 const pieces = @import("pieces.zig");
 
+/// Draws a rounded block with highlight into a texture tile
+pub fn drawBlockIntoTile(page_tex: *const ray.RenderTexture2D, tile_x: i32, tile_y: i32, tile_size: i32, color: [4]u8) void {
+    // Padding to float for drawing
+    const padding = @as(f32, @floatFromInt(gfx.window.cellpadding)) * 2.0;
+    const block_size = @as(f32, @floatFromInt(tile_size)) - padding * 2.0;
+
+    const rect = ray.Rectangle{
+        .x = @as(f32, @floatFromInt(tile_x)) + padding,
+        .y = @as(f32, @floatFromInt(tile_y)) + padding,
+        .width = block_size,
+        .height = block_size,
+    };
+
+    // Rectangle (top-third of the block) for highlight
+    const highlight_rect = ray.Rectangle{
+        .x = rect.x + 2,
+        .y = rect.y + 2,
+        .width = rect.width - 4,
+        .height = rect.height / 3,
+    };
+
+    const ray_color = gfx.toRayColor(color);
+    const light_color = gfx.createLighterColor(color, 20);
+
+    ray.BeginTextureMode(page_tex.*);
+    ray.DrawRectangleRounded(highlight_rect, 0.4, 8, light_color);
+    ray.DrawRectangleRounded(rect, 0.4, 20, ray_color);
+    ray.EndTextureMode();
+}
+
 // Create entity for a single block
 pub fn createBlockEntity(x: f32, y: f32, color: [4]u8, scale: f32, is_ghost: bool) !ecsroot.Entity {
     const entity = createBlockTextureWithAtlas(x, y, color, scale, 0.0) catch |err| {
@@ -37,7 +67,16 @@ pub fn createBlockTextureWithAtlas(x: f32, y: f32, color: [4]u8, scale: f32, rot
 
 // attach a Texture component to an existing entity.
 pub fn addBlockTextureWithAtlas(entity: ecsroot.Entity, color: [4]u8) !void {
-    const entry = try textures.getEntry(color);
+    // Try to get an existing entry first
+    const entry = blk: {
+        if (textures.getEntry(color)) |existing| {
+            break :blk existing;
+        } else |_| {
+            // If not found, create a new entry with our drawing function
+            break :blk try textures.createEntry(color, drawBlockIntoTile);
+        }
+    };
+    
     ecs.addOrReplace(components.Texture, entity, components.Texture{
         .texture = entry.tex,
         .uv = entry.uv,

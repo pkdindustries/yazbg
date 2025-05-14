@@ -44,21 +44,6 @@ pub fn init() !void {
 
     pages = std.ArrayList(Page).init(alloc);
     color_lut = std.AutoHashMap([4]u8, AtlasEntry).init(alloc);
-
-    // Pre-populate common colors so the game looks identical at start-up.
-    const defaults = [_][4]u8{
-        .{ 255, 0, 0, 255 }, // red
-        .{ 0, 255, 0, 255 }, // green
-        .{ 0, 0, 255, 255 }, // blue
-        .{ 255, 255, 0, 255 }, // yellow
-        .{ 255, 0, 255, 255 }, // magenta
-        .{ 0, 255, 255, 255 }, // cyan
-        .{ 255, 165, 0, 255 }, // orange
-        .{ 128, 0, 128, 255 }, // purple
-        .{ 255, 255, 255, 128 }, // ghost (semi-transparent white)
-    };
-
-    for (defaults) |c| try ensureEntry(&c);
 }
 
 /// Unload all pages and free memory.
@@ -71,21 +56,30 @@ pub fn deinit() void {
     color_lut.deinit();
 }
 
-// lazy create a tile for the given color
+// Get an existing entry from the cache, doesn't create a new one
 pub fn getEntry(color: [4]u8) !AtlasEntry {
+    if (color_lut.get(color)) |entry| {
+        return entry;
+    }
+    return error.EntryNotFound;
+}
+
+// Create a new entry using the provided draw function
+pub fn createEntry(color: [4]u8, draw_fn: DrawIntoTileFn) !AtlasEntry {
+    // Check if it already exists first
     if (color_lut.get(color)) |entry| {
         return entry;
     }
 
     std.debug.print("Cache miss for color [{},{},{},{}], creating new entry\n", .{ color[0], color[1], color[2], color[3] });
-    try ensureEntry(&color);
+    try ensureEntry(&color, draw_fn);
     // safe to unwrap after ensureEntry succeeds
     const entry = color_lut.get(color).?;
     std.debug.print("Created entry for color [{},{},{},{}]: texture={}\n", .{ color[0], color[1], color[2], color[3], entry.tex.*.id });
     return entry;
 }
 
-fn ensureEntry(color_ptr: *const [4]u8) !void {
+fn ensureEntry(color_ptr: *const [4]u8, draw_fn: DrawIntoTileFn) !void {
     const color = color_ptr.*;
 
     if (color_lut.contains(color)) return; // already cached
@@ -101,13 +95,16 @@ fn ensureEntry(color_ptr: *const [4]u8) !void {
     const tile_index: u16 = page.next_tile;
     page.next_tile += 1;
 
-    //  scribble the colored block into the tile.
-    try drawBlockIntoTile(page.tex, tile_index, color);
-
-    // normalised UV rectangle for the tile.
+    // Calculate tile position
     const col: i32 = @as(i32, @intCast(tile_index % TILES_PER_ROW));
     const row: i32 = @as(i32, @intCast(tile_index / TILES_PER_ROW));
+    const tile_x = col * tile_px;
+    const tile_y = row * tile_px;
 
+    // Call the provided drawing function
+    draw_fn(page.tex, tile_x, tile_y, tile_px, color);
+
+    // normalized UV rectangle for the tile
     const uv = gfx.calculateUV(col, row, tile_px, atlas_px);
 
     std.debug.print("Tile {}: col={}, row={}, UV=[{d:.6}, {d:.6}, {d:.6}, {d:.6}]\n", .{ tile_index, col, row, uv[0], uv[1], uv[2], uv[3] });
@@ -143,38 +140,5 @@ fn allocatePage() !void {
     try pages.append(.{ .tex = tex_ptr, .next_tile = 0 });
 }
 
-/// Draws a rounded block with highlight into `tile_index` of `page_tex`.
-fn drawBlockIntoTile(page_tex: *const ray.RenderTexture2D, tile_index: u16, color: [4]u8) !void {
-    const col: i32 = @as(i32, @intCast(tile_index % TILES_PER_ROW));
-    const row: i32 = @as(i32, @intCast(tile_index / TILES_PER_ROW));
-
-    const tile_x = col * tile_px;
-    const tile_y = row * tile_px;
-
-    //  padding to float for drawing.
-    const padding = @as(f32, @floatFromInt(gfx.window.cellpadding)) * 2.0;
-    const block_size = @as(f32, @floatFromInt(tile_px)) - padding * 2.0;
-
-    const rect = ray.Rectangle{
-        .x = @as(f32, @floatFromInt(tile_x)) + padding,
-        .y = @as(f32, @floatFromInt(tile_y)) + padding,
-        .width = block_size,
-        .height = block_size,
-    };
-
-    // rectangle (top-third of the block).
-    const highlight_rect = ray.Rectangle{
-        .x = rect.x + 2,
-        .y = rect.y + 2,
-        .width = rect.width - 4,
-        .height = rect.height / 3,
-    };
-
-    const ray_color = gfx.toRayColor(color);
-    const light_color = gfx.createLighterColor(color, 20);
-
-    ray.BeginTextureMode(page_tex.*);
-    ray.DrawRectangleRounded(highlight_rect, 0.4, 8, light_color);
-    ray.DrawRectangleRounded(rect, 0.4, 20, ray_color);
-    ray.EndTextureMode();
-}
+/// Function pointer type for drawing into a tile
+pub const DrawIntoTileFn = fn(page_tex: *const ray.RenderTexture2D, tile_x: i32, tile_y: i32, tile_size: i32, color: [4]u8) void;
