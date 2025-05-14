@@ -7,7 +7,7 @@ const gfx = @import("../gfx.zig");
 const shaders = @import("../shaders.zig");
 
 const DEBUG = false;
-pub fn drawSprites() void {
+pub fn draw() void {
     const world = ecs.getWorld();
 
     // First pass: render entities WITHOUT custom shaders
@@ -21,7 +21,7 @@ pub fn drawSprites() void {
 
         const draw_x = @as(i32, @intFromFloat(pos.x));
         const draw_y = @as(i32, @intFromFloat(pos.y));
-        drawTextureFromComponent(draw_x, draw_y, st.texture, st, sprite.rgba, sprite.size, sprite.rotation);
+        drawTexture(draw_x, draw_y, st.texture, st, sprite.rgba, sprite.size, sprite.rotation);
     }
 
     // Second pass: render entities WITH custom shaders
@@ -42,7 +42,7 @@ pub fn drawSprites() void {
 
         const draw_x = @as(i32, @intFromFloat(pos.x));
         const draw_y = @as(i32, @intFromFloat(pos.y));
-        drawTextureFromComponent(draw_x, draw_y, st.texture, st, sprite.rgba, sprite.size, sprite.rotation);
+        drawTexture(draw_x, draw_y, st.texture, st, sprite.rgba, sprite.size, sprite.rotation);
 
         // End entity-specific shader
         ray.EndShaderMode();
@@ -50,6 +50,6 @@ pub fn drawSprites() void {
 }
 
 // Draw a render texture with scaling and rotation using Texture component
-pub fn drawTextureFromComponent(x: i32, y: i32, texture: *const ray.RenderTexture2D, tex_component: *const components.Texture, tint: [4]u8, scale: f32, rotation: f32) void {
+pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, tex_component: *const components.Texture, tint: [4]u8, scale: f32, rotation: f32) void {
     gfx.drawTexture(x, y, texture, tex_component.*.uv, tint, scale, rotation);
 }

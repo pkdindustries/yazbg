@@ -290,30 +290,32 @@ pub fn frame() void {
     animsys.update();
     {
         ray.BeginDrawing();
-        ray.BeginTextureMode(window.texture);
         {
-            ray.ClearBackground(ray.BLACK);
-            rendersys.drawSprites();
+            ray.BeginTextureMode(window.texture);
+            {
+                ray.ClearBackground(ray.BLACK);
+                rendersys.draw();
 
-            // Draw HUD elements
-            hud.draw(.{
-                .gridoffsetx = window.gridoffsetx,
-                .gridoffsety = window.gridoffsety,
-                .cellsize = window.cellsize,
-                .cellpadding = window.cellpadding,
-                .font = window.font,
-                .og_width = Window.OGWIDTH,
-                .og_height = Window.OGHEIGHT,
-                .next_piece = game.state.piece.next,
-                .held_piece = game.state.piece.held,
-            });
+                // Draw HUD elements
+                hud.draw(.{
+                    .gridoffsetx = window.gridoffsetx,
+                    .gridoffsety = window.gridoffsety,
+                    .cellsize = window.cellsize,
+                    .cellpadding = window.cellpadding,
+                    .font = window.font,
+                    .og_width = Window.OGWIDTH,
+                    .og_height = Window.OGHEIGHT,
+                    .next_piece = game.state.piece.next,
+                    .held_piece = game.state.piece.held,
+                });
+            }
+            ray.EndTextureMode();
+
+            // Scale render texture to actual window size
+            window.drawScaled();
         }
-        ray.EndTextureMode();
-
-        // Scale render texture to actual window size
-        window.drawScaled();
+        ray.EndDrawing();
     }
-    ray.EndDrawing();
 }
 
 // Convert RGBA array to raylib Color

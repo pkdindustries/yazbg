@@ -283,7 +283,7 @@ pub fn main() !void {
 
         // Update & draw
         animsys.update();
-        rendersys.drawSprites();
+        rendersys.draw();
 
         ray.DrawText("10 000 animated tetrominos", 100, 100, 20, ray.WHITE);
         ray.DrawFPS(10, 35);
