@@ -13,7 +13,7 @@ const gfx = @import("gfx.zig");
 // flipped to raylib's coordinate system by render
 const UV = [4]f32;
 
-const AtlasEntry = struct {
+pub const AtlasEntry = struct {
     tex: *const ray.RenderTexture2D, // texture atlas
     uv: UV, // normalised UV rect
 };

@@ -24,7 +24,7 @@ pub const Shader = struct {
     created: bool = false,
     /// HashMap of uniform name to value
     uniforms: std.StringHashMap(ShaderUniform),
-    
+
     pub fn init(allocator: std.mem.Allocator) Shader {
         return .{
             .shader = undefined,
@@ -32,26 +32,26 @@ pub const Shader = struct {
             .uniforms = std.StringHashMap(ShaderUniform).init(allocator),
         };
     }
-    
+
     pub fn deinit(self: *Shader) void {
         self.uniforms.deinit();
         if (self.created) {
             ray.UnloadShader(self.shader.*);
         }
     }
-    
+
     pub fn setFloat(self: *Shader, name: []const u8, value: f32) !void {
         try self.uniforms.put(name, ShaderUniform{ .float = value });
     }
-    
+
     pub fn setVec2(self: *Shader, name: []const u8, value: [2]f32) !void {
         try self.uniforms.put(name, ShaderUniform{ .vec2 = value });
     }
-    
+
     pub fn setVec3(self: *Shader, name: []const u8, value: [3]f32) !void {
         try self.uniforms.put(name, ShaderUniform{ .vec3 = value });
     }
-    
+
     pub fn setVec4(self: *Shader, name: []const u8, value: [4]f32) !void {
         try self.uniforms.put(name, ShaderUniform{ .vec4 = value });
     }
@@ -75,32 +75,6 @@ pub const ShaderUniform = union(UniformType) {
     vec3: [3]f32,
     vec4: [4]f32,
     texture: *const ray.Texture2D,
-};
-
-// -----------------------------------------------------------------------------
-// Geometry definitions for arbitrary (non-rectangular) textured shapes
-// -----------------------------------------------------------------------------
-
-/// Single 2-D vertex with a texture coordinate (both in local object space).
-/// `pos`   – x/y in the shape's local space (range free, but typically 0..1)
-/// `uv`    – texture coordinate 0..1 matching the atlas/sprite sheet
-pub const Vertex2D = struct {
-    pos: [2]f32,
-    uv:  [2]f32,
-};
-
-/// A 2-D triangle mesh that can be rendered with rlBegin/rlEnd or uploaded as a
-/// ray.Mesh.  The mesh is *not* owned – the slices should point to memory that
-/// lives at least as long as the entity itself (usually static or arena-alloc).
-pub const Mesh2D = struct {
-    vertices: []const Vertex2D, // vertex list
-    indices:  []const u16,      // index list (multiple of 3).  If empty the
-                                // vertices array is treated as already
-                                // de-indexed triangles (tri-list order).
-
-    /// Pointer to the texture (usually an atlas stored in a shared render
-    /// texture).
-    texture: *const ray.RenderTexture2D,
 };
 
 // Tag for temporary flash/fade effects
