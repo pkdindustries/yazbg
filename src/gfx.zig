@@ -32,6 +32,12 @@ pub const Window = struct {
         ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
         ray.InitWindow(Window.OGWIDTH, Window.OGHEIGHT, "yazbg");
 
+        // Calculate initial window size based on 65% of screen height
+        const monitor_height = ray.GetMonitorHeight(0);
+        const initial_height = @divTrunc(monitor_height * 65, 100); // 65% of screen height
+        const initial_width = @divTrunc(initial_height * Window.OGWIDTH, Window.OGHEIGHT);
+        ray.SetWindowSize(initial_width, initial_height);
+
         // Create render texture for resolution independence
         self.texture = ray.LoadRenderTexture(Window.OGWIDTH, Window.OGHEIGHT);
         ray.SetTextureFilter(self.texture.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);

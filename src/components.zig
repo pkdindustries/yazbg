@@ -153,3 +153,13 @@ pub const Rotation = struct { index: u2 }; // From game.state.piece.r [cite: 129
 pub const ActivePieceTag = struct {}; // Marker for the single active piece entity
 pub const PieceBlockTag = struct {}; // Marker for blocks belonging to active piece
 pub const GhostBlockTag = struct {}; // Marker for blocks belonging to ghost preview
+
+// Player piece state - stored with the active piece entity
+pub const PlayerPieceState = struct {
+    x: i32, // logical grid x position
+    y: i32, // logical grid y position
+    rotation: u32, // current rotation index
+    ghost_y: i32, // calculated landing position
+    piece_index: u32, // current piece type index
+    has_piece: bool = true, // whether this entity has an active piece
+};

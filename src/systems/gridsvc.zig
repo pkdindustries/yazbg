@@ -168,7 +168,6 @@ pub fn shiftRowCells(line: usize) void {
         grid_pos.y += 1;
         ecs.addOrReplace(components.GridPos, entity, grid_pos);
 
-        // Position is updated for glame logic
         pos.y = target_pos_y;
         ecs.addOrReplace(components.Position, entity, pos);
 
