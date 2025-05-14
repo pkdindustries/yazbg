@@ -238,7 +238,7 @@ pub fn init() !void {
 
     // Initialize window
     try window.init();
-    // Initialize texture and shader systems
+    // Initialize texture, blocks and shader systems
     try textures.init();
     try shaders.init();
     // Initialize background

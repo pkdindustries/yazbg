@@ -252,9 +252,8 @@ pub fn main() !void {
     gfx.window.gridoffsetx = 10;
     gfx.window.gridoffsety = 10;
 
-    // Atlas (block) system must be initialised before we can draw blocks, as
-    // it relies on cellsize for internal sizing.
-    try textures.init();
+    // Initialize graphics system
+    try gfx.init();
 
     // Pre-render the 7 piece textures
     try createPieceTextures();

@@ -85,27 +85,6 @@ pub fn getEntry(color: [4]u8) !AtlasEntry {
     return entry;
 }
 
-// attach a Texture component to an existing entity.
-pub fn addBlockTextureWithAtlas(entity: ecsroot.Entity, color: [4]u8) !void {
-    const entry = try getEntry(color);
-    ecs.addOrReplace(components.Texture, entity, components.Texture{
-        .texture = entry.tex,
-        .uv = entry.uv,
-        .created = false, // shared atlas – not owned by the entity
-    });
-}
-
-// new entity equipped with Sprite + Texture.
-pub fn createBlockTextureWithAtlas(x: f32, y: f32, color: [4]u8, scale: f32, rotation: f32) !ecsroot.Entity {
-    const entity = ecs.createEntity();
-
-    ecs.addOrReplace(components.Position, entity, components.Position{ .x = x, .y = y });
-    ecs.addOrReplace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = scale, .rotation = rotation });
-
-    try addBlockTextureWithAtlas(entity, color);
-    return entity;
-}
-
 fn ensureEntry(color_ptr: *const [4]u8) !void {
     const color = color_ptr.*;
 
