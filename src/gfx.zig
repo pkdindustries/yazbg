@@ -113,18 +113,8 @@ pub const Window = struct {
 
 pub const Background = struct {
     index: usize = 0,
-    shader: ray.Shader = undefined,
     texture: [8]ray.Texture2D = undefined,
-
-    // Shader uniform locations
-    secondsloc: i32 = 0,
-    freqxloc: i32 = 0,
-    freqyloc: i32 = 0,
-    ampxloc: i32 = 0,
-    ampyloc: i32 = 0,
-    speedxloc: i32 = 0,
-    speedyloc: i32 = 0,
-    sizeloc: i32 = 0,
+    shader_entity: ecsroot.Entity = undefined,
 
     // Shader parameters
     freqx: f32 = 10.0,
@@ -149,18 +139,25 @@ pub const Background = struct {
         self.texture[6] = ray.LoadTexture("resources/texture/starmap.png");
         self.texture[7] = ray.LoadTexture("resources/texture/warpgate.png");
 
-        // Load warp effect shader
-        self.shader = ray.LoadShader(null, "resources/shader/warp.fs");
+        // Create entity for shader
+        self.shader_entity = ecs.createEntity();
+        try shaders.addShaderToEntity(self.shader_entity, "warp");
 
-        // Get uniform locations
-        self.secondsloc = ray.GetShaderLocation(self.shader, "seconds");
-        self.freqxloc = ray.GetShaderLocation(self.shader, "freqX");
-        self.freqyloc = ray.GetShaderLocation(self.shader, "freqY");
-        self.ampxloc = ray.GetShaderLocation(self.shader, "ampX");
-        self.ampyloc = ray.GetShaderLocation(self.shader, "ampY");
-        self.speedxloc = ray.GetShaderLocation(self.shader, "speedX");
-        self.speedyloc = ray.GetShaderLocation(self.shader, "speedY");
-        self.sizeloc = ray.GetShaderLocation(self.shader, "size");
+        // Set initial shader parameters
+        var shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
+        try shader_component.setFloat("seconds", 0.0);
+        try shader_component.setFloat("freqX", self.freqx);
+        try shader_component.setFloat("freqY", self.freqy);
+        try shader_component.setFloat("ampX", self.ampx);
+        try shader_component.setFloat("ampY", self.ampy);
+        try shader_component.setFloat("speedX", self.speedx);
+        try shader_component.setFloat("speedY", self.speedy);
+
+        const size = [2]f32{
+            @floatFromInt(Window.OGWIDTH),
+            @floatFromInt(Window.OGHEIGHT),
+        };
+        try shader_component.setVec2("size", size);
     }
 
     pub fn deinit(self: *Background) void {
@@ -169,20 +166,15 @@ pub const Background = struct {
             ray.UnloadTexture(texture);
         }
 
-        // Unload the shader
-        ray.UnloadShader(self.shader);
+        // Destroy shader entity
+        ecs.getWorld().destroy(self.shader_entity);
     }
 
     pub fn next(self: *Background) void {
         self.index = (self.index + 1) % self.texture.len;
     }
 
-    pub fn updateShader(self: *Background) void {
-        const current_time = @as(f32, @floatCast(ray.GetTime()));
-
-        // Update time uniform
-        ray.SetShaderValue(self.shader, self.secondsloc, &current_time, ray.SHADER_UNIFORM_FLOAT);
-
+    pub fn updateShader(self: *Background) !void {
         // Set background warp parameters based on game state
         const now = std.time.milliTimestamp();
         if (self.warp_end_ms > now) {
@@ -203,20 +195,19 @@ pub const Background = struct {
             self.speedy = 0.15 * (@as(f32, @floatFromInt(self.level)) + 2.0);
         }
 
-        // Update all shader uniforms
-        ray.SetShaderValue(self.shader, self.freqxloc, &self.freqx, ray.SHADER_UNIFORM_FLOAT);
-        ray.SetShaderValue(self.shader, self.freqyloc, &self.freqy, ray.SHADER_UNIFORM_FLOAT);
-        ray.SetShaderValue(self.shader, self.ampxloc, &self.ampx, ray.SHADER_UNIFORM_FLOAT);
-        ray.SetShaderValue(self.shader, self.ampyloc, &self.ampy, ray.SHADER_UNIFORM_FLOAT);
-        ray.SetShaderValue(self.shader, self.speedxloc, &self.speedx, ray.SHADER_UNIFORM_FLOAT);
-        ray.SetShaderValue(self.shader, self.speedyloc, &self.speedy, ray.SHADER_UNIFORM_FLOAT);
+        // Update shader uniforms
+        var shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
+        const current_time = @as(f32, @floatCast(ray.GetTime()));
+        try shader_component.setFloat("seconds", current_time);
+        try shader_component.setFloat("freqX", self.freqx);
+        try shader_component.setFloat("freqY", self.freqy);
+        try shader_component.setFloat("ampX", self.ampx);
+        try shader_component.setFloat("ampY", self.ampy);
+        try shader_component.setFloat("speedX", self.speedx);
+        try shader_component.setFloat("speedY", self.speedy);
 
-        // Set screen size for shader
-        const size = [2]f32{
-            @floatFromInt(Window.OGWIDTH),
-            @floatFromInt(Window.OGHEIGHT),
-        };
-        ray.SetShaderValue(self.shader, self.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
+        // Update shader uniforms before rendering
+        try shaders.updateShaderUniforms(self.shader_entity);
     }
 
     pub fn setWarpEffect(self: *Background, duration_ms: i64) void {
@@ -236,8 +227,11 @@ pub const Background = struct {
     }
 
     pub fn draw(self: *Background) void {
-        // // Apply the warp shader when drawing the background
-        // ray.BeginShaderMode(self.shader);
+        const shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
+        const shader = shader_component.shader;
+
+        // Apply the warp shader when drawing the background
+        ray.BeginShaderMode(shader.*);
 
         // Source and destination rectangles
         const src = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(self.texture[self.index].width), .height = @floatFromInt(self.texture[self.index].height) };
@@ -245,7 +239,7 @@ pub const Background = struct {
 
         // Draw background texture with shader applied
         ray.DrawTexturePro(self.texture[self.index], src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
-        // ray.EndShaderMode();
+        ray.EndShaderMode();
     }
 };
 
@@ -300,6 +294,11 @@ pub fn frame() void {
             ray.BeginTextureMode(window.texture);
             {
                 ray.ClearBackground(ray.BLACK);
+
+                // Update and draw background with shader
+                background.updateShader() catch {};
+                background.draw();
+
                 rendersys.draw();
 
                 // Draw HUD elements
