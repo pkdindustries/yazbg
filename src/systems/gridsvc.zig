@@ -9,7 +9,7 @@ const animsys = @import("anim.zig");
 const shaders = @import("../shaders.zig");
 const gfx = @import("../gfx.zig");
 const textures = @import("../textures.zig");
-const blocks = @import("../blocks.zig");
+const blocks = @import("../blockbuilder.zig");
 
 pub fn occupyCell(gridx: usize, gridy: usize, color: [4]u8) void {
     const entity = ecs.createEntity();

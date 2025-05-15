@@ -8,7 +8,7 @@ const gfx = @import("../gfx.zig");
 const textures = @import("../textures.zig");
 const shaders = @import("../shaders.zig");
 const pieces = @import("../pieces.zig");
-const blocks = @import("../blocks.zig");
+const blocks = @import("../blockbuilder.zig");
 
 fn cellSize() f32 {
     return @as(f32, @floatFromInt(gfx.window.cellsize));

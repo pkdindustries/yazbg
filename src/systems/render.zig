@@ -21,7 +21,7 @@ pub fn draw() void {
 
         const draw_x = @as(i32, @intFromFloat(pos.x));
         const draw_y = @as(i32, @intFromFloat(pos.y));
-        drawTexture(draw_x, draw_y, st.texture, st, sprite.rgba, sprite.size, sprite.rotation);
+        drawTexturedSquare(draw_x, draw_y, st.texture, st, sprite.rgba, sprite.size, sprite.rotation);
     }
 
     // Second pass: render entities WITH custom shaders
@@ -42,7 +42,7 @@ pub fn draw() void {
 
         const draw_x = @as(i32, @intFromFloat(pos.x));
         const draw_y = @as(i32, @intFromFloat(pos.y));
-        drawTexture(draw_x, draw_y, st.texture, st, sprite.rgba, sprite.size, sprite.rotation);
+        drawTexturedSquare(draw_x, draw_y, st.texture, st, sprite.rgba, sprite.size, sprite.rotation);
 
         // End entity-specific shader
         ray.EndShaderMode();
@@ -50,6 +50,6 @@ pub fn draw() void {
 }
 
 // Draw a render texture with scaling and rotation using Texture component
-pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, tex_component: *const components.Texture, tint: [4]u8, scale: f32, rotation: f32) void {
+pub fn drawTexturedSquare(x: i32, y: i32, texture: *const ray.RenderTexture2D, tex_component: *const components.Texture, tint: [4]u8, scale: f32, rotation: f32) void {
     gfx.drawTexture(x, y, texture, tex_component.*.uv, tint, scale, rotation);
 }
