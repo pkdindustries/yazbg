@@ -3,7 +3,7 @@ const std = @import("std");
 const Grid = @import("grid.zig").Grid;
 const shapes = @import("pieces.zig");
 const events = @import("events.zig");
-
+const level = @import("level.zig");
 pub const YAZBG = struct {
     alloc: std.mem.Allocator = undefined,
     rng: std.Random.DefaultPrng = undefined,
@@ -14,8 +14,6 @@ pub const YAZBG = struct {
     lastmove_ms: i64 = 0,
     // latest timestamp pushed in via `tick()`
     current_time_ms: i64 = 0,
-    // current drop interval (ms), owned by level module and received via events
-    dropinterval_ms: i64 = 2_000,
     // current, next and held piece shapes
     piece: struct {
         current: ?shapes.tetramino = null,
@@ -26,6 +24,7 @@ pub const YAZBG = struct {
         y: i32 = 0,
         r: u32 = 0,
     } = .{},
+    progression: level.Progression = level.Progression{},
 };
 
 pub var state = YAZBG{};
@@ -60,6 +59,7 @@ pub fn deinit() void {
 
 pub fn reset() void {
     std.debug.print("reset game\n", .{});
+    state.progression.reset();
     state.lastmove_ms = 0;
     state.piece = .{};
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
@@ -205,6 +205,7 @@ pub fn harddrop() void {
     state.lastmove_ms = state.current_time_ms;
     const cleared = state.grid.clear();
     if (cleared > 0) {
+        state.progression.clear(@as(u8, @intCast(cleared)));
         events.push(.{ .Clear = @as(u8, @intCast(cleared)) }, events.Source.Game);
     }
 
@@ -313,7 +314,7 @@ pub fn frozen() bool {
 }
 
 pub fn dropready() bool {
-    return !frozen() and (state.current_time_ms - state.lastmove_ms >= state.dropinterval_ms);
+    return !frozen() and (state.current_time_ms - state.lastmove_ms >= state.progression.dropinterval_ms);
 }
 
 // handle progression events emitted by level (e.g., drop interval changes).
@@ -321,9 +322,6 @@ pub fn process(queue: *events.EventQueue) void {
     for (queue.items()) |rec| {
         // debug: print event, source, and timestamp
         switch (rec.event) {
-            .DropInterval => |ms| {
-                state.dropinterval_ms = ms;
-            },
             .MoveLeft => left(),
             .MoveRight => right(),
             .MoveDown => if (!down()) harddrop(),

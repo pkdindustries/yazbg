@@ -123,21 +123,6 @@ pub const EventQueue = struct {
 //                       therefore need to be delivered in the *next* frame.
 pub var queue: EventQueue = .{};
 
-pub var deferred: EventQueue = .{};
-
 pub inline fn push(e: Event, s: Source) void {
     queue.push(e, s);
-}
-
-// will be processed on the *next* frame*.
-pub inline fn pushDeferred(e: Event, s: Source) void {
-    deferred.push(e, s);
-}
-
-// move all deferred events into the main queue
-pub fn flushDeferred() void {
-    for (deferred.items()) |rec| {
-        queue.push(rec.event, rec.source);
-    }
-    deferred.clear();
 }

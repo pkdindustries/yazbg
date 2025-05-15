@@ -30,9 +30,6 @@ pub fn main() !void {
     printkeys();
 
     while (!ray.WindowShouldClose()) {
-        // start‑of‑frame housekeeping
-        // anything that was defered
-        events.flushDeferred();
         // update clock
         game.tick(std.time.milliTimestamp());
         // keep music fed
@@ -74,7 +71,6 @@ pub fn main() !void {
 
         // queued events
         game.process(&events.queue);
-        level.process(&events.queue);
         sfx.process(&events.queue);
         hud.process(&events.queue);
         gfx.process(&events.queue);
