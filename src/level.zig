@@ -31,8 +31,7 @@ pub const Progression = struct {
         self.cleared += cleared;
         // Tetris bonus
         if (cleared > 3) {
-            // Defer follow‑up events so that they are visible in the next frame.
-            events.pushDeferred(.Win, events.Source.Level);
+            events.push(.Win, events.Source.Level);
         }
         // Level up
         self.clearedthislevel += cleared;
