@@ -87,11 +87,6 @@ pub fn spawn() void {
     updatePieceEntities();
 }
 
-// Clear existing block entities and create new ones based on current piece
-fn clearBlockEntities() void {
-    blocks.clearAllBlockEntities();
-}
-
 // Update the player's position based on game state
 pub fn updatePlayerPosition(x: i32, y: i32, rotation: u32, ghost_y: i32, piece_index: u32) void {
     // Get or create the player entity
@@ -178,7 +173,7 @@ pub fn updatePieceEntities() void {
         const drawY = @as(i32, @intFromFloat(pos.y));
 
         // Clear existing entities and create new ones
-        clearBlockEntities();
+        blocks.clearAllPlayerBlocks();
 
         // Get the current piece from the saved piece index
         const piece_type = pieces.tetraminos[piece_state.piece_index];
@@ -291,8 +286,7 @@ pub fn harddrop() void {
 
 // Clean up when the game ends
 pub fn deinit() void {
-    clearBlockEntities();
-
+    blocks.clearAllPlayerBlocks();
     // Find and destroy the player entity
     if (getPlayerEntity()) |entity| {
         ecs.getWorld().destroy(entity);

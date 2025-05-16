@@ -15,7 +15,7 @@ const ShaderEntry = struct {
 var shaders: std.StringHashMap(ShaderEntry) = undefined;
 var allocator: std.mem.Allocator = undefined;
 
-/// initialize shader system
+// initialize shader system
 pub fn init() !void {
     allocator = std.heap.page_allocator;
     shaders = std.StringHashMap(ShaderEntry).init(allocator);
@@ -28,7 +28,7 @@ pub fn init() !void {
     std.debug.print("Shader system initialized with {} shaders\n", .{shaders.count()});
 }
 
-/// clean up all shaders and free memory
+// clean up all shaders and free memory
 pub fn deinit() void {
     var iter = shaders.iterator();
     while (iter.next()) |entry| {
@@ -41,7 +41,7 @@ pub fn deinit() void {
     shaders.deinit();
 }
 
-/// load a shader from file and add it to the library
+// load a shader from file and add it to the library
 pub fn loadShader(name: []const u8, fragment_path: []const u8) !void {
     // Check if shader with this name already exists
     if (shaders.contains(name)) {
@@ -72,7 +72,7 @@ pub fn loadShader(name: []const u8, fragment_path: []const u8) !void {
     std.debug.print("Loaded shader '{s}' from {s} (id={})\n", .{ name, fragment_path, shader_ptr.*.id });
 }
 
-/// get a shader by name
+// get a shader by name
 pub fn getShader(name: []const u8) ?*const ray.Shader {
     if (shaders.get(name)) |entry| {
         return entry.shader;
@@ -80,7 +80,7 @@ pub fn getShader(name: []const u8) ?*const ray.Shader {
     return null;
 }
 
-/// add a shader component to an entity
+// add a shader component to an entity
 pub fn addShaderToEntity(entity: ecsroot.Entity, shader_name: []const u8) !void {
     const shader = getShader(shader_name) orelse {
         std.debug.print("ERROR: Shader '{s}' not found\n", .{shader_name});
@@ -94,7 +94,7 @@ pub fn addShaderToEntity(entity: ecsroot.Entity, shader_name: []const u8) !void 
     ecs.replace(components.Shader, entity, shader_component);
 }
 
-/// create entity with shader and default uniform
+// create entity with shader and default uniform
 pub fn createEntityWithShader(
     x: f32,
     y: f32,
@@ -117,7 +117,7 @@ pub fn createEntityWithShader(
     return entity;
 }
 
-/// update shader uniforms before rendering
+// update shader uniforms before rendering
 pub fn updateShaderUniforms(entity: ecsroot.Entity) !void {
     if (!ecs.has(components.Shader, entity)) return;
 

@@ -336,7 +336,7 @@ pub fn rotationToDegrees(rotation: f32) f32 {
     return rotation * 360.0;
 }
 
-/// Draw a texture with scaling and rotation.
+// Draw a texture with scaling and rotation.
 pub fn drawTexture(
     x: i32,
     y: i32,

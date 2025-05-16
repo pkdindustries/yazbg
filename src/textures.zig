@@ -35,7 +35,7 @@ var pages: std.ArrayList(Page) = undefined;
 // Hash-map color → entry (pointer to page texture + UV rectangle)
 var color_lut: std.AutoHashMap(Color, AtlasEntry) = undefined;
 
-/// needs gfx.window.cellsize
+// needs gfx.window.cellsize
 pub fn init() !void {
     const alloc = std.heap.page_allocator;
 
@@ -46,7 +46,7 @@ pub fn init() !void {
     color_lut = std.AutoHashMap(Color, AtlasEntry).init(alloc);
 }
 
-/// Unload all pages and free memory.
+// Unload all pages and free memory.
 pub fn deinit() void {
     for (pages.items) |p| {
         ray.UnloadRenderTexture(p.tex.*);
@@ -117,7 +117,7 @@ fn ensureEntry(color_ptr: *const Color, draw_fn: DrawIntoTileFn) !void {
     try color_lut.put(color, entry);
 }
 
-/// Allocates a new texture atlas page.
+// Allocates a new texture atlas page.
 fn allocatePage() !void {
     const tex_ptr = try std.heap.c_allocator.create(ray.RenderTexture2D);
 
@@ -140,5 +140,5 @@ fn allocatePage() !void {
     try pages.append(.{ .tex = tex_ptr, .next_tile = 0 });
 }
 
-/// Function pointer type for drawing into a tile
+// Function pointer type for drawing into a tile
 pub const DrawIntoTileFn = fn (page_tex: *const ray.RenderTexture2D, tile_x: i32, tile_y: i32, tile_size: i32, color: Color) void;

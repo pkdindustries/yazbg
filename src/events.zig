@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-/// Position and color data for cell events
+// Position and color data for cell events
 pub const CellDataPos = struct {
     x: usize,
     y: usize,
@@ -16,34 +16,34 @@ pub const Event = union(enum) {
     Clear: u8, // payload = number of lines
     Win,
     LevelUp: u8,
-    /// New drop interval in milliseconds; emitted by level progression logic when reset or level up
+    // New drop interval in milliseconds; emitted by level progression logic when reset or level up
     DropInterval: i64,
-    /// Score update event; emitted by level progression logic when score changes
+    // Score update event; emitted by level progression logic when score changes
     ScoreUpdate: i32,
     GameOver,
 
     // Gameplay lifecycle events (pure game‑logic → graphics/audio/UI)
     Spawn, // a new   piece appeared
-    /// Emitted when a piece is locked onto the grid with block positions and colors
+    // Emitted when a piece is locked onto the grid with block positions and colors
     PieceLocked: struct {
         blocks: [4]CellDataPos,
         count: usize,
     },
-    /// Emitted when a line is being cleared
+    // Emitted when a line is being cleared
     LineClearing: struct {
         y: usize,
     },
-    /// Emitted when rows are shifted down after clearing
+    // Emitted when rows are shifted down after clearing
     RowsShiftedDown: struct {
         start_y: usize,
         count: usize,
     },
-    /// Emitted when the grid is reset
+    // Emitted when the grid is reset
     GridReset,
     Hold, // player used the hold feature
     Kick, // piece was kicked (rotated) into the grid
     AutoDrop, // automatic dropping of piece based on timing
-    /// Emitted when player piece position or rotation changes, including ghost position
+    // Emitted when player piece position or rotation changes, including ghost position
     PlayerPositionUpdated: struct {
         x: i32, // Current grid x position
         y: i32, // Current grid y position
@@ -78,7 +78,7 @@ pub const Source = enum {
 };
 
 pub const TimestampedEvent = struct {
-    /// timestamp when the event was enqueued.
+    // timestamp when the event was enqueued.
     time_ms: i64,
     source: Source,
     event: Event,

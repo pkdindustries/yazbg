@@ -80,7 +80,7 @@ pub fn process(queue: *events.EventQueue) void {
     }
 }
 
-/// Reset music to first level
+// Reset music to first level
 pub fn resetMusic() void {
     ray.StopMusicStream(songs[songindex]);
     songindex = 0;

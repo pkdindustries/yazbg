@@ -3,9 +3,9 @@ const events = @import("events.zig");
 const ray = @import("raylib.zig");
 const shapes = @import("pieces.zig");
 
-/// Lightweight, event‑driven heads‑up display state.  The renderer queries the
-/// current values once per frame.  All writes happen exclusively through the
-/// event stream so we never reach into the core `game.state` from the UI.
+// Lightweight, event‑driven heads‑up display state.  The renderer queries the
+// current values once per frame.  All writes happen exclusively through the
+// event stream so we never reach into the core `game.state` from the UI.
 pub const Hud = struct {
     score: i32 = 0,
     lines: i32 = 0,
@@ -13,19 +13,19 @@ pub const Hud = struct {
     paused: bool = false,
     gameover: bool = false,
 
-    /// Reset to an initial, empty state (e.g. after the player restarted the
-    /// game).
+    // Reset to an initial, empty state (e.g. after the player restarted the
+    // game).
     fn reset(self: *Hud) void {
         self.* = Hud{};
     }
 };
 
-/// Single global HUD instance – cheap and convenient.
+// Single global HUD instance – cheap and convenient.
 pub var state: Hud = .{};
 
-/// Inspect all queued events and update the HUD accordingly.  Must be called
-/// exactly once per frame after game logic has queued its events and before
-/// the renderer reads the HUD values.
+// Inspect all queued events and update the HUD accordingly.  Must be called
+// exactly once per frame after game logic has queued its events and before
+// the renderer reads the HUD values.
 pub fn process(queue: *events.EventQueue) void {
     for (queue.items()) |rec| {
         switch (rec.event) {
@@ -73,9 +73,9 @@ pub const DrawContext = struct {
 
 var textbuf: [1000]u8 = undefined;
 
-/// Render the HUD (score, next & held pieces, pause/game‑over overlays).
-/// Should be called while drawing to the off‑screen game texture, after the
-/// playfield has been rendered.
+// Render the HUD (score, next & held pieces, pause/game‑over overlays).
+// Should be called while drawing to the off‑screen game texture, after the
+// playfield has been rendered.
 pub fn draw(ctx: DrawContext) void {
     // Consistent line spacing for multiline text blocks
     ray.SetTextLineSpacing(1.0);

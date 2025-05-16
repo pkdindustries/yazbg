@@ -10,7 +10,7 @@ pub const Sprite = struct { rgba: [4]u8, size: f32, rotation: f32 = 0.0 }; // Re
 
 // texture
 pub const Texture = struct {
-    /// Pointer to the shared render texture.
+    // Pointer to the shared render texture.
     texture: *const ray.RenderTexture2D,
     uv: [4]f32 = .{ 0.0, 0.0, 1.0, 1.0 },
     created: bool = false,
@@ -18,11 +18,11 @@ pub const Texture = struct {
 
 // shader
 pub const Shader = struct {
-    /// Pointer to the shared shader.
+    // Pointer to the shared shader.
     shader: *const ray.Shader,
-    /// Whether this component owns the shader (responsible for unloading)
+    // Whether this component owns the shader (responsible for unloading)
     created: bool = false,
-    /// HashMap of uniform name to value
+    // HashMap of uniform name to value
     uniforms: std.StringHashMap(ShaderUniform),
 
     pub fn init(allocator: std.mem.Allocator) Shader {

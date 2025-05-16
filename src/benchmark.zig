@@ -41,8 +41,8 @@ fn piecePx() i32 {
     return tilePx() * 4;
 }
 
-/// Draw one rounded block at `col,row` (0-3,0-3) inside the currently bound
-/// render-texture.  Drawing style matches textures.drawBlockIntoTile().
+// Draw one rounded block at `col,row` (0-3,0-3) inside the currently bound
+// render-texture.  Drawing style matches textures.drawBlockIntoTile().
 fn drawBlock(col: i32, row: i32, color: [4]u8) void {
     const px = tilePx();
     const padding: f32 = @as(f32, @floatFromInt(gfx.window.cellpadding)) * 2.0;
@@ -58,7 +58,7 @@ fn drawBlock(col: i32, row: i32, color: [4]u8) void {
     ray.DrawRectangleRounded(rect, 0.4, 20, base_color);
 }
 
-/// Create (once) a 4×4-block texture for the given tetromino.
+// Create (once) a 4×4-block texture for the given tetromino.
 fn makePieceTexture(t: pieces.tetramino) !*ray.RenderTexture2D {
     const tex_ptr = try std.heap.c_allocator.create(ray.RenderTexture2D);
 
@@ -167,8 +167,8 @@ fn randomizeAllAnimations() void {
 // Spawning helpers
 // ---------------------------------------------------------------------------
 
-/// Spawn one tetromino sprite entity and attach an Animation component that
-/// drives position, scale and rotation.
+// Spawn one tetromino sprite entity and attach an Animation component that
+// drives position, scale and rotation.
 fn spawnAnimatedTetromino(rng: anytype) !void {
     const screen_w: f32 = @floatFromInt(ray.GetScreenWidth());
     const screen_h: f32 = @floatFromInt(ray.GetScreenHeight());
