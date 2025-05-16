@@ -9,30 +9,33 @@ const level = @import("level.zig");
 const ecs = @import("ecs.zig");
 
 const MS = 1_000_000;
+pub var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+
 pub fn main() !void {
     var timer = try std.time.Timer.start();
     ray.SetTraceLogLevel(ray.LOG_WARNING);
 
-    ecs.init();
+    // Create central allocator to use throughout the application
+    const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    ecs.init(allocator);
     defer ecs.deinit();
 
-    try game.init(std.heap.c_allocator);
+    try game.init(allocator);
     defer game.deinit();
 
-    try sfx.init();
+    try sfx.init(allocator);
     defer sfx.deinit();
 
-    try gfx.init();
+    try gfx.init(allocator);
     defer gfx.deinit();
 
-    std.debug.print("system init {}ms\n", .{timer.lap() / MS});
+    // std.debug.print("system init {}ms\n", .{timer.lap() / MS});
 
     printkeys();
 
     while (!ray.WindowShouldClose()) {
-        // start‑of‑frame housekeeping
-        // anything that was defered
-        events.flushDeferred();
         // update clock
         game.tick(std.time.milliTimestamp());
         // keep music fed
@@ -74,7 +77,6 @@ pub fn main() !void {
 
         // queued events
         game.process(&events.queue);
-        level.process(&events.queue);
         sfx.process(&events.queue);
         hud.process(&events.queue);
         gfx.process(&events.queue);
@@ -87,7 +89,7 @@ pub fn main() !void {
         // performance stats
         const frametime_elapsed = timer.lap();
         const total_elapsed = gamelogic_elapsed + frametime_elapsed;
-        if (gamelogic_elapsed > 2 * MS or frametime_elapsed > 20 * MS) {
+        if (gamelogic_elapsed > 1 * MS or frametime_elapsed > 16 * MS) {
             std.debug.print("frame {}ms, game {}ms, total {}ms\n", .{ frametime_elapsed / MS, gamelogic_elapsed / MS, total_elapsed / MS });
         }
     }

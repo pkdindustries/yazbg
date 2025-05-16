@@ -74,7 +74,7 @@ fn updateSprite(sprite: *components.Sprite, animation: components.Animation, eas
 }
 
 // main animation system that updates all animated entities
-pub fn animationSystem() void {
+pub fn update() void {
     const world = ecs.getWorld();
 
     // view entities with Animation component
@@ -154,7 +154,7 @@ pub fn animationSystem() void {
 
             // Check if we should destroy the entity
             if (animation.destroy_entity_when_done) {
-                world.destroy(entity);
+                ecs.destroyEntity(entity);
             }
         }
     }
@@ -205,101 +205,6 @@ pub fn createRowShiftAnimation(entity: ecsroot.Entity, from_y: f32, to_y: f32) v
             .ease_in // Use ease in easing
         );
     }
-}
-
-// Create fade animation (alpha)
-pub fn createFadeAnimation(entity: ecsroot.Entity, from_alpha: u8, to_alpha: u8, duration_ms: i64, easing_type: components.easing_types) void {
-    const world = ecs.getWorld();
-
-    // remove any existing animation component first
-    if (world.has(components.Animation, entity)) {
-        world.remove(components.Animation, entity);
-    }
-
-    // create the animation
-    const anim = components.Animation{
-        .animate_alpha = true,
-        .start_alpha = from_alpha,
-        .target_alpha = to_alpha,
-        .start_time = std.time.milliTimestamp(),
-        .duration = duration_ms,
-        .easing = easing_type,
-        .remove_when_done = true,
-    };
-
-    world.add(entity, anim);
-}
-
-// Create scale animation
-pub fn createScaleAnimation(entity: ecsroot.Entity, from_scale: f32, to_scale: f32, duration_ms: i64, easing_type: components.easing_types) void {
-    const world = ecs.getWorld();
-
-    // remove any existing animation component first
-    if (world.has(components.Animation, entity)) {
-        world.remove(components.Animation, entity);
-    }
-
-    // create the animation
-    const anim = components.Animation{
-        .animate_scale = true,
-        .start_scale = from_scale,
-        .target_scale = to_scale,
-        .start_time = std.time.milliTimestamp(),
-        .duration = duration_ms,
-        .easing = easing_type,
-    };
-
-    world.add(entity, anim);
-}
-
-// Create combined animation (position + fade)
-pub fn createMoveAndFadeAnimation(entity: ecsroot.Entity, from_x: f32, from_y: f32, to_x: f32, to_y: f32, from_alpha: u8, to_alpha: u8, duration_ms: i64, easing_type: components.easing_types) void {
-    const world = ecs.getWorld();
-
-    // remove any existing animation component first
-    if (world.has(components.Animation, entity)) {
-        world.remove(components.Animation, entity);
-    }
-
-    // create the animation with multiple properties
-    const anim = components.Animation{
-        .animate_position = true,
-        .start_pos = .{ from_x, from_y },
-        .target_pos = .{ to_x, to_y },
-        .animate_alpha = true,
-        .start_alpha = from_alpha,
-        .target_alpha = to_alpha,
-        .start_time = std.time.milliTimestamp(),
-        .duration = duration_ms,
-        .easing = easing_type,
-    };
-
-    world.add(entity, anim);
-}
-
-// Create combined animation (position + rotation)
-pub fn createMoveAndRotateAnimation(entity: ecsroot.Entity, from_x: f32, from_y: f32, to_x: f32, to_y: f32, from_rotation: f32, to_rotation: f32, duration_ms: i64, easing_type: components.easing_types) void {
-    const world = ecs.getWorld();
-
-    // remove any existing animation component first
-    if (world.has(components.Animation, entity)) {
-        world.remove(components.Animation, entity);
-    }
-
-    // create the animation with multiple properties
-    const anim = components.Animation{
-        .animate_position = true,
-        .start_pos = .{ from_x, from_y },
-        .target_pos = .{ to_x, to_y },
-        .animate_rotation = true,
-        .start_rotation = from_rotation,
-        .target_rotation = to_rotation,
-        .start_time = std.time.milliTimestamp(),
-        .duration = duration_ms,
-        .easing = easing_type,
-    };
-
-    world.add(entity, anim);
 }
 
 // Simple flash animation: fade the sprite's alpha from start_alpha to target_alpha
@@ -367,66 +272,5 @@ pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Enti
             world.remove(components.Animation, entity);
         }
         world.add(entity, anim);
-    }
-}
-
-// Create an animation for the player piece movement
-pub fn createPlayerPieceAnimation(entity: ecsroot.Entity, from_x: f32, from_y: f32, to_x: f32, to_y: f32) void {
-    //const world = ecs.getWorld();
-
-    // Only add the animation if the entity has a Position component
-    if (ecs.get(components.Position, entity)) |_| {
-        // Create an animation from current position to target
-        // Use a shorter duration (50ms) for player piece movements to keep them snappy
-        createMoveAnimation(entity, from_x, from_y, // Start position
-            to_x, to_y, // Target position
-            50, // 50ms duration (same as original player animation)
-            .linear);
-    }
-}
-
-// Create hard drop animation effect for player piece blocks
-pub fn createPlayerPieceHardDrop(piece_blocks: []const @import("../events.zig").CellDataPos, count: usize, start_y: i32, target_y: i32) void {
-    const world = ecs.getWorld();
-
-    // Create animation for each piece block
-    for (piece_blocks[0..count]) |block| {
-        // Get block position in world coordinates
-        const start_x = @as(f32, @floatFromInt(block.x));
-        const block_start_y = @as(f32, @floatFromInt(start_y + @as(i32, @intCast(block.y - start_y))));
-        const block_target_y = @as(f32, @floatFromInt(target_y + @as(i32, @intCast(block.y - start_y))));
-
-        // Create a new entity for the hard drop animation
-        const new_entity = world.create();
-
-        // Add Position component
-        world.add(new_entity, components.Position{
-            .x = start_x,
-            .y = block_start_y,
-        });
-
-        // Add Sprite component with the block color
-        world.add(new_entity, components.Sprite{
-            .rgba = block.color,
-            .size = 1.0,
-        });
-
-        _ = textures.addBlockTextureWithAtlas(new_entity, block.color) catch |err| {
-            std.debug.print("Failed to add texture component: {}\n", .{err});
-        };
-
-        // Create animation component with fast drop
-        const anim = components.Animation{
-            .animate_position = true,
-            .start_pos = .{ start_x, block_start_y },
-            .target_pos = .{ start_x, block_target_y },
-            .start_time = std.time.milliTimestamp(),
-            .duration = 100, // Fast animation (100ms)
-            .easing = .ease_in,
-            .remove_when_done = true,
-            .destroy_entity_when_done = true, // Destroy the entity when animation completes
-        };
-
-        world.add(new_entity, anim);
     }
 }

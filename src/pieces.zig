@@ -137,7 +137,7 @@ pub const tetraminos = [_]tetramino{
                 .{ o, o, o, o },
             },
         },
-        .color = .{ 0, 100, 44, 255 },
+        .color = .{ 0, 150, 44, 255 },
         .id = 1,
         .kicks = .{
             // CW kicks

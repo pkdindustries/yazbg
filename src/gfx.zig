@@ -4,18 +4,16 @@ const ray = @import("raylib.zig");
 const game = @import("game.zig");
 const hud = @import("hud.zig");
 const events = @import("events.zig");
-const Grid = @import("grid.zig").Grid;
 const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
 const rendersys = @import("systems/render.zig");
 const animsys = @import("systems/anim.zig");
 const playersys = @import("systems/player.zig");
-const animationSystem = animsys.animationSystem;
-const playerSystem = playersys.playerSystem;
 const textures = @import("textures.zig");
 const shaders = @import("shaders.zig");
 const gridsvc = @import("systems/gridsvc.zig");
+const previewsys = @import("systems/preview.zig");
 
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
@@ -24,8 +22,8 @@ pub const Window = struct {
     height: i32 = OGHEIGHT,
     texture: ray.RenderTexture2D = undefined,
     font: ray.Font = undefined,
-    gridoffsetx: i32 = 150,
-    gridoffsety: i32 = 50,
+    gridoffsetx: i32 = 165,
+    gridoffsety: i32 = 70,
     cellsize: i32 = 35,
     cellpadding: i32 = 2,
     drag_active: bool = false,
@@ -35,14 +33,20 @@ pub const Window = struct {
         ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
         ray.InitWindow(Window.OGWIDTH, Window.OGHEIGHT, "yazbg");
 
+        // Calculate initial window size based on 65% of screen height
+        const monitor_height = ray.GetMonitorHeight(0);
+        const initial_height = @divTrunc(monitor_height * 65, 100); // 65% of screen height
+        const initial_width = @divTrunc(initial_height * Window.OGWIDTH, Window.OGHEIGHT);
+        ray.SetWindowSize(initial_width, initial_height);
+
         // Create render texture for resolution independence
         self.texture = ray.LoadRenderTexture(Window.OGWIDTH, Window.OGHEIGHT);
-        ray.SetTextureFilter(self.texture.texture, ray.TEXTURE_FILTER_TRILINEAR);
+        ray.SetTextureFilter(self.texture.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);
 
         // Initialize font
         self.font = ray.LoadFont("resources/font/space.ttf");
         ray.GenTextureMipmaps(&self.font.texture);
-        ray.SetTextureFilter(self.font.texture, ray.TEXTURE_FILTER_TRILINEAR);
+        ray.SetTextureFilter(self.font.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);
     }
 
     pub fn deinit(self: *Window) void {
@@ -62,7 +66,7 @@ pub const Window = struct {
             }
             self.width = width;
             self.height = height;
-            std.debug.print("window resized to {}x{}\n", .{ self.width, self.height });
+            // std.debug.print("window resized to {}x{}\n", .{ self.width, self.height });
             ray.GenTextureMipmaps(&self.texture.texture);
             ray.SetWindowSize(width, height);
         }
@@ -110,26 +114,8 @@ pub const Window = struct {
 
 pub const Background = struct {
     index: usize = 0,
-    shader: ray.Shader = undefined,
     texture: [8]ray.Texture2D = undefined,
-
-    // Shader uniform locations
-    secondsloc: i32 = 0,
-    freqxloc: i32 = 0,
-    freqyloc: i32 = 0,
-    ampxloc: i32 = 0,
-    ampyloc: i32 = 0,
-    speedxloc: i32 = 0,
-    speedyloc: i32 = 0,
-    sizeloc: i32 = 0,
-
-    // Shader parameters
-    freqx: f32 = 10.0,
-    freqy: f32 = 10.0,
-    ampx: f32 = 2.0,
-    ampy: f32 = 2.0,
-    speedx: f32 = 0.15,
-    speedy: f32 = 0.15,
+    shader_entity: ecsroot.Entity = undefined,
 
     // Store when warp effect should end
     warp_end_ms: i64 = 0,
@@ -146,18 +132,25 @@ pub const Background = struct {
         self.texture[6] = ray.LoadTexture("resources/texture/starmap.png");
         self.texture[7] = ray.LoadTexture("resources/texture/warpgate.png");
 
-        // Load warp effect shader
-        self.shader = ray.LoadShader(null, "resources/shader/warp.fs");
+        // Create entity for shader
+        self.shader_entity = ecs.createEntity();
+        try shaders.addShaderToEntity(self.shader_entity, "warp");
 
-        // Get uniform locations
-        self.secondsloc = ray.GetShaderLocation(self.shader, "seconds");
-        self.freqxloc = ray.GetShaderLocation(self.shader, "freqX");
-        self.freqyloc = ray.GetShaderLocation(self.shader, "freqY");
-        self.ampxloc = ray.GetShaderLocation(self.shader, "ampX");
-        self.ampyloc = ray.GetShaderLocation(self.shader, "ampY");
-        self.speedxloc = ray.GetShaderLocation(self.shader, "speedX");
-        self.speedyloc = ray.GetShaderLocation(self.shader, "speedY");
-        self.sizeloc = ray.GetShaderLocation(self.shader, "size");
+        // Set initial shader parameters
+        var shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
+        try shader_component.setFloat("seconds", 0.0);
+        try shader_component.setFloat("freqX", 10.0);
+        try shader_component.setFloat("freqY", 10.0);
+        try shader_component.setFloat("ampX", 2.0);
+        try shader_component.setFloat("ampY", 2.0);
+        try shader_component.setFloat("speedX", 0.15);
+        try shader_component.setFloat("speedY", 0.15);
+
+        const size = [2]f32{
+            @floatFromInt(Window.OGWIDTH),
+            @floatFromInt(Window.OGHEIGHT),
+        };
+        try shader_component.setVec2("size", size);
     }
 
     pub fn deinit(self: *Background) void {
@@ -166,54 +159,43 @@ pub const Background = struct {
             ray.UnloadTexture(texture);
         }
 
-        // Unload the shader
-        ray.UnloadShader(self.shader);
+        // Destroy shader entity
+        ecs.destroyEntity(self.shader_entity);
     }
 
     pub fn next(self: *Background) void {
         self.index = (self.index + 1) % self.texture.len;
     }
 
-    pub fn updateShader(self: *Background) void {
-        const current_time = @as(f32, @floatCast(ray.GetTime()));
-
-        // Update time uniform
-        ray.SetShaderValue(self.shader, self.secondsloc, &current_time, ray.SHADER_UNIFORM_FLOAT);
+    pub fn updateShader(self: *Background) !void {
+        // Get shader component
+        var shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
 
         // Set background warp parameters based on game state
         const now = std.time.milliTimestamp();
         if (self.warp_end_ms > now) {
             // Intense warp effect for special events
-            self.freqx = 25.0;
-            self.freqy = 25.0;
-            self.ampx = 10.0;
-            self.ampy = 10.0;
-            self.speedx = 25.0;
-            self.speedy = 25.0;
+            try shader_component.setFloat("freqX", 25.0);
+            try shader_component.setFloat("freqY", 25.0);
+            try shader_component.setFloat("ampX", 10.0);
+            try shader_component.setFloat("ampY", 10.0);
+            try shader_component.setFloat("speedX", 25.0);
+            try shader_component.setFloat("speedY", 25.0);
         } else {
             // Normal warp effect scaling with level
-            self.freqx = 10.0;
-            self.freqy = 10.0;
-            self.ampx = 2.0;
-            self.ampy = 2.0;
-            self.speedx = 0.15 * (@as(f32, @floatFromInt(self.level)) + 2.0);
-            self.speedy = 0.15 * (@as(f32, @floatFromInt(self.level)) + 2.0);
+            const speed_factor = 0.15 * (@as(f32, @floatFromInt(self.level)) + 2.0);
+            try shader_component.setFloat("freqX", 10.0);
+            try shader_component.setFloat("freqY", 10.0);
+            try shader_component.setFloat("ampX", 2.0);
+            try shader_component.setFloat("ampY", 2.0);
+            try shader_component.setFloat("speedX", speed_factor);
+            try shader_component.setFloat("speedY", speed_factor);
         }
 
-        // Update all shader uniforms
-        ray.SetShaderValue(self.shader, self.freqxloc, &self.freqx, ray.SHADER_UNIFORM_FLOAT);
-        ray.SetShaderValue(self.shader, self.freqyloc, &self.freqy, ray.SHADER_UNIFORM_FLOAT);
-        ray.SetShaderValue(self.shader, self.ampxloc, &self.ampx, ray.SHADER_UNIFORM_FLOAT);
-        ray.SetShaderValue(self.shader, self.ampyloc, &self.ampy, ray.SHADER_UNIFORM_FLOAT);
-        ray.SetShaderValue(self.shader, self.speedxloc, &self.speedx, ray.SHADER_UNIFORM_FLOAT);
-        ray.SetShaderValue(self.shader, self.speedyloc, &self.speedy, ray.SHADER_UNIFORM_FLOAT);
-
-        // Set screen size for shader
-        const size = [2]f32{
-            @floatFromInt(Window.OGWIDTH),
-            @floatFromInt(Window.OGHEIGHT),
-        };
-        ray.SetShaderValue(self.shader, self.sizeloc, &size, ray.SHADER_UNIFORM_VEC2);
+        // Update time uniform
+        const current_time = @as(f32, @floatCast(ray.GetTime()));
+        try shader_component.setFloat("seconds", current_time);
+        try shaders.updateShaderUniforms(self.shader_entity);
     }
 
     pub fn setWarpEffect(self: *Background, duration_ms: i64) void {
@@ -233,8 +215,11 @@ pub const Background = struct {
     }
 
     pub fn draw(self: *Background) void {
+        const shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
+        const shader = shader_component.shader;
+
         // Apply the warp shader when drawing the background
-        ray.BeginShaderMode(self.shader);
+        ray.BeginShaderMode(shader.*);
 
         // Source and destination rectangles
         const src = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(self.texture[self.index].width), .height = @floatFromInt(self.texture[self.index].height) };
@@ -248,64 +233,24 @@ pub const Background = struct {
 
 pub var window = Window{};
 var background = Background{};
-// Static effect shader
-pub const StaticShader = struct {
-    shader: ray.Shader = undefined,
-    time_loc: i32 = 0,
 
-    pub fn init(self: *StaticShader) void {
-        // Load static effect shader
-        self.shader = ray.LoadShader(null, "resources/shader/static.fs");
-        self.time_loc = ray.GetShaderLocation(self.shader, "time");
-    }
-
-    pub fn deinit(self: *StaticShader) void {
-        // Unload the shader
-        ray.UnloadShader(self.shader);
-    }
-
-    pub fn update(self: *StaticShader) void {
-        // Update shader time uniform
-        const current_time = @as(f32, @floatCast(ray.GetTime()));
-        ray.SetShaderValue(self.shader, self.time_loc, &current_time, ray.SHADER_UNIFORM_FLOAT);
-    }
-
-    pub fn begin(self: *StaticShader) void {
-        ray.BeginShaderMode(self.shader);
-    }
-
-    pub fn end(_: *StaticShader) void {
-        ray.EndShaderMode();
-    }
-};
-
-var static_shader = StaticShader{};
-
-pub fn init() !void {
-    std.debug.print("init gfx\n", .{});
+pub fn init(allocator: std.mem.Allocator) !void {
+    // std.debug.print("init gfx\n", .{});
 
     // Initialize window
     try window.init();
-
-    // Initialize static shader
-    static_shader.init();
-
+    // Initialize texture, blocks and shader systems
+    try textures.init(allocator);
+    try shaders.init(allocator);
     // Initialize background
     try background.init();
 
     // Initialize player system
     playersys.init();
-
-    // Initialize texture and shader systems
-    try textures.init();
-    try shaders.init();
 }
 
 pub fn deinit() void {
-    std.debug.print("deinit gfx\n", .{});
-
-    // Clean up static shader
-    static_shader.deinit();
+    // std.debug.print("deinit gfx\n", .{});
 
     // Clean up window resources
     window.deinit();
@@ -325,41 +270,24 @@ pub fn nextbackground() void {
     background.next();
 }
 
-// Update shader parameters before drawing
-fn preshade() void {
-    // Update background warp shader
-    background.updateShader();
-
-    // Update static shader time
-    static_shader.update();
-
-    // Update per-entity shader uniforms
-    shaders.updateTimeUniforms();
-}
-
 pub fn frame() void {
     // Handle window resizing
     window.updateScale();
 
-    playerSystem();
-    animationSystem(); // Process all animations (core animation system)
-    // Update shader uniforms
-    preshade();
-
-    // Animation system now handled by ECS
+    playersys.update();
+    animsys.update();
 
     ray.BeginDrawing();
     {
-        // Draw to render texture at original resolution
         ray.BeginTextureMode(window.texture);
         {
-            // Draw background with warp effect
+            ray.ClearBackground(ray.BLACK);
+
+            // Update and draw background with shader
+            background.updateShader() catch {};
             background.draw();
 
-            // Apply static effect shader to game elements
-            static_shader.begin();
-            rendersys.drawSprites();
-            static_shader.end();
+            rendersys.draw();
 
             // Draw HUD elements
             hud.draw(.{
@@ -372,7 +300,7 @@ pub fn frame() void {
                 .og_height = Window.OGHEIGHT,
                 .next_piece = game.state.piece.next,
                 .held_piece = game.state.piece.held,
-            }, static_shader.shader);
+            });
         }
         ray.EndTextureMode();
 
@@ -403,57 +331,58 @@ pub fn createLighterColor(color: [4]u8, amount: u16) ray.Color {
 }
 
 // Calculate the center position of a cell in screen coordinates
-pub fn getCellCenter(x: i32, y: i32) struct { x: f32, y: f32 } {
-    return .{
-        .x = @as(f32, @floatFromInt(window.gridoffsetx + x)) +
-            @as(f32, @floatFromInt(window.cellsize)) / 2.0,
-        .y = @as(f32, @floatFromInt(window.gridoffsety + y)) +
-            @as(f32, @floatFromInt(window.cellsize)) / 2.0,
-    };
-}
-
-// Convert rotation value to degrees
+// Convert rotation value (0.0 – 1.0) to degrees
 pub fn rotationToDegrees(rotation: f32) f32 {
     return rotation * 360.0;
 }
 
-// Draw a render texture with scaling and rotation
-pub fn drawTexture(x: i32, y: i32, texture: *const ray.RenderTexture2D, uv: [4]f32, tint: [4]u8, scale: f32, rotation: f32) void {
+// Draw a texture with scaling and rotation.
+pub fn drawTexture(
+    x: i32,
+    y: i32,
+    texture: *const ray.RenderTexture2D,
+    uv: [4]f32,
+    tint: [4]u8,
+    scale: f32,
+    rotation: f32,
+) void {
 
-    // Calculate scaled dimensions
+    // Calculate the scaled sprite size (width == height).
     const cellsize_scaled = @as(f32, @floatFromInt(window.cellsize)) * scale;
 
-    // Get center of cell
-    const center = getCellCenter(x, y);
-
-    // Source rectangle (using UV coordinates)
+    // Source rectangle (using UV coordinates).
     const texture_width = @as(f32, @floatFromInt(texture.*.texture.width));
     const texture_height = @as(f32, @floatFromInt(texture.*.texture.height));
 
-    // Fix for render texture handling in raylib - RenderTextures are y-flipped
     const src = ray.Rectangle{
         .x = uv[0] * texture_width,
-        .y = (1.0 - uv[3]) * texture_height, // Start from bottom of the region
+        .y = (1.0 - uv[3]) * texture_height, // bottom-left origin in raylib
         .width = (uv[2] - uv[0]) * texture_width,
-        .height = (uv[3] - uv[1]) * texture_height, // Use positive height
+        .height = (uv[3] - uv[1]) * texture_height,
     };
 
-    // Destination rectangle (centered on the position with proper scaling)
+    // Destination rectangle – top-left corner at (x, y).
     const dest = ray.Rectangle{
-        .x = center.x,
-        .y = center.y,
+        .x = @as(f32, @floatFromInt(x)),
+        .y = @as(f32, @floatFromInt(y)),
         .width = cellsize_scaled,
         .height = cellsize_scaled,
     };
 
-    // Origin (center of the texture)
+    // Rotate around the centre of the sprite.
     const origin = ray.Vector2{
         .x = cellsize_scaled / 2.0,
         .y = cellsize_scaled / 2.0,
     };
 
-    // Draw the texture with rotation
-    ray.DrawTexturePro(texture.*.texture, src, dest, origin, rotationToDegrees(rotation), toRayColor(tint));
+    ray.DrawTexturePro(
+        texture.*.texture,
+        src,
+        dest,
+        origin,
+        rotationToDegrees(rotation),
+        toRayColor(tint),
+    );
 }
 
 // Calculates normalized UV coordinates for a tile in the atlas
@@ -485,7 +414,12 @@ pub fn process(queue: *events.EventQueue) void {
             .Reset => background.reset(),
 
             .HardDropEffect => playersys.harddrop(),
-            .Spawn => playersys.spawn(),
+            .Spawn => {
+                // Gameplay side already promoted the next piece – animate the
+                // preview blocks, then refresh the sidebar preview.
+                previewsys.spawn(game.state.piece.next);
+                playersys.spawn();
+            },
 
             // Position update events for player system
             .PlayerPositionUpdated => |update| {
@@ -510,6 +444,10 @@ pub fn process(queue: *events.EventQueue) void {
                 }
             },
             .GridReset => gridsvc.clearAllCells(),
+            .Hold => {
+                // Animate current piece to held position and update hold preview
+                previewsys.hold(game.state.piece.held);
+            },
             else => {},
         }
     }

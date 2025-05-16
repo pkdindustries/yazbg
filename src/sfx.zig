@@ -80,16 +80,19 @@ pub fn process(queue: *events.EventQueue) void {
     }
 }
 
-/// Reset music to first level
+// Reset music to first level
 pub fn resetMusic() void {
     ray.StopMusicStream(songs[songindex]);
     songindex = 0;
     playMusic();
 }
 
-pub fn init() !void {
-    std.debug.print("init audio\n", .{});
+pub fn init(allocator: std.mem.Allocator) !void {
+    // std.debug.print("init audio\n", .{});
     ray.InitAudioDevice();
+
+    // We're not actually using the allocator here yet, but adding it for consistency
+    _ = allocator;
 
     if (ray.IsAudioDeviceReady() and target.os.tag != .linux) {
         // Initialize sound banks
@@ -112,7 +115,7 @@ pub fn init() !void {
 }
 
 pub fn deinit() void {
-    std.debug.print("deinit sfx\n", .{});
+    // std.debug.print("deinit sfx\n", .{});
 
     // Unload all sound instances and their base sounds
     for (&sounds) |*bank| {

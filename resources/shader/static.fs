@@ -33,7 +33,7 @@ void main() {
         vec4 staticColor = vec4(randomValue, randomValue, randomValue, 1.0);
 
         // Blending the static effect with the modulated texture color.
-        finalColor = mix(texColor, staticColor, 0.3);
+        finalColor = mix(texColor, staticColor, 0.4);
     } else {
         // For transparent pixels, just use the original texture color.
         finalColor = texColor;
