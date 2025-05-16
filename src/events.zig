@@ -100,11 +100,11 @@ pub const EventQueue = struct {
             self.len += 1;
 
             if (builtin.mode == .Debug) {
-                std.debug.print("{any}\n", .{self.events[self.len - 1]});
+                // std.debug.print("{any}\n", .{self.events[self.len - 1]});
             }
         } else {
             // Silently drop when overflow – should never happen in this game.
-            std.debug.print("EventQueue overflow – dropping event {any} (source={any})\n", .{ e, source });
+            // std.debug.print("EventQueue overflow – dropping event {any} (source={any})\n", .{ e, source });
         }
     }
 

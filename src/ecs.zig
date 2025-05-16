@@ -5,7 +5,7 @@ const components = @import("components.zig");
 var world: ?ecs.Registry = null;
 
 pub fn init(allocator: std.mem.Allocator) void {
-    std.debug.print("init ecs\n", .{});
+    // std.debug.print("init ecs\n", .{});
     world = ecs.Registry.init(allocator);
 }
 
@@ -76,15 +76,15 @@ pub fn destroyEntity(entity: ecs.Entity) void {
         var shader_component = world.?.get(components.Shader, entity);
         shader_component.deinit();
     }
-    
+
     // Any other components with deinit methods should be handled here
-    
+
     // Now destroy the entity
     world.?.destroy(entity);
 }
 
 pub fn deinit() void {
-    std.debug.print("deinit ecs\n", .{});
+    // std.debug.print("deinit ecs\n", .{});
     if (world != null) {
         // Clean up any remaining shader components
         var shaderView = world.?.view(.{components.Shader}, .{});
@@ -93,7 +93,7 @@ pub fn deinit() void {
             var shader_component = world.?.get(components.Shader, entity);
             shader_component.deinit();
         }
-        
+
         world.?.deinit();
         world = null;
     }

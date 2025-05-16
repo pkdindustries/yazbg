@@ -20,7 +20,7 @@ pub const Progression = struct {
     }
 
     pub fn clear(self: *Progression, lines: u8) void {
-        std.debug.print("clearing {d} lines\n", .{lines});
+        // std.debug.print("clearing {d} lines\n", .{lines});
         const cleared = @as(i32, lines);
         // Score: 1000 * (lines^2)
         const line_score = 1000 * cleared * cleared;

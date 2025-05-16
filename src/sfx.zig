@@ -88,9 +88,9 @@ pub fn resetMusic() void {
 }
 
 pub fn init(allocator: std.mem.Allocator) !void {
-    std.debug.print("init audio\n", .{});
+    // std.debug.print("init audio\n", .{});
     ray.InitAudioDevice();
-    
+
     // We're not actually using the allocator here yet, but adding it for consistency
     _ = allocator;
 
@@ -115,7 +115,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
 }
 
 pub fn deinit() void {
-    std.debug.print("deinit sfx\n", .{});
+    // std.debug.print("deinit sfx\n", .{});
 
     // Unload all sound instances and their base sounds
     for (&sounds) |*bank| {

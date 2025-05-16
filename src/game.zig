@@ -38,7 +38,7 @@ pub fn tick(now_ms: i64) void {
 
 // initialize game state
 pub fn init(allocator: std.mem.Allocator) !void {
-    std.debug.print("init game\n", .{});
+    // std.debug.print("init game\n", .{});
     state.alloc = allocator;
 
     // init rng with random seed
@@ -55,12 +55,12 @@ pub fn init(allocator: std.mem.Allocator) !void {
 
 // clean up resources
 pub fn deinit() void {
-    std.debug.print("deinit game\n", .{});
+    // std.debug.print("deinit game\n", .{});
 }
 
 // reset game to initial state
 pub fn reset() void {
-    std.debug.print("reset game\n", .{});
+    // std.debug.print("reset game\n", .{});
     state.progression.reset();
     state.lastmove_ms = 0;
     state.piece = .{};

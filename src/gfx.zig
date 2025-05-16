@@ -65,7 +65,7 @@ pub const Window = struct {
             }
             self.width = width;
             self.height = height;
-            std.debug.print("window resized to {}x{}\n", .{ self.width, self.height });
+            // std.debug.print("window resized to {}x{}\n", .{ self.width, self.height });
             ray.GenTextureMipmaps(&self.texture.texture);
             ray.SetWindowSize(width, height);
         }
@@ -234,7 +234,7 @@ pub var window = Window{};
 var background = Background{};
 
 pub fn init(allocator: std.mem.Allocator) !void {
-    std.debug.print("init gfx\n", .{});
+    // std.debug.print("init gfx\n", .{});
 
     // Initialize window
     try window.init();
@@ -249,7 +249,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
 }
 
 pub fn deinit() void {
-    std.debug.print("deinit gfx\n", .{});
+    // std.debug.print("deinit gfx\n", .{});
 
     // Clean up window resources
     window.deinit();

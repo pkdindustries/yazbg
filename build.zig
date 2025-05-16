@@ -62,6 +62,13 @@ pub fn build(b: *std.Build) void {
         exe_lib.shared_memory = false;
         exe_lib.root_module.single_threaded = true;
 
+        // Add ECS dependency for WebAssembly build
+        const ecs_dep = b.dependency("entt", .{
+            .target = wasm_target,
+            .optimize = optimize,
+        });
+        exe_lib.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+
         exe_lib.linkLibrary(raylib_artifact);
         exe_lib.addIncludePath(raylib_dep.path("src"));
 

@@ -25,7 +25,7 @@ pub fn init(alloc: std.mem.Allocator) !void {
     try loadShader("warp", "resources/shader/warp.fs");
     try loadShader("nearest_cell", "resources/shader/nearest_cell.fs");
 
-    std.debug.print("Shader system initialized with {} shaders\n", .{shaders.count()});
+    // std.debug.print("Shader system initialized with {} shaders\n", .{shaders.count()});
 }
 
 // clean up all shaders and free memory
@@ -45,7 +45,7 @@ pub fn deinit() void {
 pub fn loadShader(name: []const u8, fragment_path: []const u8) !void {
     // Check if shader with this name already exists
     if (shaders.contains(name)) {
-        std.debug.print("Shader '{s}' already exists, skipping load\n", .{name});
+        // std.debug.print("Shader '{s}' already exists, skipping load\n", .{name});
         return;
     }
 
@@ -55,7 +55,7 @@ pub fn loadShader(name: []const u8, fragment_path: []const u8) !void {
     // Load shader from file
     shader_ptr.* = ray.LoadShader(null, fragment_path.ptr);
     if (shader_ptr.*.id == 0) {
-        std.debug.print("ERROR: Failed to load shader from {s}\n", .{fragment_path});
+        // std.debug.print("ERROR: Failed to load shader from {s}\n", .{fragment_path});
         allocator.destroy(shader_ptr);
         return error.ShaderLoadFailed;
     }
@@ -69,7 +69,7 @@ pub fn loadShader(name: []const u8, fragment_path: []const u8) !void {
         .name = name_copy,
     });
 
-    std.debug.print("Loaded shader '{s}' from {s} (id={})\n", .{ name, fragment_path, shader_ptr.*.id });
+    // std.debug.print("Loaded shader '{s}' from {s} (id={})\n", .{ name, fragment_path, shader_ptr.*.id });
 }
 
 // get a shader by name
@@ -83,7 +83,7 @@ pub fn getShader(name: []const u8) ?*const ray.Shader {
 // add a shader component to an entity
 pub fn addShaderToEntity(entity: ecsroot.Entity, shader_name: []const u8) !void {
     const shader = getShader(shader_name) orelse {
-        std.debug.print("ERROR: Shader '{s}' not found\n", .{shader_name});
+        // std.debug.print("ERROR: Shader '{s}' not found\n", .{shader_name});
         return error.ShaderNotFound;
     };
 

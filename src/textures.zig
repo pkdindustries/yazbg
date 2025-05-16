@@ -76,7 +76,7 @@ pub fn createEntry(key: []const u8, draw_fn: DrawIntoTileFn, context: ?*const an
     try ensureEntry(key, draw_fn, context);
     // safe to unwrap after ensureEntry succeeds
     const entry = texture_lut.get(key).?;
-    std.debug.print("Created entry for key '{s}'\n", .{key});
+    // std.debug.print("Created entry for key '{s}'\n", .{key});
     return entry;
 }
 
@@ -106,7 +106,7 @@ fn ensureEntry(key: []const u8, draw_fn: DrawIntoTileFn, context: ?*const anyopa
     // normalized UV rectangle for the tile
     const uv = gfx.calculateUV(col, row, tile_px, atlas_px);
 
-    std.debug.print("Tile {}: col={}, row={}, UV=[{d:.6}, {d:.6}, {d:.6}, {d:.6}]\n", .{ tile_index, col, row, uv[0], uv[1], uv[2], uv[3] });
+    // std.debug.print("Tile {}: col={}, row={}, UV=[{d:.6}, {d:.6}, {d:.6}, {d:.6}]\n", .{ tile_index, col, row, uv[0], uv[1], uv[2], uv[3] });
 
     const entry = AtlasEntry{
         .tex = page.tex,
@@ -122,12 +122,12 @@ fn allocatePage() !void {
 
     tex_ptr.* = ray.LoadRenderTexture(atlas_px, atlas_px);
     if (tex_ptr.*.id == 0) {
-        std.debug.print("ERROR: Failed to create render texture (atlas_px: {})\n", .{atlas_px});
+        // std.debug.print("ERROR: Failed to create render texture (atlas_px: {})\n", .{atlas_px});
         allocator.destroy(tex_ptr);
         return error.TextureCreationFailed;
     }
 
-    std.debug.print("Created new texture atlas page: id={}, size={}x{}\n", .{ tex_ptr.*.id, atlas_px, atlas_px });
+    // std.debug.print("Created new texture atlas page: id={}, size={}x{}\n", .{ tex_ptr.*.id, atlas_px, atlas_px });
 
     ray.SetTextureFilter(tex_ptr.*.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);
 

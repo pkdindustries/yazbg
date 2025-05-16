@@ -14,7 +14,7 @@ pub var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 pub fn main() !void {
     var timer = try std.time.Timer.start();
     ray.SetTraceLogLevel(ray.LOG_WARNING);
-    
+
     // Create central allocator to use throughout the application
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
@@ -31,7 +31,7 @@ pub fn main() !void {
     try gfx.init(allocator);
     defer gfx.deinit();
 
-    std.debug.print("system init {}ms\n", .{timer.lap() / MS});
+    // std.debug.print("system init {}ms\n", .{timer.lap() / MS});
 
     printkeys();
 
@@ -89,7 +89,7 @@ pub fn main() !void {
         // performance stats
         const frametime_elapsed = timer.lap();
         const total_elapsed = gamelogic_elapsed + frametime_elapsed;
-        if (gamelogic_elapsed > 2 * MS or frametime_elapsed > 20 * MS) {
+        if (gamelogic_elapsed > 1 * MS or frametime_elapsed > 16 * MS) {
             std.debug.print("frame {}ms, game {}ms, total {}ms\n", .{ frametime_elapsed / MS, gamelogic_elapsed / MS, total_elapsed / MS });
         }
     }

@@ -83,7 +83,7 @@ pub const Grid = struct {
     }
 
     fn removeline(self: *Self, line: usize) void {
-        std.debug.print("removeline {d}\n", .{line});
+        // std.debug.print("removeline {d}\n", .{line});
 
         // Clear the line in bit-grid
         if (line < HEIGHT) {
@@ -148,16 +148,16 @@ pub const Grid = struct {
     }
 
     pub fn print(self: *const Self) void {
-        std.debug.print("\n", .{});
+        // std.debug.print("\n", .{});
         for (0..HEIGHT) |y| {
             for (0..WIDTH) |x| {
                 if (self.isOccupied(x, y)) {
-                    std.debug.print("+", .{});
+                    // std.debug.print("+", .{});
                 } else {
-                    std.debug.print("-", .{});
+                    // std.debug.print("-", .{});
                 }
             }
-            std.debug.print("\n", .{});
+            // std.debug.print("\n", .{});
         }
     }
 
@@ -241,7 +241,7 @@ test "check line" {
 }
 
 test "rm" {
-    std.debug.print("rm\n", .{});
+    // std.debug.print("rm\n", .{});
 
     var grid = Grid.init();
 
@@ -260,7 +260,7 @@ test "rm" {
 }
 
 test "shift" {
-    std.debug.print("shift\n", .{});
+    // std.debug.print("shift\n", .{});
 
     var grid = Grid.init();
 
@@ -293,7 +293,7 @@ test "shift" {
 }
 
 test "clear" {
-    std.debug.print("clear\n", .{});
+    // std.debug.print("clear\n", .{});
 
     var grid = Grid.init();
 
