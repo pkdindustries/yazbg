@@ -240,7 +240,7 @@ fn spawnAnimatedTetromino(rng: anytype) !void {
 
 pub fn main() !void {
     // ---- Basic init ------------------------------------------------------
-    ecs.init(std.heap.c_allocator);
+    ecs.init();
 
     // Minimal window globals for helpers.
     gfx.window = gfx.Window{};
