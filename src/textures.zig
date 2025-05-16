@@ -5,7 +5,7 @@ const ecsroot = @import("ecs");
 const components = @import("components.zig");
 const gfx = @import("gfx.zig");
 
-// Common color type definitions
+// Common type definitions
 pub const Color = [4]u8;
 pub const ColorRGBA = ray.Color;
 
@@ -32,18 +32,18 @@ var atlas_px: i32 = 0; // width / height of one page in px
 
 var pages: std.ArrayList(Page) = undefined;
 
-// Hash-map color → entry (pointer to page texture + UV rectangle)
-var color_lut: std.AutoHashMap(Color, AtlasEntry) = undefined;
+// Hash-map key → entry (pointer to page texture + UV rectangle)
+var texture_lut: std.StringHashMap(AtlasEntry) = undefined;
 
 // needs gfx.window.cellsize
 pub fn init() !void {
-    const alloc = std.heap.page_allocator;
+    const alloc = std.heap.c_allocator;
 
     tile_px = gfx.window.cellsize * 2; // match previous implementation
     atlas_px = tile_px * TILES_PER_ROW;
 
     pages = std.ArrayList(Page).init(alloc);
-    color_lut = std.AutoHashMap(Color, AtlasEntry).init(alloc);
+    texture_lut = std.StringHashMap(AtlasEntry).init(alloc);
 }
 
 // Unload all pages and free memory.
@@ -53,36 +53,33 @@ pub fn deinit() void {
         std.heap.c_allocator.destroy(p.tex);
     }
     pages.deinit();
-    color_lut.deinit();
+    texture_lut.deinit();
 }
 
 // Get an existing entry from the cache, doesn't create a new one
-pub fn getEntry(color: Color) !AtlasEntry {
-    if (color_lut.get(color)) |entry| {
+pub fn getEntry(key: []const u8) !AtlasEntry {
+    if (texture_lut.get(key)) |entry| {
         return entry;
     }
     return error.EntryNotFound;
 }
 
 // Create a new entry using the provided draw function
-pub fn createEntry(color: Color, draw_fn: DrawIntoTileFn) !AtlasEntry {
+pub fn createEntry(key: []const u8, draw_fn: DrawIntoTileFn, context: ?*const anyopaque) !AtlasEntry {
     // Check if it already exists first
-    if (color_lut.get(color)) |entry| {
+    if (texture_lut.get(key)) |entry| {
         return entry;
     }
 
-    std.debug.print("Cache miss for color [{},{},{},{}], creating new entry\n", .{ color[0], color[1], color[2], color[3] });
-    try ensureEntry(&color, draw_fn);
+    try ensureEntry(key, draw_fn, context);
     // safe to unwrap after ensureEntry succeeds
-    const entry = color_lut.get(color).?;
-    std.debug.print("Created entry for color [{},{},{},{}]: texture={}\n", .{ color[0], color[1], color[2], color[3], entry.tex.*.id });
+    const entry = texture_lut.get(key).?;
+    std.debug.print("Created entry for key '{s}'\n", .{key});
     return entry;
 }
 
-fn ensureEntry(color_ptr: *const Color, draw_fn: DrawIntoTileFn) !void {
-    const color = color_ptr.*;
-
-    if (color_lut.contains(color)) return; // already cached
+fn ensureEntry(key: []const u8, draw_fn: DrawIntoTileFn, context: ?*const anyopaque) !void {
+    if (texture_lut.contains(key)) return; // already cached
 
     // Obtain a page with free space or allocate a new one.
     if (pages.items.len == 0 or pages.items[pages.items.len - 1].next_tile == TILES_PER_PAGE) {
@@ -102,7 +99,7 @@ fn ensureEntry(color_ptr: *const Color, draw_fn: DrawIntoTileFn) !void {
     const tile_y = row * tile_px;
 
     // Call the provided drawing function
-    draw_fn(page.tex, tile_x, tile_y, tile_px, color);
+    draw_fn(page.tex, tile_x, tile_y, tile_px, key, context);
 
     // normalized UV rectangle for the tile
     const uv = gfx.calculateUV(col, row, tile_px, atlas_px);
@@ -114,7 +111,7 @@ fn ensureEntry(color_ptr: *const Color, draw_fn: DrawIntoTileFn) !void {
         .uv = uv,
     };
 
-    try color_lut.put(color, entry);
+    try texture_lut.put(key, entry);
 }
 
 // Allocates a new texture atlas page.
@@ -141,4 +138,4 @@ fn allocatePage() !void {
 }
 
 // Function pointer type for drawing into a tile
-pub const DrawIntoTileFn = fn (page_tex: *const ray.RenderTexture2D, tile_x: i32, tile_y: i32, tile_size: i32, color: Color) void;
+pub const DrawIntoTileFn = fn (page_tex: *const ray.RenderTexture2D, tile_x: i32, tile_y: i32, tile_size: i32, key: []const u8, context: ?*const anyopaque) void;

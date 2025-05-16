@@ -13,23 +13,36 @@ pub const Color = textures.Color;
 pub const UV = textures.UV;
 pub const AtlasEntry = textures.AtlasEntry;
 
+// helper to convert color to string key for texture lookup
+fn colorToKey(allocator: std.mem.Allocator, color: Color) ![]u8 {
+    return try std.fmt.allocPrint(allocator, "block_{d}_{d}_{d}_{d}", .{ color[0], color[1], color[2], color[3] });
+}
+
 //-----------------------------------------------------------------------------
 // texture handling functions
 //-----------------------------------------------------------------------------
 
 // get an existing block texture or create a new one if it doesn't exist
 pub fn getOrCreateBlockTexture(color: Color) !AtlasEntry {
+    var buffer: [64]u8 = undefined;
+    const key = std.fmt.bufPrint(&buffer, "block_{d}_{d}_{d}_{d}", .{ color[0], color[1], color[2], color[3] }) catch |err| {
+        std.debug.print("Failed to format color key: {}", .{err});
+        return error.KeyFormatError;
+    };
+
     return blk: {
-        if (textures.getEntry(color)) |existing| {
+        if (textures.getEntry(key)) |existing| {
             break :blk existing;
         } else |_| {
-            break :blk try textures.createEntry(color, drawBlockIntoTile);
+            // Create a temporary copy of color for context pointer
+            var color_copy = color;
+            break :blk try textures.createEntry(key, drawBlockIntoTile, &color_copy);
         }
     };
 }
 
 // draws a rounded block with highlight into a texture tile
-pub fn drawBlockIntoTile(page_tex: *const ray.RenderTexture2D, tile_x: i32, tile_y: i32, tile_size: i32, color: Color) void {
+pub fn drawBlockIntoTile(page_tex: *const ray.RenderTexture2D, tile_x: i32, tile_y: i32, tile_size: i32, _: []const u8, context: ?*const anyopaque) void {
     // padding to float for drawing
     const padding = @as(f32, @floatFromInt(gfx.window.cellpadding)) * 2.0;
     const block_size = @as(f32, @floatFromInt(tile_size)) - padding * 2.0;
@@ -49,6 +62,8 @@ pub fn drawBlockIntoTile(page_tex: *const ray.RenderTexture2D, tile_x: i32, tile
         .height = rect.height / 3,
     };
 
+    // context must be a pointer to Color
+    const color = @as(*const Color, @ptrCast(context.?)).*;
     const ray_color = gfx.toRayColor(color);
     const light_color = gfx.createLighterColor(color, 20);
 
@@ -106,23 +121,6 @@ pub fn createGhostBlock(x: f32, y: f32, color: Color) !ecsroot.Entity {
     ghost_color[3] = 200; // reduce alpha for ghost effect
 
     return createBlockEntity(x, y, ghost_color, 1.0, true);
-}
-
-// create a grid block (fixed block in the game grid)
-pub fn createGridBlock(grid_x: i32, grid_y: i32, color: Color) !ecsroot.Entity {
-    // convert grid coordinates to screen coordinates
-    const cs = @as(f32, @floatFromInt(gfx.window.cellsize));
-    const x = @as(f32, @floatFromInt(gfx.window.gridoffsetx)) + @as(f32, @floatFromInt(grid_x)) * cs;
-    const y = @as(f32, @floatFromInt(gfx.window.gridoffsety)) + @as(f32, @floatFromInt(grid_y)) * cs;
-
-    // create block entity
-    const entity = try createBlockEntity(x, y, color, 1.0, false);
-
-    // add grid position component
-    ecs.replace(components.BlockTag, entity, components.BlockTag{});
-    ecs.replace(components.GridPos, entity, components.GridPos{ .x = grid_x, .y = grid_y });
-
-    return entity;
 }
 
 //-----------------------------------------------------------------------------
@@ -193,40 +191,6 @@ pub fn clearGhostBlocks() void {
 pub fn clearAllPlayerBlocks() void {
     clearPieceBlocks();
     clearGhostBlocks();
-}
-
-//-----------------------------------------------------------------------------
-// animation functions
-//-----------------------------------------------------------------------------
-
-// create an entity that animates from one position to another and then destroys itself
-pub fn createBlockDropAnimation(from_x: f32, from_y: f32, to_y: f32, color: Color) !ecsroot.Entity {
-    var anim_color = color;
-    anim_color[3] = 100; // very transparent
-
-    const entity = try createBlockTextureWithAtlas(from_x, from_y, anim_color, 1.0, 0.0);
-
-    // add animation component
-    ecs.replace(components.Animation, entity, components.Animation{
-        .animate_position = true,
-        .start_pos = .{ from_x, from_y },
-        .target_pos = .{ from_x, to_y },
-        .start_time = std.time.milliTimestamp(),
-        .duration = 100, // fast animation (100ms)
-        .easing = .ease_in,
-        .remove_when_done = true,
-        .destroy_entity_when_done = true,
-    });
-
-    return entity;
-}
-
-// create a hard drop animation from source entity to a destination y position
-pub fn createHardDropAnimation(entity: ecsroot.Entity, to_y: f32) !ecsroot.Entity {
-    const pos = ecs.get(components.Position, entity) orelse return error.MissingPosition;
-    const sprite = ecs.get(components.Sprite, entity) orelse return error.MissingSprite;
-
-    return createBlockDropAnimation(pos.x, pos.y, to_y, sprite.rgba);
 }
 
 // create a flashing block animation (for row clear effects, etc.)

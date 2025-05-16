@@ -16,16 +16,17 @@ const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
 const textures = @import("textures.zig");
+const blockbuilder = @import("blockbuilder.zig");
 const pieces = @import("pieces.zig");
 const rendersys = @import("systems/render.zig");
 const animsys = @import("systems/anim.zig");
 const gfx = @import("gfx.zig");
 const shaders = @import("shaders.zig");
 // ---------------------------------------------------------------------------
-// Globals – one render texture per tetromino shape (shared between entities)
+// Globals – one atlas entry per tetromino (shared between entities)
 // ---------------------------------------------------------------------------
 
-var piece_textures: [pieces.tetraminos.len]*ray.RenderTexture2D = undefined;
+var piece_entries: [pieces.tetraminos.len]textures.AtlasEntry = undefined;
 
 // PRNG for runtime randomisations
 var global_prng: std.Random.DefaultPrng = undefined;
@@ -59,47 +60,49 @@ fn drawBlock(col: i32, row: i32, color: [4]u8) void {
 }
 
 // Create (once) a 4×4-block texture for the given tetromino.
-fn makePieceTexture(t: pieces.tetramino) !*ray.RenderTexture2D {
-    const tex_ptr = try std.heap.c_allocator.create(ray.RenderTexture2D);
+// ---------------------------------------------------------------------------
+// Texture atlas helpers – one tile per tetromino (4×4 blocks shrunk to tile)
+// ---------------------------------------------------------------------------
 
-    const size = piecePx();
-    tex_ptr.* = ray.LoadRenderTexture(size, size);
-    if (tex_ptr.*.id == 0) return error.TextureCreationFailed;
+// Draw a tetromino into a single atlas tile by re-using the block helper.
+fn drawTetrominoIntoTile(
+    page_tex: *const ray.RenderTexture2D,
+    tile_x: i32,
+    tile_y: i32,
+    tile_size: i32,
+    _: []const u8,
+    context: ?*const anyopaque,
+) void {
+    const t_unaligned: *align(1) const pieces.tetramino = @ptrCast(context.?);
+    const t: *const pieces.tetramino = @alignCast(t_unaligned);
 
-    ray.SetTextureFilter(tex_ptr.*.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);
+    // One block == 1/4 of the tile.
+    const sub_px: i32 = @divTrunc(tile_size, 4);
 
-    // Draw blocks into the texture.
-    ray.BeginTextureMode(tex_ptr.*);
-    defer ray.EndTextureMode();
+    const shape = t.shape[0]; // first rotation is enough
 
-    // Fully transparent clear.
-    ray.ClearBackground(ray.Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-
-    const shape = t.shape[0]; // only first rotation needed for drawing
     var row: usize = 0;
-    while (row < shape.len) : (row += 1) {
+    while (row < 4) : (row += 1) {
         var col: usize = 0;
-        while (col < shape[row].len) : (col += 1) {
-            if (shape[row][col]) {
-                drawBlock(@intCast(col), @intCast(row), t.color);
-            }
+        while (col < 4) : (col += 1) {
+            if (!shape[row][col]) continue;
+
+            const block_x = tile_x + @as(i32, @intCast(col)) * sub_px;
+            const block_y = tile_y + @as(i32, @intCast(row)) * sub_px;
+
+            var color_copy = t.color; // stack copy for pointer cast
+            blockbuilder.drawBlockIntoTile(page_tex, block_x, block_y, sub_px, "", &color_copy);
         }
     }
-
-    return tex_ptr;
 }
 
-fn createPieceTextures() !void {
+// Create atlas entries for all seven tetrominos.
+fn createPieceAtlasEntries() !void {
+    const alloc = std.heap.c_allocator;
     var i: usize = 0;
     while (i < pieces.tetraminos.len) : (i += 1) {
-        piece_textures[i] = try makePieceTexture(pieces.tetraminos[i]);
-    }
-}
-
-fn destroyPieceTextures() void {
-    for (piece_textures) |tex_ptr| {
-        ray.UnloadRenderTexture(tex_ptr.*);
-        std.heap.c_allocator.destroy(tex_ptr);
+        const key_heap = try std.fmt.allocPrint(alloc, "piece_{d}", .{i});
+        piece_entries[i] = try textures.createEntry(key_heap, drawTetrominoIntoTile, &pieces.tetraminos[i]);
     }
 }
 
@@ -175,7 +178,7 @@ fn spawnAnimatedTetromino(rng: anytype) !void {
 
     // Random tetromino type ----------------------------------------------
     const t_index = rng.intRangeAtMost(usize, 0, pieces.tetraminos.len - 1);
-    const tex_ptr = piece_textures[t_index];
+    const entry = piece_entries[t_index];
 
     // Random starting top-left position (keep fully on-screen) -------------
     const piece_px_f: f32 = @floatFromInt(piecePx());
@@ -205,8 +208,8 @@ fn spawnAnimatedTetromino(rng: anytype) !void {
     ecs.replace(components.Sprite, entity, components.Sprite{ .rgba = .{ 255, 255, 255, 255 }, .size = size0, .rotation = rot0 });
 
     ecs.replace(components.Texture, entity, components.Texture{
-        .texture = tex_ptr,
-        .uv = .{ 0.0, 0.0, 1.0, 1.0 },
+        .texture = entry.tex,
+        .uv = entry.uv,
         .created = false,
     });
 
@@ -239,24 +242,20 @@ pub fn main() !void {
     // ---- Basic init ------------------------------------------------------
     ecs.init();
 
-    ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE | ray.FLAG_MSAA_4X_HINT);
-
-    ray.InitWindow(ray.GetScreenWidth(), ray.GetScreenHeight(), "Tetromino sprite benchmark");
-
     // Minimal window globals for helpers.
     gfx.window = gfx.Window{};
     gfx.window.width = ray.GetScreenWidth();
     gfx.window.height = ray.GetScreenHeight();
     gfx.window.cellsize = 35;
-    gfx.window.cellpadding = 2;
+    gfx.window.cellpadding = 1;
     gfx.window.gridoffsetx = 10;
     gfx.window.gridoffsety = 10;
 
-    // Initialize graphics system
+    // Initialize graphics + texture systems (textures.init is called inside gfx.init)
     try gfx.init();
 
-    // Pre-render the 7 piece textures
-    try createPieceTextures();
+    // Create atlas tiles for all tetrominos
+    try createPieceAtlasEntries();
 
     // ---- Spawn 5 000 animated tetrominos -------------------------------
     var seed: u64 = undefined;
@@ -296,8 +295,7 @@ pub fn main() !void {
     }
 
     // ---- Shutdown --------------------------------------------------------
-    destroyPieceTextures();
-    textures.deinit();
+    textures.deinit(); // atlas pages
     ecs.deinit();
     ray.CloseWindow();
 }
