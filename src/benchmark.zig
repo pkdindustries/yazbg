@@ -240,7 +240,7 @@ fn spawnAnimatedTetromino(rng: anytype) !void {
 
 pub fn main() !void {
     // ---- Basic init ------------------------------------------------------
-    ecs.init();
+    ecs.init(std.heap.c_allocator);
 
     // Minimal window globals for helpers.
     gfx.window = gfx.Window{};
@@ -252,7 +252,7 @@ pub fn main() !void {
     gfx.window.gridoffsety = 10;
 
     // Initialize graphics + texture systems (textures.init is called inside gfx.init)
-    try gfx.init();
+    try gfx.init(std.heap.c_allocator);
 
     // Create atlas tiles for all tetrominos
     try createPieceAtlasEntries();

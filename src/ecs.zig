@@ -4,9 +4,9 @@ const components = @import("components.zig");
 
 var world: ?ecs.Registry = null;
 
-pub fn init() void {
+pub fn init(allocator: std.mem.Allocator) void {
     std.debug.print("init ecs\n", .{});
-    world = ecs.Registry.init(std.heap.c_allocator);
+    world = ecs.Registry.init(allocator);
 }
 
 pub inline fn createEntity() ecs.Entity {
@@ -57,9 +57,43 @@ pub fn getWorld() *ecs.Registry {
     return &world.?;
 }
 
+// Helper function to safely remove a component with proper cleanup
+pub fn safeRemove(comptime T: type, entity: ecs.Entity) void {
+    if (world.?.has(T, entity)) {
+        const component_ptr = world.?.get(T, entity);
+        // Check if component has a deinit method and call it
+        if (@hasDecl(T, "deinit")) {
+            component_ptr.deinit();
+        }
+        world.?.remove(T, entity);
+    }
+}
+
+// Safely destroy an entity with proper component cleanup
+pub fn destroyEntity(entity: ecs.Entity) void {
+    // Clean up components that need deinitialization
+    if (world.?.has(components.Shader, entity)) {
+        var shader_component = world.?.get(components.Shader, entity);
+        shader_component.deinit();
+    }
+    
+    // Any other components with deinit methods should be handled here
+    
+    // Now destroy the entity
+    world.?.destroy(entity);
+}
+
 pub fn deinit() void {
     std.debug.print("deinit ecs\n", .{});
     if (world != null) {
+        // Clean up any remaining shader components
+        var shaderView = world.?.view(.{components.Shader}, .{});
+        var it = shaderView.entityIterator();
+        while (it.next()) |entity| {
+            var shader_component = world.?.get(components.Shader, entity);
+            shader_component.deinit();
+        }
+        
         world.?.deinit();
         world = null;
     }

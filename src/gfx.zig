@@ -159,7 +159,7 @@ pub const Background = struct {
         }
 
         // Destroy shader entity
-        ecs.getWorld().destroy(self.shader_entity);
+        ecs.destroyEntity(self.shader_entity);
     }
 
     pub fn next(self: *Background) void {
@@ -233,14 +233,14 @@ pub const Background = struct {
 pub var window = Window{};
 var background = Background{};
 
-pub fn init() !void {
+pub fn init(allocator: std.mem.Allocator) !void {
     std.debug.print("init gfx\n", .{});
 
     // Initialize window
     try window.init();
     // Initialize texture, blocks and shader systems
-    try textures.init();
-    try shaders.init();
+    try textures.init(allocator);
+    try shaders.init(allocator);
     // Initialize background
     try background.init();
 

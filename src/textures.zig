@@ -35,22 +35,24 @@ var pages: std.ArrayList(Page) = undefined;
 // Hash-map key → entry (pointer to page texture + UV rectangle)
 var texture_lut: std.StringHashMap(AtlasEntry) = undefined;
 
-// needs gfx.window.cellsize
-pub fn init() !void {
-    const alloc = std.heap.c_allocator;
+// Store allocator for future use
+var allocator: std.mem.Allocator = undefined;
 
+// needs gfx.window.cellsize
+pub fn init(alloc: std.mem.Allocator) !void {
+    allocator = alloc;
     tile_px = gfx.window.cellsize * 2; // match previous implementation
     atlas_px = tile_px * TILES_PER_ROW;
 
-    pages = std.ArrayList(Page).init(alloc);
-    texture_lut = std.StringHashMap(AtlasEntry).init(alloc);
+    pages = std.ArrayList(Page).init(allocator);
+    texture_lut = std.StringHashMap(AtlasEntry).init(allocator);
 }
 
 // Unload all pages and free memory.
 pub fn deinit() void {
     for (pages.items) |p| {
         ray.UnloadRenderTexture(p.tex.*);
-        std.heap.c_allocator.destroy(p.tex);
+        allocator.destroy(p.tex);
     }
     pages.deinit();
     texture_lut.deinit();
@@ -116,12 +118,12 @@ fn ensureEntry(key: []const u8, draw_fn: DrawIntoTileFn, context: ?*const anyopa
 
 // Allocates a new texture atlas page.
 fn allocatePage() !void {
-    const tex_ptr = try std.heap.c_allocator.create(ray.RenderTexture2D);
+    const tex_ptr = try allocator.create(ray.RenderTexture2D);
 
     tex_ptr.* = ray.LoadRenderTexture(atlas_px, atlas_px);
     if (tex_ptr.*.id == 0) {
         std.debug.print("ERROR: Failed to create render texture (atlas_px: {})\n", .{atlas_px});
-        std.heap.c_allocator.destroy(tex_ptr);
+        allocator.destroy(tex_ptr);
         return error.TextureCreationFailed;
     }
 

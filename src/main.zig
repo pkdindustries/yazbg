@@ -9,20 +9,26 @@ const level = @import("level.zig");
 const ecs = @import("ecs.zig");
 
 const MS = 1_000_000;
+pub var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+
 pub fn main() !void {
     var timer = try std.time.Timer.start();
     ray.SetTraceLogLevel(ray.LOG_WARNING);
+    
+    // Create central allocator to use throughout the application
+    const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
 
-    ecs.init();
+    ecs.init(allocator);
     defer ecs.deinit();
 
-    try game.init(std.heap.c_allocator);
+    try game.init(allocator);
     defer game.deinit();
 
-    try sfx.init();
+    try sfx.init(allocator);
     defer sfx.deinit();
 
-    try gfx.init();
+    try gfx.init(allocator);
     defer gfx.deinit();
 
     std.debug.print("system init {}ms\n", .{timer.lap() / MS});

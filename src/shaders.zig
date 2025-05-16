@@ -16,8 +16,8 @@ var shaders: std.StringHashMap(ShaderEntry) = undefined;
 var allocator: std.mem.Allocator = undefined;
 
 // initialize shader system
-pub fn init() !void {
-    allocator = std.heap.page_allocator;
+pub fn init(alloc: std.mem.Allocator) !void {
+    allocator = alloc;
     shaders = std.StringHashMap(ShaderEntry).init(allocator);
 
     // Pre-load common shaders

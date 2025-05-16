@@ -87,9 +87,12 @@ pub fn resetMusic() void {
     playMusic();
 }
 
-pub fn init() !void {
+pub fn init(allocator: std.mem.Allocator) !void {
     std.debug.print("init audio\n", .{});
     ray.InitAudioDevice();
+    
+    // We're not actually using the allocator here yet, but adding it for consistency
+    _ = allocator;
 
     if (ray.IsAudioDeviceReady() and target.os.tag != .linux) {
         // Initialize sound banks

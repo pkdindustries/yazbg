@@ -154,7 +154,7 @@ pub fn update() void {
 
             // Check if we should destroy the entity
             if (animation.destroy_entity_when_done) {
-                world.destroy(entity);
+                ecs.destroyEntity(entity);
             }
         }
     }
