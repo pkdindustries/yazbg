@@ -240,7 +240,7 @@ fn spawnAnimatedTetromino(rng: anytype) !void {
 
 pub fn main() !void {
     // ---- Basic init ------------------------------------------------------
-    ecs.init();
+    ecs.init(std.heap.c_allocator);
 
     // Minimal window globals for helpers.
     gfx.window = gfx.Window{};
@@ -262,7 +262,6 @@ pub fn main() !void {
     std.crypto.random.bytes(std.mem.asBytes(&seed));
     global_prng = std.Random.DefaultPrng.init(seed);
     const rng = global_prng.random();
-    try shaders.init();
 
     const total_pieces: usize = 10000;
     var i: usize = 0;

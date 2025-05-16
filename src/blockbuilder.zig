@@ -24,21 +24,39 @@ fn colorToKey(allocator: std.mem.Allocator, color: Color) ![]u8 {
 
 // get an existing block texture or create a new one if it doesn't exist
 pub fn getOrCreateBlockTexture(color: Color) !AtlasEntry {
+    const alloc = std.heap.c_allocator;
+
+    // First, format the key into a small stack buffer (fast path).
     var buffer: [64]u8 = undefined;
-    const key = std.fmt.bufPrint(&buffer, "block_{d}_{d}_{d}_{d}", .{ color[0], color[1], color[2], color[3] }) catch |err| {
+    const tmp_key = std.fmt.bufPrint(&buffer, "block_{d}_{d}_{d}_{d}", .{ color[0], color[1], color[2], color[3] }) catch |err| {
         std.debug.print("Failed to format color key: {}", .{err});
         return error.KeyFormatError;
     };
 
-    return blk: {
-        if (textures.getEntry(key)) |existing| {
-            break :blk existing;
-        } else |_| {
-            // Create a temporary copy of color for context pointer
-            var color_copy = color;
-            break :blk try textures.createEntry(key, drawBlockIntoTile, &color_copy);
+    // If an entry already exists, we can immediately return it – no allocation
+    // needed in this case because the map owns its own (heap-allocated) key.
+    const entry_try = textures.getEntry(tmp_key);
+    if (entry_try) |existing| {
+        return existing;
+    } else |err| {
+        // Only continue when the entry was not found. Propagate any other error
+        // back to the caller.
+        switch (err) {
+            error.EntryNotFound => {},
+            else => return err,
         }
-    };
+    }
+
+    // Otherwise we need to create a new atlas entry. The hash-map stores a
+    // reference to the provided key slice, so we must ensure that the memory
+    // for the key lives for the duration of the program.  Allocate a copy of
+    // the formatted key on the heap and pass that to the textures module.
+    const heap_key = try alloc.dupe(u8, tmp_key);
+
+    // Draw-time needs access to the block colour, but only during the call, so
+    // a stack copy is sufficient.
+    var color_copy = color;
+    return try textures.createEntry(heap_key, drawBlockIntoTile, &color_copy);
 }
 
 // draws a rounded block with highlight into a texture tile
