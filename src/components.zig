@@ -158,6 +158,9 @@ pub const GhostBlockTag = struct {}; // Marker for blocks belonging to ghost pre
 pub const PlayerPieceState = struct {
     x: i32, // logical grid x position
     y: i32, // logical grid y position
+    prev_x: i32 = 0, // previous x position for animation
+    prev_y: i32 = 0, // previous y position for animation
+    prev_ghost_y: i32 = 0, // previous ghost y for animation
     rotation: u32, // current rotation index
     ghost_y: i32, // calculated landing position
     piece_index: u32, // current piece type index

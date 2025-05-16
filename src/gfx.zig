@@ -275,39 +275,38 @@ pub fn frame() void {
 
     playersys.update();
     animsys.update();
+
+    ray.BeginDrawing();
     {
-        ray.BeginDrawing();
+        ray.BeginTextureMode(window.texture);
         {
-            ray.BeginTextureMode(window.texture);
-            {
-                ray.ClearBackground(ray.BLACK);
+            ray.ClearBackground(ray.BLACK);
 
-                // Update and draw background with shader
-                background.updateShader() catch {};
-                background.draw();
+            // Update and draw background with shader
+            background.updateShader() catch {};
+            background.draw();
 
-                rendersys.draw();
+            rendersys.draw();
 
-                // Draw HUD elements
-                hud.draw(.{
-                    .gridoffsetx = window.gridoffsetx,
-                    .gridoffsety = window.gridoffsety,
-                    .cellsize = window.cellsize,
-                    .cellpadding = window.cellpadding,
-                    .font = window.font,
-                    .og_width = Window.OGWIDTH,
-                    .og_height = Window.OGHEIGHT,
-                    .next_piece = game.state.piece.next,
-                    .held_piece = game.state.piece.held,
-                });
-            }
-            ray.EndTextureMode();
-
-            // Scale render texture to actual window size
-            window.drawScaled();
+            // Draw HUD elements
+            hud.draw(.{
+                .gridoffsetx = window.gridoffsetx,
+                .gridoffsety = window.gridoffsety,
+                .cellsize = window.cellsize,
+                .cellpadding = window.cellpadding,
+                .font = window.font,
+                .og_width = Window.OGWIDTH,
+                .og_height = Window.OGHEIGHT,
+                .next_piece = game.state.piece.next,
+                .held_piece = game.state.piece.held,
+            });
         }
-        ray.EndDrawing();
+        ray.EndTextureMode();
+
+        // Scale render texture to actual window size
+        window.drawScaled();
     }
+    ray.EndDrawing();
 }
 
 // Convert RGBA array to raylib Color

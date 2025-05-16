@@ -207,31 +207,6 @@ pub fn createRowShiftAnimation(entity: ecsroot.Entity, from_y: f32, to_y: f32) v
     }
 }
 
-// Create combined animation (position + rotation)
-pub fn createMoveAndRotateAnimation(entity: ecsroot.Entity, from_x: f32, from_y: f32, to_x: f32, to_y: f32, from_rotation: f32, to_rotation: f32, duration_ms: i64, easing_type: components.easing_types) void {
-    const world = ecs.getWorld();
-
-    // remove any existing animation component first
-    if (world.has(components.Animation, entity)) {
-        world.remove(components.Animation, entity);
-    }
-
-    // create the animation with multiple properties
-    const anim = components.Animation{
-        .animate_position = true,
-        .start_pos = .{ from_x, from_y },
-        .target_pos = .{ to_x, to_y },
-        .animate_rotation = true,
-        .start_rotation = from_rotation,
-        .target_rotation = to_rotation,
-        .start_time = std.time.milliTimestamp(),
-        .duration = duration_ms,
-        .easing = easing_type,
-    };
-
-    world.add(entity, anim);
-}
-
 // Simple flash animation: fade the sprite's alpha from start_alpha to target_alpha
 // over the given duration, then automatically reset it back to the starting alpha
 // when the animation is finished.

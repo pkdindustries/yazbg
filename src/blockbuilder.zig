@@ -103,7 +103,7 @@ pub fn createBlockEntity(x: f32, y: f32, color: Color, scale: f32, is_ghost: boo
 pub fn createGhostBlock(x: f32, y: f32, color: Color) !ecsroot.Entity {
     // create semi-transparent version of the color
     var ghost_color = color;
-    ghost_color[3] = 120; // reduce alpha for ghost effect
+    ghost_color[3] = 200; // reduce alpha for ghost effect
 
     return createBlockEntity(x, y, ghost_color, 1.0, true);
 }
@@ -198,35 +198,6 @@ pub fn clearAllPlayerBlocks() void {
 //-----------------------------------------------------------------------------
 // animation functions
 //-----------------------------------------------------------------------------
-
-// move a block entity to a new position with optional animation
-pub fn moveBlock(entity: ecsroot.Entity, x: f32, y: f32, animate: bool, duration_ms: i32) !void {
-    // get current position
-    const current_pos = ecs.get(components.Position, entity) orelse {
-        std.debug.print("failed to move block: entity has no position component\n", .{});
-        return error.MissingPosition;
-    };
-
-    if (animate) {
-        // create animation component
-        ecs.replace(components.Animation, entity, components.Animation{
-            .animate_position = true,
-            .start_pos = .{ current_pos.x, current_pos.y },
-            .target_pos = .{ x, y },
-            .start_time = std.time.milliTimestamp(),
-            .duration = duration_ms,
-            .easing = .ease_out,
-            .remove_when_done = true,
-            .destroy_entity_when_done = false,
-        });
-    } else {
-        // update position immediately
-        ecs.replace(components.Position, entity, components.Position{
-            .x = x,
-            .y = y,
-        });
-    }
-}
 
 // create an entity that animates from one position to another and then destroys itself
 pub fn createBlockDropAnimation(from_x: f32, from_y: f32, to_y: f32, color: Color) !ecsroot.Entity {

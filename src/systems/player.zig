@@ -98,24 +98,51 @@ pub fn updatePlayerPosition(x: i32, y: i32, rotation: u32, ghost_y: i32, piece_i
         player_entity = getPlayerEntity() orelse return;
     }
 
+    // Get the current state to use as animation start point
+    var prev_x: i32 = x;
+    var prev_y: i32 = y;
+    var prev_ghost_y: i32 = ghost_y;
+
+    if (ecs.get(components.PlayerPieceState, player_entity)) |current_state| {
+        prev_x = current_state.x;
+        prev_y = current_state.y;
+        prev_ghost_y = current_state.ghost_y;
+    }
+
     // Update the PlayerPieceState component
     ecs.replace(components.PlayerPieceState, player_entity, components.PlayerPieceState{
         .x = x,
         .y = y,
+        .prev_x = prev_x,
+        .prev_y = prev_y,
+        .prev_ghost_y = prev_ghost_y,
         .rotation = rotation,
         .ghost_y = ghost_y,
         .piece_index = piece_index,
         .has_piece = true,
     });
 
-    // Update the Position component
     const cs = cellSize();
-    const pixelX = @as(f32, @floatFromInt(gfx.window.gridoffsetx)) + @as(f32, @floatFromInt(x)) * cs;
-    const pixelY = @as(f32, @floatFromInt(gfx.window.gridoffsety)) + @as(f32, @floatFromInt(y)) * cs;
+    const targetX = @as(f32, @floatFromInt(gfx.window.gridoffsetx)) + @as(f32, @floatFromInt(x)) * cs;
+    const targetY = @as(f32, @floatFromInt(gfx.window.gridoffsety)) + @as(f32, @floatFromInt(y)) * cs;
+    const startX = @as(f32, @floatFromInt(gfx.window.gridoffsetx)) + @as(f32, @floatFromInt(prev_x)) * cs;
+    const startY = @as(f32, @floatFromInt(gfx.window.gridoffsety)) + @as(f32, @floatFromInt(prev_y)) * cs;
 
+    // Always add animation component (even if positions are the same)
+    ecs.replace(components.Animation, player_entity, components.Animation{
+        .animate_position = true,
+        .start_pos = .{ startX, startY },
+        .target_pos = .{ targetX, targetY },
+        .start_time = std.time.milliTimestamp(),
+        .duration = 50,
+        .easing = .linear,
+        .remove_when_done = true,
+    });
+
+    // Set initial position to start from
     ecs.replace(components.Position, player_entity, components.Position{
-        .x = pixelX,
-        .y = pixelY,
+        .x = startX,
+        .y = startY,
     });
 }
 
