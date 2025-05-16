@@ -154,6 +154,15 @@ pub const ActivePieceTag = struct {}; // Marker for the single active piece enti
 pub const PieceBlockTag = struct {}; // Marker for blocks belonging to active piece
 pub const GhostBlockTag = struct {}; // Marker for blocks belonging to ghost preview
 
+// HUD preview tags
+pub const NextPreviewTag = struct {}; // blocks belonging to the "next" piece preview
+pub const HoldPreviewTag = struct {}; // blocks belonging to the "held" piece preview
+pub const AnimatingToHoldTag = struct {}; // blocks being animated to the hold position
+pub const AnimatingFromHoldTag = struct {}; // blocks being animated from hold position to spawn
+
+// Per-block cell indices (used by preview system for animations)
+pub const PreviewCell = struct { col: i32, row: i32 };
+
 // Player piece state - stored with the active piece entity
 pub const PlayerPieceState = struct {
     x: i32, // logical grid x position

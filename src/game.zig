@@ -20,7 +20,7 @@ pub const YAZBG = struct {
         current: ?shapes.tetramino = null,
         next: ?shapes.tetramino = null,
         held: ?shapes.tetramino = null,
-        swapped: bool = false,
+        // Removed swapped flag to allow multiple swaps
         x: i32 = 0,
         y: i32 = 0,
         r: u32 = 0,
@@ -63,6 +63,7 @@ pub fn reset() void {
     // std.debug.print("reset game\n", .{});
     state.progression.reset();
     state.lastmove_ms = 0;
+    // Initialize piece state without the swapped flag
     state.piece = .{};
     state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
 
@@ -111,7 +112,7 @@ pub fn nextpiece() void {
     state.piece.x = 4;
     state.piece.y = 0;
     state.piece.r = 0;
-    state.piece.swapped = false;
+    // Removed setting swapped=false to allow multiple swaps
 
     if (!state.gameover) {
         pushUpdate();
@@ -128,7 +129,7 @@ pub fn nextpiece() void {
 
 // swap current and held pieces
 pub fn swappiece() void {
-    if (state.piece.swapped) return;
+    // Removed the swapped flag check to allow multiple swaps
 
     if (state.piece.held) |held| {
         state.piece.held = state.piece.current;
@@ -138,7 +139,7 @@ pub fn swappiece() void {
         nextpiece();
     }
 
-    state.piece.swapped = true;
+    // No longer setting the swapped flag
     state.lastmove_ms = state.current_time_ms;
     pushUpdate();
     events.push(.Hold, events.Source.Game);

@@ -13,6 +13,7 @@ const playersys = @import("systems/player.zig");
 const textures = @import("textures.zig");
 const shaders = @import("shaders.zig");
 const gridsvc = @import("systems/gridsvc.zig");
+const previewsys = @import("systems/preview.zig");
 
 pub const Window = struct {
     pub const OGWIDTH: i32 = 640;
@@ -413,7 +414,12 @@ pub fn process(queue: *events.EventQueue) void {
             .Reset => background.reset(),
 
             .HardDropEffect => playersys.harddrop(),
-            .Spawn => playersys.spawn(),
+            .Spawn => {
+                // Gameplay side already promoted the next piece – animate the
+                // preview blocks, then refresh the sidebar preview.
+                previewsys.spawn(game.state.piece.next);
+                playersys.spawn();
+            },
 
             // Position update events for player system
             .PlayerPositionUpdated => |update| {
@@ -438,6 +444,10 @@ pub fn process(queue: *events.EventQueue) void {
                 }
             },
             .GridReset => gridsvc.clearAllCells(),
+            .Hold => {
+                // Animate current piece to held position and update hold preview
+                previewsys.hold(game.state.piece.held);
+            },
             else => {},
         }
     }
