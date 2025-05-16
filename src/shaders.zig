@@ -91,7 +91,7 @@ pub fn addShaderToEntity(entity: ecsroot.Entity, shader_name: []const u8) !void 
     shader_component.shader = shader;
     shader_component.created = false; // not owned by this component
 
-    ecs.addOrReplace(components.Shader, entity, shader_component);
+    ecs.replace(components.Shader, entity, shader_component);
 }
 
 /// create entity with shader and default uniform
@@ -105,8 +105,8 @@ pub fn createEntityWithShader(
 ) !ecsroot.Entity {
     const entity = ecs.createEntity();
 
-    ecs.addOrReplace(components.Position, entity, components.Position{ .x = x, .y = y });
-    ecs.addOrReplace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = scale });
+    ecs.replace(components.Position, entity, components.Position{ .x = x, .y = y });
+    ecs.replace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = scale });
 
     try addShaderToEntity(entity, shader_name);
 

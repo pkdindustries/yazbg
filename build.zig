@@ -152,6 +152,29 @@ pub fn build(b: *std.Build) void {
         const benchmark_step = b.step("benchmark", "Run the animation/render benchmark");
         benchmark_step.dependOn(&run_benchmark.step);
 
+        // // Poly test executable
+        // const poly_test_exe = b.addExecutable(.{
+        //     .name = "yazbg-poly-test",
+        //     .root_source_file = b.path("src/poly_test.zig"),
+        //     .target = target,
+        //     .optimize = optimize,
+        //     .omit_frame_pointer = false, // keep frame pointer
+        // });
+        // poly_test_exe.root_module.strip = strip;
+        // poly_test_exe.linkLibrary(raylib_artifact);
+        // poly_test_exe.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+
+        // b.installArtifact(poly_test_exe);
+
+        // const run_poly_test = b.addRunArtifact(poly_test_exe);
+        // run_poly_test.step.dependOn(b.getInstallStep());
+        // if (b.args) |args| {
+        //     run_poly_test.addArgs(args);
+        // }
+
+        // const poly_test_step = b.step("poly_test", "Run the textured polygon test");
+        // poly_test_step.dependOn(&run_poly_test.step);
+
         const unit_tests = b.addTest(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,

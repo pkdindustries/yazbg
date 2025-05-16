@@ -40,13 +40,13 @@ pub fn init() void {
         const entity = ecs.createEntity();
 
         // Add required components
-        ecs.addOrReplace(components.Position, entity, components.Position{
+        ecs.replace(components.Position, entity, components.Position{
             .x = 0,
             .y = 0,
         });
 
         // Add the player piece state component with default values
-        ecs.addOrReplace(components.PlayerPieceState, entity, components.PlayerPieceState{
+        ecs.replace(components.PlayerPieceState, entity, components.PlayerPieceState{
             .x = 4,
             .y = 0,
             .rotation = 0,
@@ -55,7 +55,7 @@ pub fn init() void {
             .has_piece = false,
         });
 
-        ecs.addOrReplace(components.ActivePieceTag, entity, components.ActivePieceTag{});
+        ecs.replace(components.ActivePieceTag, entity, components.ActivePieceTag{});
     }
 }
 
@@ -78,7 +78,7 @@ pub fn spawn() void {
     const targety = @as(f32, @floatFromInt(gfx.window.gridoffsety)) + @as(f32, @floatFromInt(piece_state.y)) * cs;
 
     // Position is set immediately for spawning, no animation
-    ecs.addOrReplace(components.Position, player_entity.?, components.Position{
+    ecs.replace(components.Position, player_entity.?, components.Position{
         .x = targetx,
         .y = targety,
     });
@@ -104,7 +104,7 @@ pub fn updatePlayerPosition(x: i32, y: i32, rotation: u32, ghost_y: i32, piece_i
     }
 
     // Update the PlayerPieceState component
-    ecs.addOrReplace(components.PlayerPieceState, player_entity, components.PlayerPieceState{
+    ecs.replace(components.PlayerPieceState, player_entity, components.PlayerPieceState{
         .x = x,
         .y = y,
         .rotation = rotation,
@@ -118,7 +118,7 @@ pub fn updatePlayerPosition(x: i32, y: i32, rotation: u32, ghost_y: i32, piece_i
     const pixelX = @as(f32, @floatFromInt(gfx.window.gridoffsetx)) + @as(f32, @floatFromInt(x)) * cs;
     const pixelY = @as(f32, @floatFromInt(gfx.window.gridoffsety)) + @as(f32, @floatFromInt(y)) * cs;
 
-    ecs.addOrReplace(components.Position, player_entity, components.Position{
+    ecs.replace(components.Position, player_entity, components.Position{
         .x = pixelX,
         .y = pixelY,
     });
@@ -147,8 +147,8 @@ pub fn update() void {
         std.debug.print("Player entity has no Position component\n", .{});
         return;
     }
-    // Clear all existing block entities
-    blocks.clearAllBlockEntities();
+    // Clear all existing player blocks
+    blocks.clearAllPlayerBlocks();
 
     // Get the current piece from the saved piece index
     const piece_type = pieces.tetraminos[piece_state.piece_index];
@@ -156,7 +156,7 @@ pub fn update() void {
     const piece_color = piece_type.color;
 
     // Create entities for the active piece blocks
-    blocks.createPieceEntities(drawX, drawY, piece_shape, piece_color, false);
+    blocks.createPlayerPiece(drawX, drawY, piece_shape, piece_color);
 
     // Create entities for ghost piece blocks (semi-transparent preview at landing position)
     const ghostY = gfx.window.gridoffsety + piece_state.ghost_y * gfx.window.cellsize;

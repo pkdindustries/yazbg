@@ -199,12 +199,12 @@ fn spawnAnimatedTetromino(rng: anytype) !void {
         // try shaders.addShaderToEntity(entity, "static");
     }
 
-    ecs.addOrReplace(components.Position, entity, components.Position{ .x = start_x, .y = start_y });
+    ecs.replace(components.Position, entity, components.Position{ .x = start_x, .y = start_y });
 
     // White tint so texture shows original colours.
-    ecs.addOrReplace(components.Sprite, entity, components.Sprite{ .rgba = .{ 255, 255, 255, 255 }, .size = size0, .rotation = rot0 });
+    ecs.replace(components.Sprite, entity, components.Sprite{ .rgba = .{ 255, 255, 255, 255 }, .size = size0, .rotation = rot0 });
 
-    ecs.addOrReplace(components.Texture, entity, components.Texture{
+    ecs.replace(components.Texture, entity, components.Texture{
         .texture = tex_ptr,
         .uv = .{ 0.0, 0.0, 1.0, 1.0 },
         .created = false,
@@ -212,7 +212,7 @@ fn spawnAnimatedTetromino(rng: anytype) !void {
 
     // Unified animation for the whole piece.
     const start_time = std.time.milliTimestamp();
-    ecs.addOrReplace(components.Animation, entity, components.Animation{
+    ecs.replace(components.Animation, entity, components.Animation{
         .animate_position = true,
         .start_pos = .{ start_x, start_y },
         .target_pos = .{ start_x, start_y },

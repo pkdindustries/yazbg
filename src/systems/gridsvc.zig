@@ -16,16 +16,16 @@ pub fn occupyCell(gridx: usize, gridy: usize, color: [4]u8) void {
     const gx: i32 = @intCast(gridx);
     const gy: i32 = @intCast(gridy);
 
-    ecs.addOrReplace(components.GridPos, entity, components.GridPos{ .x = gx, .y = gy });
-    ecs.addOrReplace(components.BlockTag, entity, components.BlockTag{});
+    ecs.replace(components.GridPos, entity, components.GridPos{ .x = gx, .y = gy });
+    ecs.replace(components.BlockTag, entity, components.BlockTag{});
 
     // Translate logical grid coordinates into absolute pixel positions (top-left).
     const cellsize_f32: f32 = @as(f32, @floatFromInt(gfx.window.cellsize));
     const px = @as(f32, @floatFromInt(gfx.window.gridoffsetx)) + @as(f32, @floatFromInt(gridx)) * cellsize_f32;
     const py = @as(f32, @floatFromInt(gfx.window.gridoffsety)) + @as(f32, @floatFromInt(gridy)) * cellsize_f32;
 
-    ecs.addOrReplace(components.Position, entity, components.Position{ .x = px, .y = py });
-    ecs.addOrReplace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
+    ecs.replace(components.Position, entity, components.Position{ .x = px, .y = py });
+    ecs.replace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
     _ = blocks.addBlockTextureWithAtlas(entity, color) catch |err| {
         std.debug.print("Failed to add texture component: {}\n", .{err});
         return;
@@ -167,10 +167,10 @@ pub fn shiftRowCells(line: usize) void {
 
         // Add updated components (logical update happens immediately)
         grid_pos.y += 1;
-        ecs.addOrReplace(components.GridPos, entity, grid_pos);
+        ecs.replace(components.GridPos, entity, grid_pos);
 
         pos.y = target_pos_y;
-        ecs.addOrReplace(components.Position, entity, pos);
+        ecs.replace(components.Position, entity, pos);
 
         // Add animation component
         animsys.createRowShiftAnimation(entity, start_pos_y, target_pos_y);

@@ -13,7 +13,7 @@ pub inline fn createEntity() ecs.Entity {
     return world.?.create();
 }
 
-pub inline fn addOrReplace(comptime T: type, entity: ecs.Entity, value: anytype) void {
+pub inline fn replace(comptime T: type, entity: ecs.Entity, value: anytype) void {
     // The caller passes `value` whose type must match `T`.
     _ = @as(T, value); // type-check
     if (world.?.has(T, entity)) {

@@ -61,9 +61,9 @@ pub fn createBlockEntity(x: f32, y: f32, color: Color, scale: f32, is_ghost: boo
 
     // Add appropriate tag component
     if (is_ghost) {
-        ecs.addOrReplace(components.GhostBlockTag, entity, components.GhostBlockTag{});
+        ecs.replace(components.GhostBlockTag, entity, components.GhostBlockTag{});
     } else {
-        ecs.addOrReplace(components.PieceBlockTag, entity, components.PieceBlockTag{});
+        ecs.replace(components.PieceBlockTag, entity, components.PieceBlockTag{});
     }
 
     return entity;
@@ -89,8 +89,8 @@ pub fn createGridBlock(grid_x: i32, grid_y: i32, color: Color) !ecsroot.Entity {
     const entity = try createBlockEntity(x, y, color, 1.0, false);
 
     // Add grid position component
-    ecs.addOrReplace(components.BlockTag, entity, components.BlockTag{});
-    ecs.addOrReplace(components.GridPos, entity, components.GridPos{ .x = grid_x, .y = grid_y });
+    ecs.replace(components.BlockTag, entity, components.BlockTag{});
+    ecs.replace(components.GridPos, entity, components.GridPos{ .x = grid_x, .y = grid_y });
 
     return entity;
 }
@@ -99,8 +99,8 @@ pub fn createGridBlock(grid_x: i32, grid_y: i32, color: Color) !ecsroot.Entity {
 pub fn createBlockTextureWithAtlas(x: f32, y: f32, color: Color, scale: f32, rotation: f32) !ecsroot.Entity {
     const entity = ecs.createEntity();
 
-    ecs.addOrReplace(components.Position, entity, components.Position{ .x = x, .y = y });
-    ecs.addOrReplace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = scale, .rotation = rotation });
+    ecs.replace(components.Position, entity, components.Position{ .x = x, .y = y });
+    ecs.replace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = scale, .rotation = rotation });
 
     try addBlockTextureWithAtlas(entity, color);
     return entity;
@@ -111,7 +111,7 @@ pub fn addBlockTextureWithAtlas(entity: ecsroot.Entity, color: Color) !void {
     // Get or create texture entry for this color
     const entry = try getOrCreateBlockTexture(color);
 
-    ecs.addOrReplace(components.Texture, entity, components.Texture{
+    ecs.replace(components.Texture, entity, components.Texture{
         .texture = entry.tex,
         .uv = entry.uv,
         .created = false, // shared atlas – not owned by the entity
@@ -160,9 +160,14 @@ pub fn clearGhostBlocks() void {
 }
 
 /// Clear both piece and ghost blocks
-pub fn clearAllBlockEntities() void {
+pub fn clearAllPlayerBlocks() void {
     clearPieceBlocks();
     clearGhostBlocks();
+}
+
+pub fn createPlayerPiece(x: i32, y: i32, shape: [4][4]bool, color: Color) void {
+    // Create main piece blocks
+    createPieceEntities(x, y, shape, color, false);
 }
 
 /// Create a collection of ghost blocks based on a piece shape
@@ -184,7 +189,7 @@ pub fn moveBlock(entity: ecsroot.Entity, x: f32, y: f32, animate: bool, duration
 
     if (animate) {
         // Create animation component
-        ecs.addOrReplace(components.Animation, entity, components.Animation{
+        ecs.replace(components.Animation, entity, components.Animation{
             .animate_position = true,
             .start_pos = .{ current_pos.x, current_pos.y },
             .target_pos = .{ x, y },
@@ -196,7 +201,7 @@ pub fn moveBlock(entity: ecsroot.Entity, x: f32, y: f32, animate: bool, duration
         });
     } else {
         // Update position immediately
-        ecs.addOrReplace(components.Position, entity, components.Position{
+        ecs.replace(components.Position, entity, components.Position{
             .x = x,
             .y = y,
         });
@@ -207,7 +212,7 @@ pub fn moveBlock(entity: ecsroot.Entity, x: f32, y: f32, animate: bool, duration
 pub fn updateBlockColor(entity: ecsroot.Entity, color: Color) !void {
     // Update sprite color
     if (ecs.get(components.Sprite, entity)) |sprite| {
-        ecs.addOrReplace(components.Sprite, entity, components.Sprite{
+        ecs.replace(components.Sprite, entity, components.Sprite{
             .rgba = color,
             .size = sprite.size,
             .rotation = sprite.rotation,
@@ -229,7 +234,7 @@ pub fn createBlockDropAnimation(from_x: f32, from_y: f32, to_y: f32, color: Colo
     const entity = try createBlockTextureWithAtlas(from_x, from_y, anim_color, 1.0, 0.0);
 
     // Add animation component
-    ecs.addOrReplace(components.Animation, entity, components.Animation{
+    ecs.replace(components.Animation, entity, components.Animation{
         .animate_position = true,
         .start_pos = .{ from_x, from_y },
         .target_pos = .{ from_x, to_y },
@@ -256,7 +261,7 @@ pub fn createFlashingBlock(x: f32, y: f32, color: Color) !ecsroot.Entity {
     const entity = try createBlockTextureWithAtlas(x, y, color, 1.0, 0.0);
 
     // Add animation component for pulsing/flashing effect
-    ecs.addOrReplace(components.Animation, entity, components.Animation{
+    ecs.replace(components.Animation, entity, components.Animation{
         .animate_scale = true,
         .start_scale = 1.0,
         .target_scale = 1.3,
