@@ -411,14 +411,16 @@ pub fn process(queue: *events.EventQueue) void {
                 background.next();
                 background.setWarpEffect(300);
             },
-            .Reset => background.reset(),
+            .Reset => {
+                background.reset();
+                previewsys.reset();
+            },
 
             .HardDropEffect => playersys.harddrop(),
             .Spawn => {
                 // Gameplay side already promoted the next piece – animate the
                 // preview blocks, then refresh the sidebar preview.
                 previewsys.spawn(game.state.piece.next);
-                playersys.spawn();
             },
 
             // Position update events for player system
@@ -447,6 +449,7 @@ pub fn process(queue: *events.EventQueue) void {
             .Hold => {
                 // Animate current piece to held position and update hold preview
                 previewsys.hold(game.state.piece.held);
+                playersys.redraw(); // ensure the new active piece is visible
             },
             else => {},
         }

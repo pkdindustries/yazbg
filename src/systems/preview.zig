@@ -11,6 +11,7 @@ const components = @import("../components.zig");
 const gfx = @import("../gfx.zig");
 const pieces = @import("../pieces.zig");
 const blocks = @import("../blockbuilder.zig");
+const playersys = @import("player.zig");
 
 // ---------------------------------------------------------------------------
 // Additional components used only by this system
@@ -33,6 +34,18 @@ const PreviewCell = components.PreviewCell;
 inline fn holdAnchorX() i32 {
     // 35 pixels from the left edge.
     return 35;
+}
+
+// ---------------------------------------------------------------------------
+// Public helper to clear all existing preview entities – used on full game
+// reset so the HUD does not show stale held/next blocks.
+// ---------------------------------------------------------------------------
+
+pub fn reset() void {
+    clearTag(HoldPreviewTag);
+    clearTag(NextPreviewTag);
+    clearTag(components.AnimatingToHoldTag);
+    clearTag(components.AnimatingFromHoldTag);
 }
 
 inline fn holdAnchorY() i32 {
@@ -110,37 +123,12 @@ fn animateHeldToCurrentPiece() void {
     clearTag(components.AnimatingFromHoldTag);
 
     // Get player entity and position
-    var player_entity: ?ecsroot.Entity = null;
-    var player_pos_x: f32 = 0.0;
-    var player_pos_y: f32 = 0.0;
-    var player_state: ?components.PlayerPieceState = null;
-
-    {
-        // Find the player entity
-        var player_view = world.view(.{components.ActivePieceTag}, .{});
-        var it = player_view.entityIterator();
-
-        if (it.next()) |entity| {
-            player_entity = entity;
-
-            // Get player position
-            if (ecs.get(components.Position, entity)) |pos| {
-                player_pos_x = pos.x;
-                player_pos_y = pos.y;
-            }
-
-            // Get player state
-            if (ecs.get(components.PlayerPieceState, entity)) |state| {
-                player_state = state;
-            }
-        }
-    }
-
-    // If no player entity or position found, use default spawn position
-    if (player_entity == null) {
-        player_pos_x = @floatFromInt(spawnX());
-        player_pos_y = @floatFromInt(spawnY());
-    }
+    // Use the last stored player-piece origin from the player system – this
+    // corresponds to the position of the piece that is about to move into the
+    // hold slot.
+    const last_origin = playersys.lastOriginPixels();
+    const player_pos_x: f32 = last_origin[0];
+    const player_pos_y: f32 = last_origin[1];
 
     // Now animate the hold preview blocks
     var view = world.view(.{ HoldPreviewTag, components.Position, components.PreviewCell, components.Sprite }, .{});
@@ -169,7 +157,7 @@ fn animateHeldToCurrentPiece() void {
             .start_alpha = 20, // Start invisible
             .target_alpha = 150, // Fade in as it goes to the spawn position
             .start_time = now,
-            .duration = 70,
+            .duration = 120,
             .easing = .ease_out,
             .remove_when_done = true,
             .destroy_entity_when_done = true,
@@ -281,9 +269,66 @@ fn buildPreview(
     }
 }
 
+// Build the "next" piece preview so that it slides in from the right side of
+// the screen into the fixed preview slot.
 inline fn buildNextPreview(t: pieces.tetramino) void {
+    // Remove any lingering preview blocks first.
     clearTag(NextPreviewTag);
-    buildPreview(t, nextAnchorX(), nextAnchorY(), NextPreviewTag);
+
+    const cs = gfx.window.cellsize;
+    const ax = nextAnchorX();
+    const ay = nextAnchorY();
+
+    const shape = t.shape[0];
+    const color = t.color;
+
+    const world = ecs.getWorld();
+
+    // Offset that positions the starting x-coordinate well outside the 640 px
+    // render target so the blocks enter the screen visibly.
+    const off_x = gfx.Window.OGWIDTH + cs * 2; // ≈ one block outside the edge
+
+    const now = std.time.milliTimestamp();
+
+    for (shape, 0..) |row, col_idx| {
+        for (row, 0..) |cell, row_idx| {
+            if (!cell) continue;
+
+            const final_x = ax + (@as(i32, @intCast(col_idx)) * cs);
+            const final_y = ay + (@as(i32, @intCast(row_idx)) * cs);
+
+            // Starting position shifted off-screen to the right.
+            const start_x: i32 = off_x + (@as(i32, @intCast(col_idx)) * cs);
+
+            const ent = blocks.createBlockTextureWithAtlas(
+                @floatFromInt(start_x),
+                @floatFromInt(final_y),
+                color,
+                1.0,
+                0.0,
+            ) catch {
+                continue;
+            };
+
+            // Attach slide-in animation.
+            ecs.replace(components.Animation, ent, components.Animation{
+                .animate_position = true,
+                .start_pos = .{ @floatFromInt(start_x), @floatFromInt(final_y) },
+                .target_pos = .{ @floatFromInt(final_x), @floatFromInt(final_y) },
+                .animate_alpha = true,
+                .start_alpha = 20,
+                .target_alpha = color[3],
+                .start_time = now,
+                .duration = 120,
+                .easing = .ease_out,
+                .remove_when_done = true, // keep Sprite & Position, drop Animation
+            });
+
+            // Tag for later queries.
+            world.add(ent, NextPreviewTag{});
+            world.add(ent, PreviewCell{ .col = @intCast(col_idx), .row = @intCast(row_idx) });
+        }
+    }
 }
 
 inline fn buildHoldPreview(t: pieces.tetramino) void {
@@ -315,7 +360,7 @@ fn animateNextPreviewToSpawn() void {
             .animate_alpha = true,
             .start_alpha = 20, // Start invisible
             .target_alpha = 150, // Fade
-            .duration = 70,
+            .duration = 120,
             .easing = .ease_out,
             .remove_when_done = true,
             .destroy_entity_when_done = true,
