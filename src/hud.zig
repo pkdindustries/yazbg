@@ -103,13 +103,13 @@ pub fn draw(ctx: DrawContext) void {
     }
 
     // Preview of next piece ------------------------------------------------------
-    ray.DrawTextEx(ctx.font, "NEXT", ray.Vector2{ .x = 520, .y = 30 }, 40, 2, ray.GRAY);
+    ray.DrawTextEx(ctx.font, "NEXT", ray.Vector2{ .x = 520, .y = 30 }, 20, 2, ray.GRAY);
     // if (ctx.next_piece) |np| {
     //     piece(&ctx, ctx.og_width - 250, 35, np.shape[0], np.color);
     // }
 
     // Held piece -----------------------------------------------------------------
-    ray.DrawTextEx(ctx.font, "HELD", ray.Vector2{ .x = 23, .y = 30 }, 40, 2, ray.GRAY);
+    ray.DrawTextEx(ctx.font, "HELD", ray.Vector2{ .x = 23, .y = 30 }, 20, 2, ray.GRAY);
     // if (ctx.held_piece) |hp| {
     //     piece(&ctx, 35 - ctx.gridoffsetx, 35, hp.shape[0], hp.color);
     // }

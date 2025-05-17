@@ -16,8 +16,18 @@ const gridsvc = @import("systems/gridsvc.zig");
 const previewsys = @import("systems/preview.zig");
 
 pub const Window = struct {
+    // Logical resolution of the off-screen render target (in pixels).
+    // All coordinates in the game are expressed in this space.  We keep
+    // those values unchanged so we do **not** have to touch any gameplay or
+    // UI code when changing the internal rendering scale.
     pub const OGWIDTH: i32 = 640;
     pub const OGHEIGHT: i32 = 760;
+
+    /// Render at a higher resolution than `OGWIDTH`×`OGHEIGHT` and scale the
+    /// image down to the window size afterwards.  This acts like super-
+    /// sampling and gives us crisper visuals (less aliasing) while keeping
+    /// the window dimensions identical.
+    pub const SCALE: i32 = 2; // <-- increase internal resolution by 2×
     width: i32 = OGWIDTH,
     height: i32 = OGHEIGHT,
     texture: ray.RenderTexture2D = undefined,
@@ -39,8 +49,11 @@ pub const Window = struct {
         const initial_width = @divTrunc(initial_height * Window.OGWIDTH, Window.OGHEIGHT);
         ray.SetWindowSize(initial_width, initial_height);
 
-        // Create render texture for resolution independence
-        self.texture = ray.LoadRenderTexture(Window.OGWIDTH, Window.OGHEIGHT);
+        // Create render texture at higher resolution (super-sampling)
+        self.texture = ray.LoadRenderTexture(
+            Window.OGWIDTH * Window.SCALE,
+            Window.OGHEIGHT * Window.SCALE,
+        );
         ray.SetTextureFilter(self.texture.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);
 
         // Initialize font
@@ -105,8 +118,14 @@ pub const Window = struct {
 
     // Draw the scaled render texture to fit the current window size
     pub fn drawScaled(self: *Window) void {
-        // Scale render texture to actual window size
-        const src = ray.Rectangle{ .x = 0, .y = 0, .width = Window.OGWIDTH, .height = -Window.OGHEIGHT };
+        // Scale render texture (which is larger than OGWIDTH×OGHEIGHT) down
+        // to the current window size.
+        const src = ray.Rectangle{
+            .x = 0,
+            .y = 0,
+            .width = @as(f32, @floatFromInt(self.texture.texture.width)),
+            .height = -@as(f32, @floatFromInt(self.texture.texture.height)),
+        };
         const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(self.width), .height = @floatFromInt(self.height) };
         ray.DrawTexturePro(self.texture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
     }
@@ -147,8 +166,8 @@ pub const Background = struct {
         try shader_component.setFloat("speedY", 0.15);
 
         const size = [2]f32{
-            @floatFromInt(Window.OGWIDTH),
-            @floatFromInt(Window.OGHEIGHT),
+            @floatFromInt(Window.OGWIDTH * Window.SCALE),
+            @floatFromInt(Window.OGHEIGHT * Window.SCALE),
         };
         try shader_component.setVec2("size", size);
     }
@@ -281,26 +300,40 @@ pub fn frame() void {
     {
         ray.BeginTextureMode(window.texture);
         {
-            ray.ClearBackground(ray.BLACK);
+            // -----------------------------------------------------------------
+            // Render everything at a higher resolution via a camera zoom.
+            // -----------------------------------------------------------------
+            const camera = ray.Camera2D{
+                .offset = ray.Vector2{ .x = 0, .y = 0 },
+                .target = ray.Vector2{ .x = 0, .y = 0 },
+                .rotation = 0,
+                .zoom = @as(f32, @floatFromInt(Window.SCALE)),
+            };
 
-            // Update and draw background with shader
-            background.updateShader() catch {};
-            background.draw();
+            ray.BeginMode2D(camera);
+            {
+                ray.ClearBackground(ray.BLACK);
 
-            rendersys.draw();
+                // Update and draw background with shader
+                background.updateShader() catch {};
+                background.draw();
 
-            // Draw HUD elements
-            hud.draw(.{
-                .gridoffsetx = window.gridoffsetx,
-                .gridoffsety = window.gridoffsety,
-                .cellsize = window.cellsize,
-                .cellpadding = window.cellpadding,
-                .font = window.font,
-                .og_width = Window.OGWIDTH,
-                .og_height = Window.OGHEIGHT,
-                .next_piece = game.state.piece.next,
-                .held_piece = game.state.piece.held,
-            });
+                rendersys.draw();
+
+                // Draw HUD elements
+                hud.draw(.{
+                    .gridoffsetx = window.gridoffsetx,
+                    .gridoffsety = window.gridoffsety,
+                    .cellsize = window.cellsize,
+                    .cellpadding = window.cellpadding,
+                    .font = window.font,
+                    .og_width = Window.OGWIDTH,
+                    .og_height = Window.OGHEIGHT,
+                    .next_piece = game.state.piece.next,
+                    .held_piece = game.state.piece.held,
+                });
+            }
+            ray.EndMode2D();
         }
         ray.EndTextureMode();
 
