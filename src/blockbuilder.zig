@@ -2,45 +2,45 @@ const std = @import("std");
 
 // External modules -----------------------------------------------------------
 
-const ray        = @import("raylib.zig");
-const ecs        = @import("ecs.zig");
-const ecsroot    = @import("ecs");
+const ray = @import("raylib.zig");
+const ecs = @import("ecs.zig");
+const ecsroot = @import("ecs");
 const components = @import("components.zig");
-const gfx        = @import("gfx.zig");
-const textures   = @import("textures.zig");
+const gfx = @import("gfx.zig");
+const textures = @import("textures.zig");
 
 // ---------------------------------------------------------------------------
 // Public type aliases re-exported for convenience so existing imports keep
 // compiling unchanged.
 // ---------------------------------------------------------------------------
 
-pub const Color      = textures.Color;
-pub const UV         = textures.UV;
+pub const Color = textures.Color;
+pub const UV = textures.UV;
 pub const AtlasEntry = textures.AtlasEntry;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/// Attach a shared block texture (looked up or generated on demand via the
-/// global texture atlas) to an existing entity.
+// Attach a shared block texture (looked up or generated on demand via the
+// global texture atlas) to an existing entity.
 pub fn addBlockTextureWithAtlas(entity: ecsroot.Entity, color: Color) !void {
     const entry = try getOrCreateBlockTexture(color);
 
     ecs.replace(components.Texture, entity, components.Texture{
         .texture = entry.tex,
-        .uv      = entry.uv,
+        .uv = entry.uv,
         .created = false, // Shared atlas – not owned by this entity.
     });
 }
 
-/// Generic low-level helper: spawn a block at (x,y) tinted `rgba` and tagged
-/// with `Tag` (PieceBlockTag, GhostBlockTag, …).
+// Generic low-level helper: spawn a block at (x,y) tinted `rgba` and tagged
+// with `Tag` (PieceBlockTag, GhostBlockTag, …).
 fn spawnBlock(x: f32, y: f32, rgba: Color, comptime Tag: type) !ecsroot.Entity {
     const e = ecs.createEntity();
 
     ecs.replace(components.Position, e, components.Position{ .x = x, .y = y });
-    ecs.replace(components.Sprite,   e, components.Sprite{ .rgba = rgba, .size = 1.0 });
+    ecs.replace(components.Sprite, e, components.Sprite{ .rgba = rgba, .size = 1.0 });
 
     try addBlockTextureWithAtlas(e, rgba);
     ecs.replace(Tag, e, Tag{});
@@ -52,8 +52,8 @@ fn spawnBlock(x: f32, y: f32, rgba: Color, comptime Tag: type) !ecsroot.Entity {
 // Public helpers used by other systems
 // ---------------------------------------------------------------------------
 
-/// Spawn a textured block without adding any marker tag.  Still used by the
-/// HUD preview system that adds its own specialised tags afterwards.
+// Spawn a textured block without adding any marker tag.  Still used by the
+// HUD preview system that adds its own specialised tags afterwards.
 pub fn createBlockTextureWithAtlas(
     x: f32,
     y: f32,
@@ -64,13 +64,13 @@ pub fn createBlockTextureWithAtlas(
     const e = ecs.createEntity();
 
     ecs.replace(components.Position, e, components.Position{ .x = x, .y = y });
-    ecs.replace(components.Sprite,   e, components.Sprite{ .rgba = color, .size = scale, .rotation = rotation });
+    ecs.replace(components.Sprite, e, components.Sprite{ .rgba = color, .size = scale, .rotation = rotation });
     try addBlockTextureWithAtlas(e, color);
 
     return e;
 }
 
-/// Build a tetromino shape either as active piece or ghost.
+// Build a tetromino shape either as active piece or ghost.
 fn buildPieceEntities(
     x: i32,
     y: i32,
@@ -111,8 +111,8 @@ pub inline fn createGhostPiece(x: i32, y: i32, shape: [4][4]bool, color: Color) 
 // ---------------------------------------------------------------------------
 
 inline fn destroyWithTag(comptime Tag: type) void {
-    var view = ecs.getWorld().view(.{ Tag }, .{});
-    var it   = view.entityIterator();
+    var view = ecs.getWorld().view(.{Tag}, .{});
+    var it = view.entityIterator();
     while (it.next()) |e| ecs.destroyEntity(e);
 }
 
@@ -128,13 +128,13 @@ pub fn createFlashingBlock(x: f32, y: f32, color: Color) !ecsroot.Entity {
 
     ecs.replace(components.Animation, e, components.Animation{
         .animate_scale = true,
-        .start_scale   = 1.0,
-        .target_scale  = 1.3,
-        .start_time    = std.time.milliTimestamp(),
-        .duration      = 500,
-        .easing        = .ease_in_out,
-        .loop          = true,
-        .ping_pong     = true,
+        .start_scale = 1.0,
+        .target_scale = 1.3,
+        .start_time = std.time.milliTimestamp(),
+        .duration = 500,
+        .easing = .ease_in_out,
+        .loop = true,
+        .ping_pong = true,
         .remove_when_done = false,
     });
 
@@ -145,8 +145,8 @@ pub fn createFlashingBlock(x: f32, y: f32, color: Color) !ecsroot.Entity {
 // Texture-atlas integration (unchanged from original implementation)
 // ---------------------------------------------------------------------------
 
-/// Return an existing atlas entry or create it by rendering the block shape
-/// into an empty atlas tile.
+// Return an existing atlas entry or create it by rendering the block shape
+// into an empty atlas tile.
 pub fn getOrCreateBlockTexture(color: Color) !AtlasEntry {
     var buf: [64]u8 = undefined;
     const key = std.fmt.bufPrint(&buf, "block_{d}_{d}_{d}_{d}", .{ color[0], color[1], color[2], color[3] }) catch {
@@ -154,11 +154,11 @@ pub fn getOrCreateBlockTexture(color: Color) !AtlasEntry {
     };
 
     // Fast path – already cached.
-if (textures.getEntry(key)) |entry| {
-    return entry;
-} else |err| {
-    if (err != error.EntryNotFound) return err;
-}
+    if (textures.getEntry(key)) |entry| {
+        return entry;
+    } else |err| {
+        if (err != error.EntryNotFound) return err;
+    }
 
     // Need to create – duplicate the key to heap memory because the atlas owns
     // the string for the duration of the program.
@@ -168,8 +168,8 @@ if (textures.getEntry(key)) |entry| {
     return textures.createEntry(heap_key, drawBlockIntoTile, &colour_copy);
 }
 
-/// Draw a single rounded rectangle into the atlas tile – identical visual
-/// output to the previous implementation so no one notices the refactor.
+// Draw a single rounded rectangle into the atlas tile – identical visual
+// output to the previous implementation so no one notices the refactor.
 pub fn drawBlockIntoTile(
     page_tex: *const ray.RenderTexture2D,
     tile_x: i32,
@@ -179,12 +179,12 @@ pub fn drawBlockIntoTile(
     context: ?*const anyopaque,
 ) void {
     const padding: f32 = @as(f32, @floatFromInt(gfx.window.cellpadding)) * 2.0;
-    const block_size   = @as(f32, @floatFromInt(tile_size)) - padding * 2.0;
+    const block_size = @as(f32, @floatFromInt(tile_size)) - padding * 2.0;
 
     const rect = ray.Rectangle{
         .x = @as(f32, @floatFromInt(tile_x)) + padding,
         .y = @as(f32, @floatFromInt(tile_y)) + padding,
-        .width  = block_size,
+        .width = block_size,
         .height = block_size,
     };
 
