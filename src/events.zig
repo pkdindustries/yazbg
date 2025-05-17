@@ -85,10 +85,10 @@ pub const TimestampedEvent = struct {
 };
 
 pub const EventQueue = struct {
-    list: std.ArrayList(TimestampedEvent),
+    list: std.BoundedArray(TimestampedEvent, 512),
 
-    pub fn init(allocator: std.mem.Allocator) EventQueue {
-        return EventQueue{ .list = std.ArrayList(TimestampedEvent).init(allocator) };
+    pub fn init() EventQueue {
+        return EventQueue{ .list = try std.BoundedArray(TimestampedEvent, 512).init(512) };
     }
 
     pub fn push(self: *EventQueue, e: Event, source: Source) void {
@@ -98,19 +98,18 @@ pub const EventQueue = struct {
     }
 
     pub fn items(self: *EventQueue) []const TimestampedEvent {
-        return self.list.items;
+        return self.list.constSlice();
     }
 
     pub fn clear(self: *EventQueue) void {
-        self.list.clearRetainingCapacity();
+        self.list.clear();
     }
 };
 
 //   * `queue`        – events that are going to be processed in the *current*
 //                       frame.
-//   * `deferred`     – events that were raised *during* event processing and
-//                       therefore need to be delivered in the *next* frame.
-pub var queue = EventQueue.init(std.heap.c_allocator);
+
+pub var queue = EventQueue.init();
 
 pub inline fn push(e: Event, s: Source) void {
     queue.push(e, s);
