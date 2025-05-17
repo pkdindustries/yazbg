@@ -4,3 +4,5 @@ zig-out/
 CLAUDE.md
 .claude/settings.local.json
 .zigversion
+ENGINE.md
+MIGRATION.md
