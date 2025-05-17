@@ -175,8 +175,8 @@ pub fn update() void {
     // Get the current piece from the saved piece index
     const piece_type = pieces.tetraminos[piece_state.piece_index];
     const piece_shape = piece_type.shape[piece_state.rotation];
-    const piece_color = piece_type.color;
-
+    var piece_color = piece_type.color;
+    piece_color[3] = 200;
     // Create entities for the active piece blocks
     blocks.createPlayerPiece(drawX, drawY, piece_shape, piece_color);
 
@@ -296,7 +296,7 @@ pub fn harddrop() void {
                             .start_pos = .{ piece_pos.x, piece_pos.y },
                             .target_pos = .{ ghost_pos.x, ghost_pos.y },
                             .start_time = std.time.milliTimestamp(),
-                            .duration = 100, // Fast animation (100ms)
+                            .duration = 50, // Fast animation (100ms)
                             .easing = .ease_in,
                             .remove_when_done = true,
                             .destroy_entity_when_done = true, // Destroy the entity when animation completes

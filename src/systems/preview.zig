@@ -167,7 +167,7 @@ fn animateHeldToCurrentPiece() void {
             .target_scale = 1.0, // Grow to normal size as it goes to the spawn position
             .animate_alpha = true,
             .start_alpha = 20, // Start invisible
-            .target_alpha = 255, // Fade in as it goes to the spawn position
+            .target_alpha = 150, // Fade in as it goes to the spawn position
             .start_time = now,
             .duration = 70,
             .easing = .ease_out,
@@ -217,7 +217,7 @@ fn animateCurrentPieceToHeld() void {
             .target_scale = 1, // Shrink as it goes to the hold position
             .animate_alpha = true,
             .start_alpha = 20, // Start invisible
-            .target_alpha = 255, // Fade
+            .target_alpha = 150, // Fade
             .start_time = now,
             .duration = 70,
             .easing = .ease_out,
@@ -314,7 +314,7 @@ fn animateNextPreviewToSpawn() void {
             .start_time = now,
             .animate_alpha = true,
             .start_alpha = 20, // Start invisible
-            .target_alpha = 255, // Fade
+            .target_alpha = 150, // Fade
             .duration = 70,
             .easing = .ease_out,
             .remove_when_done = true,

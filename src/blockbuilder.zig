@@ -72,21 +72,21 @@ pub fn drawBlockIntoTile(page_tex: *const ray.RenderTexture2D, tile_x: i32, tile
         .height = block_size,
     };
 
-    // rectangle (top-third of the block) for highlight
-    const highlight_rect = ray.Rectangle{
-        .x = rect.x + 2,
-        .y = rect.y + 2,
-        .width = rect.width - 4,
-        .height = rect.height / 3,
-    };
+    // // rectangle (top-third of the block) for highlight
+    // const highlight_rect = ray.Rectangle{
+    //     .x = rect.x + 2,
+    //     .y = rect.y + 2,
+    //     .width = rect.width - 4,
+    //     .height = rect.height / 3,
+    // };
 
     // context must be a pointer to Color
     const color = @as(*const Color, @ptrCast(context.?)).*;
     const ray_color = gfx.toRayColor(color);
-    const light_color = gfx.createLighterColor(color, 20);
+    // const light_color = gfx.createLighterColor(color, 20);
 
     ray.BeginTextureMode(page_tex.*);
-    ray.DrawRectangleRounded(highlight_rect, 0.4, 8, light_color);
+    // ray.DrawRectangleRounded(highlight_rect, 0.4, 8, light_color);
     ray.DrawRectangleRounded(rect, 0.4, 20, ray_color);
     ray.EndTextureMode();
 }
