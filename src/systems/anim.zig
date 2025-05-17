@@ -274,3 +274,61 @@ pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Enti
         world.add(entity, anim);
     }
 }
+
+pub fn createExplosionAll() void {
+    const world = ecs.getWorld();
+    var view = world.view(.{components.Position, components.Sprite}, .{});
+    var it = view.entityIterator();
+
+    const now = std.time.milliTimestamp();
+    var rng = std.Random.DefaultPrng.init(blk: {
+        const seed: u64 = @intCast(now);
+        break :blk seed;
+    });
+    var rand = rng.random();
+
+    const win_w: f32 = @as(f32, @floatFromInt(gfx.Window.OGWIDTH));
+    const win_h: f32 = @as(f32, @floatFromInt(gfx.Window.OGHEIGHT));
+    const diag: f32 = std.math.sqrt(win_w * win_w + win_h * win_h);
+
+    while (it.next()) |entity| {
+        const pos = view.get(components.Position, entity);
+        const sprite = view.get(components.Sprite, entity);
+
+        const deg: u32 = rand.intRangeAtMost(u32, 0, 359);
+        const angle: f32 = @as(f32, @floatFromInt(deg)) * std.math.pi / 180.0;
+        const target_x: f32 = pos.x + std.math.cos(angle) * diag;
+        const target_y: f32 = pos.y + std.math.sin(angle) * diag;
+
+        const start_scale: f32 = sprite.size;
+        const scale_i: u32 = rand.intRangeAtMost(u32, 50, 200);
+        const target_scale: f32 = @as(f32, @floatFromInt(scale_i)) / 100.0;
+
+        const start_rot: f32 = sprite.rotation;
+        const rot_i: i32 = rand.intRangeAtMost(i32, -400, 400);
+        const target_rot: f32 = @as(f32, @floatFromInt(rot_i)) / 100.0;
+
+        const dur: i64 = rand.intRangeAtMost(i64, 500, 1500);
+        const anim = components.Animation{
+            .animate_position = true,
+            .start_pos = .{ pos.x, pos.y },
+            .target_pos = .{ target_x, target_y },
+            .animate_scale = true,
+            .start_scale = start_scale,
+            .target_scale = target_scale,
+            .animate_rotation = true,
+            .start_rotation = start_rot,
+            .target_rotation = target_rot,
+            .start_time = now,
+            .duration = dur,
+            .easing = .ease_out,
+            .remove_when_done = true,
+            .destroy_entity_when_done = true,
+        };
+
+        if (world.has(components.Animation, entity)) {
+            world.remove(components.Animation, entity);
+        }
+        world.add(entity, anim);
+    }
+}

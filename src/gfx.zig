@@ -441,10 +441,12 @@ pub fn process(queue: *events.EventQueue) void {
                 background.setWarpEffect(extra_ms);
             },
             .GameOver => {
+                animsys.createExplosionAll();
                 background.next();
                 background.setWarpEffect(300);
             },
             .Reset => {
+                animsys.createExplosionAll();
                 background.reset();
                 previewsys.reset();
             },
@@ -478,7 +480,7 @@ pub fn process(queue: *events.EventQueue) void {
                     gridsvc.shiftRowCells(data.start_y + i);
                 }
             },
-            .GridReset => gridsvc.clearAllCells(),
+            .GridReset => {},
             .Hold => {
                 // Animate current piece to held position and update hold preview
                 previewsys.hold(game.state.piece.held);
