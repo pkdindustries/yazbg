@@ -85,10 +85,10 @@ pub const TimestampedEvent = struct {
 };
 
 pub const EventQueue = struct {
-    list: std.BoundedArray(TimestampedEvent, 512),
+    list: std.BoundedArray(TimestampedEvent, 1024),
 
     pub fn init() EventQueue {
-        return EventQueue{ .list = try std.BoundedArray(TimestampedEvent, 512).init(512) };
+        return EventQueue{ .list = std.BoundedArray(TimestampedEvent, 1024){} };
     }
 
     pub fn push(self: *EventQueue, e: Event, source: Source) void {
