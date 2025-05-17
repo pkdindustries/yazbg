@@ -9,19 +9,11 @@ const components = @import("components.zig");
 const gfx = @import("gfx.zig");
 const textures = @import("textures.zig");
 
-// ---------------------------------------------------------------------------
-// Public type aliases re-exported for convenience so existing imports keep
-// compiling unchanged.
-// ---------------------------------------------------------------------------
-
 pub const Color = textures.Color;
 pub const UV = textures.UV;
 pub const AtlasEntry = textures.AtlasEntry;
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
+// -----------------------------------
 // Attach a shared block texture (looked up or generated on demand via the
 // global texture atlas) to an existing entity.
 pub fn addBlockTextureWithAtlas(entity: ecsroot.Entity, color: Color) !void {
