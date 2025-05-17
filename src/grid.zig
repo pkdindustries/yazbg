@@ -14,10 +14,8 @@ pub const Grid = struct {
     colors: [HEIGHT][WIDTH][4]u8,
 
     pub fn init() Self {
-        return Self{
-            .occupied = [_][WIDTH]bool{[_]bool{false} ** WIDTH} ** HEIGHT,
-            .colors = [_][WIDTH][4]u8{[_][4]u8{[_]u8{0} ** 4} ** WIDTH} ** HEIGHT,
-        };
+        // Return a zeroed grid (all cells unoccupied, colors zero)
+        return std.mem.zeroes(Self);
     }
 
     pub fn isOccupied(self: *const Self, x: usize, y: usize) bool {
@@ -74,11 +72,8 @@ pub const Grid = struct {
     }
 
     pub fn clearall(self: *Self) void {
-        // Clear bit-grid and color array
-        self.occupied = [_][WIDTH]bool{[_]bool{false} ** WIDTH} ** HEIGHT;
-        self.colors = [_][WIDTH][4]u8{[_][4]u8{[_]u8{0} ** 4} ** WIDTH} ** HEIGHT;
-
-        // Emit event for ECS operations
+        // Reset everything by re-initializing
+        self.* = Self.init();
         events.push(.GridReset, .Game);
     }
 

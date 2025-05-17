@@ -85,35 +85,24 @@ pub const TimestampedEvent = struct {
 };
 
 pub const EventQueue = struct {
-    const MAX = 1024; // live a little
-    events: [MAX]TimestampedEvent = undefined,
-    len: usize = 0,
+    list: std.ArrayList(TimestampedEvent),
+
+    pub fn init(allocator: std.mem.Allocator) EventQueue {
+        return EventQueue{ .list = std.ArrayList(TimestampedEvent).init(allocator) };
+    }
 
     pub fn push(self: *EventQueue, e: Event, source: Source) void {
-        if (self.len < MAX) {
-            const time_ms = std.time.milliTimestamp();
-            self.events[self.len] = TimestampedEvent{
-                .time_ms = time_ms,
-                .source = source,
-                .event = e,
-            };
-            self.len += 1;
-
-            if (builtin.mode == .Debug) {
-                // std.debug.print("{any}\n", .{self.events[self.len - 1]});
-            }
-        } else {
-            // Silently drop when overflow – should never happen in this game.
-            // std.debug.print("EventQueue overflow – dropping event {any} (source={any})\n", .{ e, source });
-        }
+        const time_ms = std.time.milliTimestamp();
+        const item = TimestampedEvent{ .time_ms = time_ms, .source = source, .event = e };
+        _ = self.list.append(item) catch unreachable;
     }
 
     pub fn items(self: *EventQueue) []const TimestampedEvent {
-        return self.events[0..self.len];
+        return self.list.items;
     }
 
     pub fn clear(self: *EventQueue) void {
-        self.len = 0;
+        self.list.clearRetainingCapacity();
     }
 };
 
@@ -121,7 +110,7 @@ pub const EventQueue = struct {
 //                       frame.
 //   * `deferred`     – events that were raised *during* event processing and
 //                       therefore need to be delivered in the *next* frame.
-pub var queue: EventQueue = .{};
+pub var queue = EventQueue.init(std.heap.c_allocator);
 
 pub inline fn push(e: Event, s: Source) void {
     queue.push(e, s);

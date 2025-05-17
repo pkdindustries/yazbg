@@ -234,6 +234,7 @@ pub const Background = struct {
     }
 
     pub fn draw(self: *Background) void {
+        background.updateShader() catch {};
         const shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
         const shader = shader_component.shader;
 
@@ -315,7 +316,6 @@ pub fn frame() void {
                 ray.ClearBackground(ray.BLACK);
 
                 // Update and draw background with shader
-                background.updateShader() catch {};
                 background.draw();
 
                 rendersys.draw();
