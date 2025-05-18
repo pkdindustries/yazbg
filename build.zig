@@ -95,6 +95,8 @@ pub fn build(b: *std.Build) void {
             "-sUSE_OFFSET_CONVERTER",
             "--shell-file",
             b.path("web/shell.html").getPath(b),
+            "--preload-file",
+            b.path("resources").getPath(b),
         });
 
         const link_items: []const *std.Build.Step.Compile = &.{
