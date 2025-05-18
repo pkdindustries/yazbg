@@ -85,6 +85,9 @@ pub fn build(b: *std.Build) void {
 
         const emcc_exe_path = b.pathJoin(&.{ b.sysroot.?, emcc_exe });
         const emcc_command = b.addSystemCommand(&[_][]const u8{emcc_exe_path});
+        // Build the HTML5 output with preloaded resources mounted at /resources
+        const resource_src = b.path("resources").getPath(b);
+        const resource_arg = std.fmt.allocPrint(b.allocator, "{s}@/resources", .{resource_src}) catch unreachable;
         emcc_command.addArgs(&[_][]const u8{
             "-o",
             "zig-out/web/yazbg.html",
@@ -93,10 +96,11 @@ pub fn build(b: *std.Build) void {
             "-sASYNCIFY",
             "-sINITIAL_MEMORY=167772160",
             "-sUSE_OFFSET_CONVERTER",
+            "-sEXPORTED_RUNTIME_METHODS=['HEAPF32']",
             "--shell-file",
             b.path("web/shell.html").getPath(b),
             "--preload-file",
-            b.path("resources").getPath(b),
+            resource_arg,
         });
 
         const link_items: []const *std.Build.Step.Compile = &.{
