@@ -93,7 +93,7 @@ pub fn update() void {}
 // landing position.
 
 pub fn harddrop() void {
-    var piece_list = std.ArrayList(ecsroot.Entity).init(std.heap.page_allocator);
+    var piece_list = std.ArrayList(ecsroot.Entity).init(std.heap.wasm_allocator);
     defer piece_list.deinit();
 
     {
