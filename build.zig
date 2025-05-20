@@ -119,60 +119,6 @@ pub fn build(b: *std.Build) void {
 
         const install = emcc_command;
         b.default_step.dependOn(&install.step);
-
-        // WebTest for WASM
-        const webtest_lib = b.addStaticLibrary(.{
-            .name = "webtest",
-            .root_source_file = b.path("src/webtest.zig"),
-            .target = wasm_target,
-            .optimize = optimize,
-            .link_libc = true,
-        });
-        webtest_lib.shared_memory = false;
-        webtest_lib.root_module.single_threaded = true;
-
-        // Add ECS dependency for WebAssembly webtest build
-        const webtest_ecs_dep = b.dependency("entt", .{
-            .target = wasm_target,
-            .optimize = optimize,
-        });
-        webtest_lib.root_module.addImport("ecs", webtest_ecs_dep.module("zig-ecs"));
-
-        webtest_lib.linkLibrary(raylib_artifact);
-        webtest_lib.addIncludePath(raylib_dep.path("src"));
-        webtest_lib.addIncludePath(.{ .cwd_relative = sysroot_include });
-        const webtest_emcc_command = b.addSystemCommand(&[_][]const u8{emcc_exe_path});
-        webtest_emcc_command.addArgs(&[_][]const u8{
-            "-o",
-            "zig-out/web/webtest.html",
-            // "-sFULL_ES2=1",
-            // "-sFULL_ES3=1",
-            "-sUSE_GLFW=3",
-            "-sASYNCIFY",
-            // "-sINITIAL_MEMORY=167772160",
-            "-sSTACK_SIZE=16777216",
-            // "-sALLOW_MEMORY_GROWTH=1",
-            "-sAUDIO_WORKLET=0",
-
-            "-sUSE_OFFSET_CONVERTER",
-            "-sEXPORTED_RUNTIME_METHODS=['HEAPF32', 'ccall', 'cwrap']",
-            "--preload-file",
-            resource_arg,
-            "--shell-file",
-            b.path("web/shell.html").getPath(b),
-        });
-
-        const webtest_link_items: []const *std.Build.Step.Compile = &.{
-            raylib_artifact,
-            webtest_lib,
-        };
-        for (webtest_link_items) |item| {
-            webtest_emcc_command.addFileArg(item.getEmittedBin());
-            webtest_emcc_command.step.dependOn(&item.step);
-        }
-
-        const webtest_step = b.step("webtest", "Build the webtest for WASM");
-        webtest_step.dependOn(&webtest_emcc_command.step);
     } else {
         const exe = b.addExecutable(.{
             .name = "yazbg",
