@@ -1,4 +1,4 @@
-#version 300 es
+#version 330
 
 
 // Input vertex attributes (from vertex shader)
