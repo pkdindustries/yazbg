@@ -19,13 +19,12 @@ var allocator: std.mem.Allocator = undefined;
 pub fn init(alloc: std.mem.Allocator) !void {
     allocator = alloc;
     shaders = std.StringHashMap(ShaderEntry).init(allocator);
+    std.debug.print("Shader system initialized\n", .{});
 
     // Pre-load common shaders
-    try loadShader("static", "resources/shader/static.fs");
-    try loadShader("warp", "resources/shader/warp.fs");
-    try loadShader("nearest_cell", "resources/shader/nearest_cell.fs");
-
-    // std.debug.print("Shader system initialized with {} shaders\n", .{shaders.count()});
+    try loadShader("static", "resources/shader/static_es100.fs");
+    try loadShader("warp", "resources/shader/warp_es100.fs");
+    // try loadShader("nearest_cell", "resources/shader/nearest_cell.fs");
 }
 
 // clean up all shaders and free memory

@@ -3,12 +3,14 @@ const ray = @import("raylib.zig");
 const game = @import("game.zig");
 const sfx = @import("sfx.zig");
 const ecs = @import("ecs.zig");
+const gfx = @import("gfx.zig");
 pub fn main() !void {
     // initialize window
     const screen_width = 800;
     const screen_height = 600;
 
-    const allocator = std.heap.wasm_allocator;
+    ray.SetTraceLogLevel(ray.LOG_INFO);
+    const allocator = std.heap.c_allocator;
     try game.init(allocator);
     defer game.deinit();
 
@@ -16,12 +18,13 @@ pub fn main() !void {
     defer sfx.deinit();
 
     ecs.init(allocator);
-    //defer ecs.deinit();
-    ray.InitWindow(screen_width, screen_height, "WebTest - Simple Rectangle");
-    defer ray.CloseWindow();
+    defer ecs.deinit();
+
+    try gfx.init(allocator);
+    // defer gfx.deinit();
 
     // set target fps
-    ray.SetTargetFPS(60);
+    // ray.SetTargetFPS(60);
 
     // main game loop
     while (!ray.WindowShouldClose()) {
@@ -31,8 +34,6 @@ pub fn main() !void {
 
         // clear background
         ray.ClearBackground(ray.BLACK);
-
-        // draw a simple rectangle
         const rect_width = 200;
         const rect_height = 100;
         const rect_x = @divFloor(screen_width - rect_width, 2);

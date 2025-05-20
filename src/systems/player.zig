@@ -28,7 +28,9 @@ fn getGhostBlocks() @TypeOf(ecs.getGhostBlocksView().entityIterator()) {
     return view.entityIterator();
 }
 
-pub fn init() void {}
+pub fn init() void {
+    //std.debug.print("player init\n", .{});
+}
 
 pub fn deinit() void {
     // Ensure we don't leak transient entities when the program shuts down.

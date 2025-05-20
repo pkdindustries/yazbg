@@ -19,7 +19,7 @@ pub fn main() !void {
     // const allocator = gpa.allocator();
     // defer _ = gpa.deinit();
 
-    const allocator = std.heap.wasm_allocator;
+    const allocator = std.heap.c_allocator;
 
     ecs.init(allocator);
     defer ecs.deinit();

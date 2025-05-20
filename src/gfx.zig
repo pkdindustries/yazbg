@@ -141,6 +141,7 @@ pub const Background = struct {
     level: u8 = 0,
 
     pub fn init(self: *Background) !void {
+        // _ = self;
         // Load background textures
         self.texture[0] = ray.LoadTexture("resources/texture/starfield.png");
         self.texture[1] = ray.LoadTexture("resources/texture/starfield2.png");
@@ -150,7 +151,6 @@ pub const Background = struct {
         self.texture[5] = ray.LoadTexture("resources/texture/bokefall.png");
         self.texture[6] = ray.LoadTexture("resources/texture/starmap.png");
         self.texture[7] = ray.LoadTexture("resources/texture/warpgate.png");
-
         // Create entity for shader
         self.shader_entity = ecs.createEntity();
         try shaders.addShaderToEntity(self.shader_entity, "warp");
@@ -255,8 +255,7 @@ pub var window = Window{};
 var background = Background{};
 
 pub fn init(allocator: std.mem.Allocator) !void {
-    // std.debug.print("init gfx\n", .{});
-
+    std.debug.print("init gfx\n", .{});
     // Initialize window
     try window.init();
     // Initialize texture, blocks and shader systems

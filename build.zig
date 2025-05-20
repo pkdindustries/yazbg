@@ -91,11 +91,10 @@ pub fn build(b: *std.Build) void {
         emcc_command.addArgs(&[_][]const u8{
             "-o",
             "zig-out/web/yazbg.html",
-            "-sFULL-ES3=1",
             "-sUSE_GLFW=3",
             "-sASYNCIFY",
             // "-sINITIAL_MEMORY=167772160",
-            "-sSTACK_SIZE=5048576",
+            "-sSTACK_SIZE=16777216",
             // "-sALLOW_MEMORY_GROWTH=1",
             "-sAUDIO_WORKLET=0",
 
@@ -146,12 +145,13 @@ pub fn build(b: *std.Build) void {
         webtest_emcc_command.addArgs(&[_][]const u8{
             "-o",
             "zig-out/web/webtest.html",
-            "-sFULL-ES3=1",
+            // "-sFULL_ES2=1",
+            // "-sFULL_ES3=1",
             "-sUSE_GLFW=3",
             "-sASYNCIFY",
             // "-sINITIAL_MEMORY=167772160",
-            "-sSTACK_SIZE=5048576",
-            "-sALLOW_MEMORY_GROWTH=1",
+            "-sSTACK_SIZE=16777216",
+            // "-sALLOW_MEMORY_GROWTH=1",
             "-sAUDIO_WORKLET=0",
 
             "-sUSE_OFFSET_CONVERTER",
