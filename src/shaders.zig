@@ -19,26 +19,20 @@ var allocator: std.mem.Allocator = undefined;
 // is the current build for WebAssembly?
 const is_wasm = builtin.target.cpu.arch == .wasm32;
 
+// define shader directory based on build target
+const shader_dir = if (is_wasm) "resources/shader/es100/" else "resources/shader/es330/";
+
 // initialize shader system
 pub fn init(alloc: std.mem.Allocator) !void {
     allocator = alloc;
     shaders = std.StringHashMap(ShaderEntry).init(allocator);
     std.debug.print("Shader system initialized\n", .{});
 
-    // Pre-load common shaders based on build type
-    if (is_wasm) {
-        // Use ES100 shaders for WebAssembly
-        try loadShader("static", "resources/shader/static_es100.fs");
-        try loadShader("warp", "resources/shader/warp_es100.fs");
-        try loadShader("pulse", "resources/shader/pulse_es100.fs");
-        try loadShader("nearest_cell", "resources/shader/nearest_cell_es100.fs");
-    } else {
-        // Use default shaders for native builds
-        try loadShader("static", "resources/shader/static.fs");
-        try loadShader("warp", "resources/shader/warp.fs");
-        try loadShader("pulse", "resources/shader/pulse.fs");
-        try loadShader("nearest_cell", "resources/shader/nearest_cell.fs");
-    }
+    // Load shaders from the appropriate version directory
+    try loadShader("static", shader_dir ++ "static.fs");
+    try loadShader("warp", shader_dir ++ "warp.fs");
+    try loadShader("pulse", shader_dir ++ "pulse.fs");
+    try loadShader("nearest_cell", shader_dir ++ "nearest_cell.fs");
 }
 
 // clean up all shaders and free memory
