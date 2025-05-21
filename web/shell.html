@@ -3,15 +3,34 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Emscripten-Generated Code</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YazBG Game</title>
     <style>
-      .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
-      textarea.emscripten { font-family: monospace; width: 80%; }
-      div.emscripten { text-align: center; }
-      div.emscripten_border { border: 1px solid black; }
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: black;
+      }
+      .game-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+      }
       /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
-      canvas.emscripten { border: 0px none; background-color: black; }
-
+      canvas.emscripten {
+        border: 0px none;
+        background-color: black;
+        display: block;
+        max-width: 100%;
+        max-height: 100%;
+        width: auto;
+        height: auto;
+      }
       .spinner {
         height: 50px;
         width: 50px;
@@ -26,6 +45,20 @@
         border-top: 10px solid rgb(100,0,200);
         border-radius: 100%;
         background-color: rgb(200,100,250);
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        margin-left: -25px;
+        margin-top: -25px;
+      }
+      #status {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        text-align: center;
+        margin-top: 30px;
+        color: white;
       }
       @-webkit-keyframes rotation {
         from {-webkit-transform: rotate(0deg);}
@@ -43,60 +76,71 @@
         from {transform: rotate(0deg);}
         to {transform: rotate(360deg);}
       }
-
     </style>
   </head>
   <body>
-    <hr/>
-    <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><center style="margin-top:0.5em"><strong>emscripten</strong></center></figure>
-    <div class="emscripten" id="status">Downloading...</div>
-    <div class="emscripten">
-      <progress value="0" max="100" id="progress" hidden=1></progress>  
-    </div>
-    <div class="emscripten_border">
-      <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
-    </div>
-    <hr/>
-    <div class="emscripten">
-      <input type="checkbox" id="resize">Resize canvas
-      <input type="checkbox" id="pointerLock" checked>Lock/hide mouse pointer
-      &nbsp;&nbsp;&nbsp;
-      <input type="button" value="Fullscreen" onclick="Module.requestFullscreen(document.getElementById('pointerLock').checked, 
-                                                                                document.getElementById('resize').checked)">
+    <div id="spinner" class="spinner"></div>
+    <div id="status">Downloading...</div>
+    <div id="progress-container" style="display: none; position: absolute; top: 60%; left: 50%; transform: translateX(-50%);">
+      <progress value="0" max="100" id="progress"></progress>
     </div>
     
-    <hr/>
-    <textarea class="emscripten" id="output" rows="8"></textarea>
-    <hr>
+    <div class="game-container">
+      <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+    </div>
+    
     <script type='text/javascript'>
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');
+      var progressContainer = document.getElementById('progress-container');
       var spinnerElement = document.getElementById('spinner');
       var canvasElement = document.getElementById('canvas');
-      var outputElement = document.getElementById('output');
-      if (outputElement) outputElement.value = ''; // clear browser cache
-
-      // As a default initial behavior, pop up an alert when webgl context is lost. To make your
-      // application robust, you may want to override this behavior before shipping!
-      // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
+      
+      // Hide mouse on canvas by default
+      canvasElement.style.cursor = 'none';
+      
+      // Handle window resize to maximize the game
+      function resizeGame() {
+        var containerWidth = window.innerWidth;
+        var containerHeight = window.innerHeight;
+        
+        // Only resize if canvas has been initialized with dimensions from the game
+        if (canvasElement.width && canvasElement.height) {
+          var gameRatio = canvasElement.width / canvasElement.height;
+          var windowRatio = containerWidth / containerHeight;
+          
+          if (windowRatio > gameRatio) {
+            // Window is wider than game ratio
+            canvasElement.style.height = containerHeight + 'px';
+            canvasElement.style.width = 'auto';
+          } else {
+            // Window is taller than game ratio
+            canvasElement.style.width = containerWidth + 'px';
+            canvasElement.style.height = 'auto';
+          }
+        }
+      }
+      
+      // Add event listener for resize
+      window.addEventListener('resize', resizeGame);
+      
+      // As a default initial behavior, pop up an alert when webgl context is lost
       canvasElement.addEventListener("webglcontextlost", (e) => {
         alert('WebGL context lost. You will need to reload the page.');
         e.preventDefault();
       }, false);
 
       var Module = {
+        preRun: [],
+        postRun: [function() {
+          // Call resize once the game is loaded
+          setTimeout(resizeGame, 100);
+        }],
         print(...args) {
-          // These replacements are necessary if you render to raw HTML
-          //text = text.replace(/&/g, "&amp;");
-          //text = text.replace(/</g, "&lt;");
-          //text = text.replace(/>/g, "&gt;");
-          //text = text.replace('\n', '<br>', 'g');
           console.log(...args);
-          if (outputElement) {
-            var text = args.join(' ');
-            outputElement.value += text + "\n";
-            outputElement.scrollTop = outputElement.scrollHeight; // focus on bottom
-          }
+        },
+        printErr(...args) {
+          console.error(...args);
         },
         canvas: canvasElement,
         setStatus(text) {
@@ -111,13 +155,16 @@
             text = m[1];
             progressElement.value = parseInt(m[2])*100;
             progressElement.max = parseInt(m[4])*100;
-            progressElement.hidden = false;
-            spinnerElement.hidden = false;
+            progressContainer.style.display = 'block';
+            spinnerElement.style.display = 'block';
           } else {
             progressElement.value = null;
             progressElement.max = null;
-            progressElement.hidden = true;
-            if (!text) spinnerElement.hidden = true;
+            progressContainer.style.display = 'none';
+            if (!text) {
+              spinnerElement.style.display = 'none';
+              statusElement.style.display = 'none';
+            }
           }
           statusElement.innerHTML = text;
         },
