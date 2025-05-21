@@ -16,8 +16,10 @@ pub fn main() !void {
     ray.SetTraceLogLevel(ray.LOG_WARNING);
 
     // Create central allocator to use throughout the application
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+    // const allocator = gpa.allocator();
+    // defer _ = gpa.deinit();
+
+    const allocator = std.heap.c_allocator;
 
     ecs.init(allocator);
     defer ecs.deinit();
@@ -31,7 +33,7 @@ pub fn main() !void {
     try gfx.init(allocator);
     defer gfx.deinit();
 
-    // std.debug.print("system init {}ms\n", .{timer.lap() / MS});
+    std.debug.print("system init {}ms\n", .{timer.lap() / MS});
 
     printkeys();
 

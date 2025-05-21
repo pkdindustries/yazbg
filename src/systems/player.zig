@@ -28,7 +28,9 @@ fn getGhostBlocks() @TypeOf(ecs.getGhostBlocksView().entityIterator()) {
     return view.entityIterator();
 }
 
-pub fn init() void {}
+pub fn init() void {
+    //std.debug.print("player init\n", .{});
+}
 
 pub fn deinit() void {
     // Ensure we don't leak transient entities when the program shuts down.
@@ -93,7 +95,7 @@ pub fn update() void {}
 // landing position.
 
 pub fn harddrop() void {
-    var piece_list = std.ArrayList(ecsroot.Entity).init(std.heap.page_allocator);
+    var piece_list = std.ArrayList(ecsroot.Entity).init(std.heap.c_allocator);
     defer piece_list.deinit();
 
     {

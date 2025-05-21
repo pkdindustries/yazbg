@@ -40,6 +40,7 @@ var allocator: std.mem.Allocator = undefined;
 
 // needs gfx.window.cellsize
 pub fn init(alloc: std.mem.Allocator) !void {
+    //std.debug.print("textures init\n", .{});
     allocator = alloc;
     tile_px = gfx.window.cellsize * 2; // match previous implementation
     atlas_px = tile_px * TILES_PER_ROW;

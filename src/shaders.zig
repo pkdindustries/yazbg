@@ -4,6 +4,7 @@ const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
 const gfx = @import("gfx.zig");
+const builtin = @import("builtin");
 
 // shader entry in the shader library
 const ShaderEntry = struct {
@@ -15,17 +16,23 @@ const ShaderEntry = struct {
 var shaders: std.StringHashMap(ShaderEntry) = undefined;
 var allocator: std.mem.Allocator = undefined;
 
+// is the current build for WebAssembly?
+const is_wasm = builtin.target.cpu.arch == .wasm32;
+
+// define shader directory based on build target
+const shader_dir = if (is_wasm) "resources/shader/es100/" else "resources/shader/es330/";
+
 // initialize shader system
 pub fn init(alloc: std.mem.Allocator) !void {
     allocator = alloc;
     shaders = std.StringHashMap(ShaderEntry).init(allocator);
+    std.debug.print("Shader system initialized\n", .{});
 
-    // Pre-load common shaders
-    try loadShader("static", "resources/shader/static.fs");
-    try loadShader("warp", "resources/shader/warp.fs");
-    try loadShader("nearest_cell", "resources/shader/nearest_cell.fs");
-
-    // std.debug.print("Shader system initialized with {} shaders\n", .{shaders.count()});
+    // Load shaders from the appropriate version directory
+    try loadShader("static", shader_dir ++ "static.fs");
+    try loadShader("warp", shader_dir ++ "warp.fs");
+    try loadShader("pulse", shader_dir ++ "pulse.fs");
+    try loadShader("nearest_cell", shader_dir ++ "nearest_cell.fs");
 }
 
 // clean up all shaders and free memory
