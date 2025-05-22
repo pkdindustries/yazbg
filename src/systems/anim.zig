@@ -77,16 +77,23 @@ fn updateSprite(sprite: *components.Sprite, animation: components.Animation, eas
 pub fn update() void {
     const world = ecs.getWorld();
 
-    // view entities with Animation component
-    var view = world.view(.{components.Animation}, .{});
-    var it = view.entityIterator();
+    // Owning group for Animation components (zipped, fast iteration)
+    var anim_group = world.group(
+        .{ components.Animation }, // owned
+        .{}, // includes
+        .{}, // excludes
+    );
+
+    const IterComp = struct { anim: *components.Animation };
+    var it = anim_group.iterator(IterComp);
 
     const current_time = std.time.milliTimestamp();
     var entities_to_update: [128]ecsroot.Entity = undefined;
     var num_entities: usize = 0;
 
-    while (it.next()) |entity| {
-        const animation = view.get(entity).*;
+    while (it.next()) |comps| {
+        const entity = it.entity();
+        const animation = comps.anim.*;
 
         // check if animation should start yet
         if (current_time < animation.start_time + animation.delay) {

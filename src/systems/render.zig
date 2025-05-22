@@ -12,31 +12,60 @@ pub fn shaderLess(_: void, a: components.Shader, b: components.Shader) bool {
 }
 
 // ---------------------------------------------------------------------------
-// Rendering system using zig-ecs groups.
+// Rendering system using cached zig-ecs groups.
 // ---------------------------------------------------------------------------
 
+// We create the groups once and reuse them every frame.  `world.group()` is
+// cheap, but avoiding the call removes a tiny bit of overhead and keeps the
+// hot loop free of hashing work.
+
+const NoShaderGroupType = @TypeOf(ecs.getWorld().group(
+    .{},
+    .{ components.Sprite, components.Position, components.Texture },
+    .{components.Shader},
+));
+
+const ShaderGroupType = @TypeOf(ecs.getWorld().group(
+    .{ components.Sprite, components.Position, components.Texture, components.Shader },
+    .{},
+    .{},
+));
+
+var no_shader_group: ?NoShaderGroupType = null;
+var shader_group: ?ShaderGroupType = null;
+var last_shader_count: usize = 0;
+
+fn ensureGroups() void {
+    if (no_shader_group == null) {
+        const w = ecs.getWorld();
+        no_shader_group = w.group(
+            .{},
+            .{ components.Sprite, components.Position, components.Texture },
+            .{components.Shader},
+        );
+        shader_group = w.group(
+            .{ components.Sprite, components.Position, components.Texture, components.Shader },
+            .{},
+            .{},
+        );
+    }
+}
+
 pub fn draw() void {
-    const world = ecs.getWorld();
+    ensureGroups();
 
     // ---------------------------------------------------------------------
     // Pass 1: draw all entities that do NOT have a Shader component.
     //   BasicGroup caches membership for us; no run-time filtering needed.
     // ---------------------------------------------------------------------
 
-    var regular_group = world.group(
-        .{},
-        .{ components.Sprite, components.Position, components.Texture },
-        .{ components.Shader }, // exclude all entities that own a Shader
-    );
-
-    var rit = regular_group.iterator();
+    var rit = no_shader_group.?.iterator();
     while (rit.next()) |e| {
-        const sprite = regular_group.get(components.Sprite, e);
-        const pos    = regular_group.get(components.Position, e);
-        const tex    = regular_group.get(components.Texture, e);
+        const sprite = no_shader_group.?.get(components.Sprite, e);
+        const pos = no_shader_group.?.get(components.Position, e);
+        const tex = no_shader_group.?.get(components.Texture, e);
 
-        drawTexturedSquare(@intFromFloat(pos.x), @intFromFloat(pos.y), tex.texture,
-            tex, sprite.rgba, sprite.size, sprite.rotation);
+        drawTexturedSquare(@intFromFloat(pos.x), @intFromFloat(pos.y), tex.texture, tex, sprite.rgba, sprite.size, sprite.rotation);
     }
 
     // ---------------------------------------------------------------------
@@ -46,18 +75,9 @@ pub fn draw() void {
     // locality when we touch multiple components per entity.
     // ---------------------------------------------------------------------
 
-    var shader_group = world.group(
-        // owned components
-        .{ components.Sprite, components.Position, components.Texture, components.Shader },
-        // no additional includes
-        .{},
-        // no excludes
-        .{},
-    );
+    var shader_group_local = shader_group.?;
 
     if (shader_group.len() == 0) return;
-
-    shader_group.sort(components.Shader, {}, shaderLess);
 
     const IterComp = struct {
         sprite: *components.Sprite,
@@ -66,14 +86,14 @@ pub fn draw() void {
         shader: *components.Shader,
     };
 
-    var it = shader_group.iterator(IterComp);
+    var it = shader_group_local.iterator(IterComp);
     var current_shader_ptr: ?*const ray.Shader = null;
 
     while (it.next()) |comps| {
         if (current_shader_ptr == null or comps.shader.shader != current_shader_ptr.?) {
             if (current_shader_ptr != null) ray.EndShaderMode();
             current_shader_ptr = comps.shader.shader;
-            ray.BeginShaderMode(current_shader_ptr.? .*);
+            ray.BeginShaderMode(current_shader_ptr.?.*);
         }
 
         shaders.updateShaderUniforms(it.entity()) catch |err| {
