@@ -97,6 +97,16 @@ pub fn addShaderToEntity(entity: ecsroot.Entity, shader_name: []const u8) !void 
     shader_component.created = false; // not owned by this component
 
     ecs.replace(components.Shader, entity, shader_component);
+
+    // Attach a shader-type tag component so the renderer can form one group
+    // per shader without inspecting the Shader component contents.
+    if (std.mem.eql(u8, shader_name, "static")) {
+        ecs.replace(components.StaticShaderTag, entity, components.StaticShaderTag{});
+    } else if (std.mem.eql(u8, shader_name, "glitch")) {
+        ecs.replace(components.GlitchShaderTag, entity, components.GlitchShaderTag{});
+    } else if (std.mem.eql(u8, shader_name, "warp")) {
+        ecs.replace(components.WarpShaderTag, entity, components.WarpShaderTag{});
+    }
 }
 
 // create entity with shader and default uniform

@@ -158,6 +158,16 @@ pub const GhostBlockTag = struct {}; // Marker for blocks belonging to ghost pre
 pub const NextPreviewTag = struct {}; // blocks belonging to the "next" piece preview
 pub const HoldPreviewTag = struct {}; // blocks belonging to the "held" piece preview
 pub const AnimatingToHoldTag = struct {}; // blocks being animated to the hold position
+
+// ---------------------------------------------------------------------------
+// Shader marker components – one empty struct per shader type so we can have
+// one ECS group per shader and avoid per-entity shader checks in the render
+// loop.
+// ---------------------------------------------------------------------------
+
+pub const StaticShaderTag = struct {}; // entities using the "static" shader
+pub const GlitchShaderTag = struct {}; // entities using the "glitch" shader
+pub const WarpShaderTag   = struct {}; // entities using the "warp"   shader
 pub const AnimatingFromHoldTag = struct {}; // blocks being animated from hold position to spawn
 
 // Per-block cell indices (used by preview system for animations)
