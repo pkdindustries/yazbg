@@ -175,3 +175,21 @@ pub const PlayerPieceState = struct {
     piece_index: u32, // current piece type index
     has_piece: bool = true, // whether this entity has an active piece
 };
+
+// --- Physics/Collision Components ---
+
+// Velocity for moving entities
+pub const Velocity = struct { 
+    x: f32 = 0.0, 
+    y: f32 = 0.0 
+};
+
+// Collision detection shape
+pub const Collider = struct {
+    shape: union(enum) {
+        rectangle: ray.Rectangle,
+        circle: struct { radius: f32 },
+    },
+    layer: u8 = 0, // collision layers (player=1, enemy=2, projectile=4, etc)
+    is_trigger: bool = false, // just detect, don't block movement
+};

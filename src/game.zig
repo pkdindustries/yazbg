@@ -5,6 +5,11 @@ const shapes = @import("pieces.zig");
 const events = @import("events.zig");
 const level = @import("level.zig");
 
+// helper: pick a random tetramino
+fn randomTetramino(rng: *std.Random.DefaultPrng) shapes.tetramino {
+    return shapes.tetraminos[rng.random().intRangeAtMost(u32, 0, 6)];
+}
+
 // game state
 pub const YAZBG = struct {
     alloc: std.mem.Allocator = undefined,
@@ -49,7 +54,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
     });
 
     state.grid = Grid.init();
-    state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
+    state.piece.next = randomTetramino(&state.rng);
     nextpiece();
 }
 
@@ -65,7 +70,7 @@ pub fn reset() void {
     state.lastmove_ms = 0;
     // Initialize piece state without the swapped flag
     state.piece = .{};
-    state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
+    state.piece.next = randomTetramino(&state.rng);
 
     events.push(.GridReset, events.Source.Game);
     state.grid.clearall();
@@ -108,7 +113,7 @@ fn pushUpdate() void {
 // spawn next piece
 pub fn nextpiece() void {
     state.piece.current = state.piece.next;
-    state.piece.next = shapes.tetraminos[state.rng.random().intRangeAtMost(u32, 0, 6)];
+    state.piece.next = randomTetramino(&state.rng);
     state.piece.x = 4;
     state.piece.y = 0;
     state.piece.r = 0;
@@ -156,22 +161,28 @@ pub fn checkmove(x: i32, y: i32) bool {
     return state.grid.checkmove(state.piece.current, x, y, state.piece.r);
 }
 
-// drop piece to bottom and clear lines
-pub fn harddrop() void {
-    if (frozen()) return;
-
-    // drop to bottom
+// drop piece to lowest valid position
+fn dropToBottom() void {
     var y = state.piece.y;
     while (checkmove(state.piece.x, y + 1)) : (y += 1) {}
     state.piece.y = y;
     pushUpdate();
+}
 
+// result type for lock piece operation
+const LockResult = struct { 
+    blocks: [4]events.CellDataPos, 
+    count: usize,
+};
+
+// lock piece blocks into the grid
+fn lockPiece() LockResult {
+    var result = LockResult{
+        .blocks = undefined,
+        .count = 0,
+    };
+    
     if (state.piece.current) |piece| {
-        // collect blocks for events
-        var blocks: [4]events.CellDataPos = undefined;
-        var block_count: usize = 0;
-
-        // lock piece on grid
         const shape = piece.shape[state.piece.r];
         for (shape, 0..) |row, i| {
             for (row, 0..) |cell, j| {
@@ -181,29 +192,57 @@ pub fn harddrop() void {
                     if (gx >= 0 and gx < Grid.WIDTH and gy >= 0 and gy < Grid.HEIGHT) {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
-
-                        if (block_count < blocks.len) {
-                            blocks[block_count] = .{ .x = ix, .y = iy, .color = piece.color };
-                            block_count += 1;
+                        
+                        if (result.count < result.blocks.len) {
+                            result.blocks[result.count] = .{ .x = ix, .y = iy, .color = piece.color };
+                            result.count += 1;
                         }
-
+                        
                         state.grid.occupyBlocks(ix, iy, piece.color);
                     }
                 }
             }
         }
-
-        events.push(.HardDropEffect, events.Source.Game);
-        events.push(.{ .PieceLocked = .{ .blocks = blocks, .count = block_count } }, events.Source.Game);
     }
+    
+    return result;
+}
 
-    state.lastmove_ms = state.current_time_ms;
+// clear completed lines and update progression
+fn clearCompletedLines() void {
     const cleared = state.grid.clear();
     if (cleared > 0) {
         state.progression.clear(@as(u8, @intCast(cleared)));
         events.push(.{ .Clear = @as(u8, @intCast(cleared)) }, events.Source.Game);
     }
+}
 
+// drop piece to bottom and clear lines
+pub fn harddrop() void {
+    if (frozen()) return;
+    
+    // drop to bottom
+    dropToBottom();
+    
+    // lock piece and get block positions
+    const lock_result = lockPiece();
+    
+    // emit events
+    events.push(.HardDropEffect, events.Source.Game);
+    if (lock_result.count > 0) {
+        events.push(.{ .PieceLocked = .{ 
+            .blocks = lock_result.blocks, 
+            .count = lock_result.count 
+        } }, events.Source.Game);
+    }
+    
+    // update timing
+    state.lastmove_ms = state.current_time_ms;
+    
+    // clear lines
+    clearCompletedLines();
+    
+    // spawn next piece
     nextpiece();
 }
 

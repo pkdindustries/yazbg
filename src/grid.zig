@@ -23,29 +23,8 @@ pub const Grid = struct {
         return self.occupied[y][x];
     }
 
-    pub fn occupy(self: *Self, gridx: usize, gridy: usize, color: [4]u8) void {
-        // Update bit-grid and color array and immediately emit event
-        if (gridx < WIDTH and gridy < HEIGHT) {
-            self.occupied[gridy][gridx] = true;
-            self.colors[gridy][gridx] = color;
-        }
-
-        // Emit individual event (will be replaced by batched event)
-        events.push(.{
-            .PieceLocked = .{
-                .blocks = [_]events.CellDataPos{
-                    .{ .x = gridx, .y = gridy, .color = color },
-                    undefined,
-                    undefined,
-                    undefined,
-                },
-                .count = 1,
-            },
-        }, .Game);
-    }
-
-    // New method for occupying blocks without emitting events
-    // Used by game.zig for batched event emission
+    // Occupy a single cell in the grid (no event emission).
+    // Game code batches its own events; tests also use this helper.
     pub fn occupyBlocks(self: *Self, gridx: usize, gridy: usize, color: [4]u8) void {
         // Update bit-grid and color array only (no event)
         if (gridx < WIDTH and gridy < HEIGHT) {
@@ -209,7 +188,7 @@ test "grid init" {
     }
 
     // Test occupation
-    grid.occupy(0, 0, .{ 255, 255, 255, 255 });
+    grid.occupyBlocks(0, 0, .{ 255, 255, 255, 255 });
     try std.testing.expect(grid.isOccupied(0, 0));
 
     // Test vacate
@@ -224,7 +203,7 @@ test "check line" {
 
     // Fill a row
     for (0..Grid.WIDTH) |x| {
-        grid.occupy(x, 5, .{ 255, 255, 255, 255 });
+        grid.occupyBlocks(x, 5, .{ 255, 255, 255, 255 });
     }
 
     try std.testing.expect(grid.checkline(5));
@@ -242,7 +221,7 @@ test "rm" {
 
     // fill line 0
     for (0..Grid.WIDTH) |i| {
-        grid.occupy(i, 0, .{ 255, 255, 255, 255 });
+        grid.occupyBlocks(i, 0, .{ 255, 255, 255, 255 });
     }
 
     grid.print();
@@ -261,12 +240,12 @@ test "shift" {
 
     // fill line 0
     for (0..Grid.WIDTH) |i| {
-        grid.occupy(i, 0, .{ 255, 255, 255, 255 });
+        grid.occupyBlocks(i, 0, .{ 255, 255, 255, 255 });
     }
 
     // fill line 1
     for (0..Grid.WIDTH) |i| {
-        grid.occupy(i, 1, .{ 255, 255, 255, 255 });
+        grid.occupyBlocks(i, 1, .{ 255, 255, 255, 255 });
     }
 
     grid.print();
@@ -294,17 +273,17 @@ test "clear" {
 
     // fill line 19 (bottom row)
     for (0..Grid.WIDTH) |i| {
-        grid.occupy(i, 19, .{ 255, 255, 255, 255 });
+    grid.occupyBlocks(i, 19, .{ 255, 255, 255, 255 });
     }
 
     // Add some cells in rows 18 and 17
-    grid.occupy(0, 18, .{ 255, 255, 255, 255 });
-    grid.occupy(0, 17, .{ 255, 255, 255, 255 });
-    grid.occupy(1, 17, .{ 255, 255, 255, 255 });
+    grid.occupyBlocks(0, 18, .{ 255, 255, 255, 255 });
+    grid.occupyBlocks(0, 17, .{ 255, 255, 255, 255 });
+    grid.occupyBlocks(1, 17, .{ 255, 255, 255, 255 });
 
     // Fill row 16 completely
     for (0..Grid.WIDTH) |i| {
-        grid.occupy(i, 16, .{ 255, 255, 255, 255 });
+        grid.occupyBlocks(i, 16, .{ 255, 255, 255, 255 });
     }
     grid.print();
     _ = grid.clear();

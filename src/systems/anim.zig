@@ -22,7 +22,10 @@ pub fn applyEasing(progress: f32, easing_type: components.easing_types) f32 {
 }
 
 // update position based on animation
-inline fn updatePosition(position: *components.Position, animation: components.Animation, eased_progress: f32) void {
+inline fn updatePosition(entity: ecsroot.Entity, position: *components.Position, animation: components.Animation, eased_progress: f32) void {
+    // skip position animation if entity has physics (velocity component)
+    if (ecs.has(components.Velocity, entity)) return;
+
     if (animation.animate_position and animation.start_pos != null and animation.target_pos != null) {
         const start_pos = animation.start_pos.?;
         const target_pos = animation.target_pos.?;
@@ -110,7 +113,7 @@ pub fn update() void {
 
         {
             const position = world.get(components.Position, entity);
-            updatePosition(position, animation, eased_progress);
+            updatePosition(entity, position, animation, eased_progress);
         }
 
         {
