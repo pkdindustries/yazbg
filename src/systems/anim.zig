@@ -77,10 +77,11 @@ inline fn updateSprite(sprite: *components.Sprite, animation: components.Animati
 pub fn update() void {
     const world = ecs.getWorld();
 
-    // Owning group for Animation components (zipped, fast iteration)
+    // Owning group that requires Position & Sprite — owns only Animation so
+    // there is no overlap with the render owning group.
     var anim_group = world.group(
-        .{ components.Animation }, // owned
-        .{}, // includes
+        .{components.Animation}, // owned
+        .{ components.Position, components.Sprite }, // includes
         .{}, // excludes
     );
 
@@ -107,47 +108,42 @@ pub fn update() void {
         // apply easing function
         const eased_progress = applyEasing(raw_progress, animation.easing);
 
-        // update position component if it exists
-        if (world.has(components.Position, entity)) {
+        {
             const position = world.get(components.Position, entity);
             updatePosition(position, animation, eased_progress);
         }
 
-        // update sprite component if it exists
-        if (world.has(components.Sprite, entity)) {
+        {
             const sprite = world.get(components.Sprite, entity);
             updateSprite(sprite, animation, eased_progress);
         }
-
         // check if animation is complete
         if (raw_progress >= 1.0) {
             // revert?
             if (animation.revert_when_done) {
-                if (world.has(components.Position, entity) and animation.animate_position and animation.start_pos != null) {
+                if (animation.animate_position and animation.start_pos != null) {
                     const position = world.get(components.Position, entity);
                     position.* = components.Position{ .x = animation.start_pos.?[0], .y = animation.start_pos.?[1] };
                 }
 
-                if (world.has(components.Sprite, entity)) {
-                    const sprite_ptr = world.get(components.Sprite, entity);
+                const sprite_ptr = world.get(components.Sprite, entity);
 
-                    if (animation.animate_alpha and animation.start_alpha != null) {
-                        sprite_ptr.rgba[3] = animation.start_alpha.?;
-                    }
+                if (animation.animate_alpha and animation.start_alpha != null) {
+                    sprite_ptr.rgba[3] = animation.start_alpha.?;
+                }
 
-                    if (animation.animate_scale and animation.start_scale != null) {
-                        sprite_ptr.size = animation.start_scale.?;
-                    }
+                if (animation.animate_scale and animation.start_scale != null) {
+                    sprite_ptr.size = animation.start_scale.?;
+                }
 
-                    if (animation.animate_color and animation.start_color != null) {
-                        sprite_ptr.rgba[0] = animation.start_color.?[0];
-                        sprite_ptr.rgba[1] = animation.start_color.?[1];
-                        sprite_ptr.rgba[2] = animation.start_color.?[2];
-                    }
+                if (animation.animate_color and animation.start_color != null) {
+                    sprite_ptr.rgba[0] = animation.start_color.?[0];
+                    sprite_ptr.rgba[1] = animation.start_color.?[1];
+                    sprite_ptr.rgba[2] = animation.start_color.?[2];
+                }
 
-                    if (animation.animate_rotation and animation.start_rotation != null) {
-                        sprite_ptr.rotation = animation.start_rotation.?;
-                    }
+                if (animation.animate_rotation and animation.start_rotation != null) {
+                    sprite_ptr.rotation = animation.start_rotation.?;
                 }
             }
 
@@ -284,7 +280,7 @@ pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Enti
 
 pub fn createExplosionAll() void {
     const world = ecs.getWorld();
-    var view = world.view(.{components.Position, components.Sprite}, .{});
+    var view = world.view(.{ components.Position, components.Sprite }, .{});
     var it = view.entityIterator();
 
     const now = std.time.milliTimestamp();
