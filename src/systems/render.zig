@@ -77,7 +77,7 @@ pub fn draw() void {
 
     var shader_group_local = shader_group.?;
 
-    if (shader_group.len() == 0) return;
+    if (shader_group_local.len() == 0) return;
 
     const IterComp = struct {
         sprite: *components.Sprite,
