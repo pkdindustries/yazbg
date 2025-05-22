@@ -23,7 +23,7 @@ pub inline fn applyEasing(progress: f32, easing_type: components.easing_types) f
 }
 
 // update position based on animation
-fn updatePosition(position: *components.Position, animation: components.Animation, eased_progress: f32) void {
+inline fn updatePosition(position: *components.Position, animation: components.Animation, eased_progress: f32) void {
     if (animation.animate_position and animation.start_pos != null and animation.target_pos != null) {
         const start_pos = animation.start_pos.?;
         const target_pos = animation.target_pos.?;
@@ -37,7 +37,7 @@ fn updatePosition(position: *components.Position, animation: components.Animatio
 }
 
 // update sprite properties based on animation
-fn updateSprite(sprite: *components.Sprite, animation: components.Animation, eased_progress: f32) void {
+inline fn updateSprite(sprite: *components.Sprite, animation: components.Animation, eased_progress: f32) void {
     // update alpha/opacity
     if (animation.animate_alpha and animation.start_alpha != null and animation.target_alpha != null) {
         const start_alpha = animation.start_alpha.?;
