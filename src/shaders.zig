@@ -28,11 +28,9 @@ pub fn init(alloc: std.mem.Allocator) !void {
     shaders = std.StringHashMap(ShaderEntry).init(allocator);
     std.debug.print("Shader system initialized\n", .{});
 
-    // Load shaders from the appropriate version directory
     try loadShader("static", shader_dir ++ "static.fs");
+    try loadShader("glitch", shader_dir ++ "glitch.fs");
     try loadShader("warp", shader_dir ++ "warp.fs");
-    try loadShader("pulse", shader_dir ++ "pulse.fs");
-    try loadShader("nearest_cell", shader_dir ++ "nearest_cell.fs");
 }
 
 // clean up all shaders and free memory
