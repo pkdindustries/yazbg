@@ -62,7 +62,7 @@ pub fn createBlockTextureWithAtlas(
     return e;
 }
 
-// Build a tetromino shape either as active piece or ghost.
+// Build a tetramino shape either as active piece or ghost.
 fn buildPieceEntities(
     x: i32,
     y: i32,
