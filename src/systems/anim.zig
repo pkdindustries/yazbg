@@ -5,8 +5,9 @@ const ecsroot = @import("ecs");
 const components = @import("../components.zig");
 const gfx = @import("../gfx.zig");
 const textures = @import("../textures.zig");
+
 // calculate eased value based on animation progress
-pub fn applyEasing(progress: f32, easing_type: components.easing_types) f32 {
+pub inline fn applyEasing(progress: f32, easing_type: components.easing_types) f32 {
     return switch (easing_type) {
         .linear => progress,
         .ease_in => std.math.pow(f32, progress, 2.0),
@@ -28,10 +29,10 @@ fn updatePosition(position: *components.Position, animation: components.Animatio
         const target_pos = animation.target_pos.?;
 
         // interpolate position x
-        position.x = start_pos[0] + (target_pos[0] - start_pos[0]) * eased_progress;
+        position.x = @mulAdd(f32, (target_pos[0] - start_pos[0]), eased_progress, start_pos[0]);
 
         // interpolate position y
-        position.y = start_pos[1] + (target_pos[1] - start_pos[1]) * eased_progress;
+        position.y = @mulAdd(f32, (target_pos[1] - start_pos[1]), eased_progress, start_pos[1]);
     }
 }
 
@@ -50,7 +51,7 @@ fn updateSprite(sprite: *components.Sprite, animation: components.Animation, eas
     if (animation.animate_scale and animation.start_scale != null and animation.target_scale != null) {
         const start_scale = animation.start_scale.?;
         const target_scale = animation.target_scale.?;
-        sprite.size = start_scale + (target_scale - start_scale) * eased_progress;
+        sprite.size = @mulAdd(f32, (target_scale - start_scale), eased_progress, start_scale);
     }
 
     // update color (RGB)
@@ -60,16 +61,16 @@ fn updateSprite(sprite: *components.Sprite, animation: components.Animation, eas
 
         // interpolate each color channel (R, G, B)
         for (0..3) |i| {
-            sprite.rgba[i] = @intFromFloat(@as(f32, @floatFromInt(start_color[i])) +
-                (@as(f32, @floatFromInt(target_color[i])) - @as(f32, @floatFromInt(start_color[i]))) *
-                    eased_progress);
+            const sc: f32 = @floatFromInt(start_color[i]);
+            const tc: f32 = @floatFromInt(target_color[i]);
+            sprite.rgba[i] = @intFromFloat(@mulAdd(f32, (tc - sc), eased_progress, sc));
         }
     }
     if (animation.animate_rotation and animation.start_rotation != null and animation.target_rotation != null) {
         const start_rotation = animation.start_rotation.?;
         const target_rotation = animation.target_rotation.?;
         // interpolate rotation
-        sprite.rotation = start_rotation + (target_rotation - start_rotation) * eased_progress;
+        sprite.rotation = @mulAdd(f32, (target_rotation - start_rotation), eased_progress, start_rotation);
     }
 }
 
@@ -77,14 +78,20 @@ fn updateSprite(sprite: *components.Sprite, animation: components.Animation, eas
 pub fn update() void {
     const world = ecs.getWorld();
 
-    // Owning group for Animation components (zipped, fast iteration)
+    // Owning group for Animation, Position and Sprite so we get direct, cache-
+    // friendly access to every property we touch each frame.
     var anim_group = world.group(
-        .{ components.Animation }, // owned
-        .{}, // includes
-        .{}, // excludes
+        .{ components.Animation, components.Position, components.Sprite },
+        .{},
+        .{},
     );
 
-    const IterComp = struct { anim: *components.Animation };
+    const IterComp = struct {
+        anim: *components.Animation,
+        pos: *components.Position,
+        spr: *components.Sprite,
+    };
+
     var it = anim_group.iterator(IterComp);
 
     const current_time = std.time.milliTimestamp();
@@ -107,29 +114,23 @@ pub fn update() void {
         // apply easing function
         const eased_progress = applyEasing(raw_progress, animation.easing);
 
-        // update position component if it exists
-        if (world.has(components.Position, entity)) {
-            const position = world.get(components.Position, entity);
-            updatePosition(position, animation, eased_progress);
-        }
-
-        // update sprite component if it exists
-        if (world.has(components.Sprite, entity)) {
-            const sprite = world.get(components.Sprite, entity);
-            updateSprite(sprite, animation, eased_progress);
-        }
+        // update position & sprite directly via pointers from the iterator
+        updatePosition(comps.pos, animation, eased_progress);
+        updateSprite(comps.spr, animation, eased_progress);
 
         // check if animation is complete
         if (raw_progress >= 1.0) {
             // revert?
             if (animation.revert_when_done) {
-                if (world.has(components.Position, entity) and animation.animate_position and animation.start_pos != null) {
-                    const position = world.get(components.Position, entity);
-                    position.* = components.Position{ .x = animation.start_pos.?[0], .y = animation.start_pos.?[1] };
+                if (animation.animate_position and animation.start_pos != null) {
+                    comps.pos.* = components.Position{
+                        .x = animation.start_pos.?[0],
+                        .y = animation.start_pos.?[1],
+                    };
                 }
 
-                if (world.has(components.Sprite, entity)) {
-                    const sprite_ptr = world.get(components.Sprite, entity);
+                {
+                    const sprite_ptr = comps.spr;
 
                     if (animation.animate_alpha and animation.start_alpha != null) {
                         sprite_ptr.rgba[3] = animation.start_alpha.?;
@@ -284,7 +285,7 @@ pub fn createRippledFallingRow(_: usize, existing_entities: []const ecsroot.Enti
 
 pub fn createExplosionAll() void {
     const world = ecs.getWorld();
-    var view = world.view(.{components.Position, components.Sprite}, .{});
+    var view = world.view(.{ components.Position, components.Sprite }, .{});
     var it = view.entityIterator();
 
     const now = std.time.milliTimestamp();
