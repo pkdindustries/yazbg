@@ -65,7 +65,7 @@ pub fn draw() void {
         const pos = no_shader_group.?.get(components.Position, e);
         const tex = no_shader_group.?.get(components.Texture, e);
 
-        drawTexturedSquare(@intFromFloat(pos.x), @intFromFloat(pos.y), tex.texture, tex, sprite.rgba, sprite.size, sprite.rotation);
+        drawTexturedSquare(pos.x, pos.y, tex.texture, tex, sprite.rgba, sprite.size, sprite.rotation);
     }
 
     // ---------------------------------------------------------------------
@@ -101,8 +101,8 @@ pub fn draw() void {
         };
 
         drawTexturedSquare(
-            @intFromFloat(comps.position.x),
-            @intFromFloat(comps.position.y),
+            comps.position.x,
+            comps.position.y,
             comps.texture.texture,
             comps.texture,
             comps.sprite.rgba,
@@ -119,8 +119,8 @@ pub fn draw() void {
 // ---------------------------------------------------------------------------
 
 fn drawTexturedSquare(
-    x: i32,
-    y: i32,
+    x: f32,
+    y: f32,
     texture: *const ray.RenderTexture2D,
     tex_component: *const components.Texture,
     tint: [4]u8,

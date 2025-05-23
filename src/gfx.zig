@@ -372,8 +372,8 @@ pub fn rotationToDegrees(rotation: f32) f32 {
 
 // Draw a texture with scaling and rotation.
 pub fn drawTexture(
-    x: i32,
-    y: i32,
+    x: f32,
+    y: f32,
     texture: *const ray.RenderTexture2D,
     uv: [4]f32,
     tint: [4]u8,
@@ -397,8 +397,8 @@ pub fn drawTexture(
 
     // Destination rectangle – top-left corner at (x, y).
     const dest = ray.Rectangle{
-        .x = @as(f32, @floatFromInt(x)),
-        .y = @as(f32, @floatFromInt(y)),
+        .x = x,
+        .y = y,
         .width = cellsize_scaled,
         .height = cellsize_scaled,
     };
