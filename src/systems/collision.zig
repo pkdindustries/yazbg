@@ -8,7 +8,7 @@ const components = @import("../components.zig");
 pub fn update() void {
     // move all entities with velocity
     moveEntities();
-    
+
     // check collisions between entities
     checkCollisions();
 }
@@ -16,56 +16,56 @@ pub fn update() void {
 fn moveEntities() void {
     var moving = ecs.getWorld().view(.{ components.Position, components.Velocity }, .{});
     var iter = moving.entityIterator();
-    
+
     const dt = ray.GetFrameTime();
     const gravity = 500.0; // pixels per second squared
-    
+
     while (iter.next()) |entity| {
         const pos = moving.get(components.Position, entity);
         const vel = moving.get(components.Velocity, entity);
-        
+
         // apply gravity
         vel.y += gravity * dt;
-        
+
         // apply velocity
         pos.x += vel.x * dt;
         pos.y += vel.y * dt;
-        
-        // simple bounce off screen edges
-        if (pos.x < 0 or pos.x > 640) {
-            vel.x *= -0.8; // bounce with dampening
-        }
-        if (pos.y > 760) {
-            vel.y *= -0.6; // bounce off bottom
-            pos.y = 760;
-        }
     }
 }
 
 fn checkCollisions() void {
     var colliders = ecs.getWorld().view(.{ components.Position, components.Collider }, .{});
     var iter1 = colliders.entityIterator();
-    
+
+    var collision_count: u32 = 0;
+    var entity_count: u32 = 0;
+
     // simple O(n²) collision detection - good enough for vampire survivors
     while (iter1.next()) |entity1| {
+        entity_count += 1;
         const pos1 = colliders.get(components.Position, entity1);
         const col1 = colliders.get(components.Collider, entity1);
-        
+
         var iter2 = colliders.entityIterator();
         while (iter2.next()) |entity2| {
             if (entity1 == entity2) continue;
-            
+
             const pos2 = colliders.get(components.Position, entity2);
             const col2 = colliders.get(components.Collider, entity2);
-            
-            // skip if on same collision layer
-            if (col1.layer == col2.layer) continue;
-            
+
+            // all entities collide with each other regardless of layer
+
             if (checkCollision(pos1, col1, pos2, col2)) {
+                collision_count += 1;
                 // collision detected - could trigger events here
                 handleCollision(entity1, entity2, col1, col2);
             }
         }
+    }
+
+    const frame_count = @as(u32, @intFromFloat(ray.GetTime() * 60)) % 60;
+    if (frame_count == 0 and entity_count > 0) {
+        std.debug.print("collision system: {} entities, {} collisions detected\n", .{ entity_count, collision_count / 2 }); // divide by 2 because each collision is counted twice
     }
 }
 
@@ -83,7 +83,7 @@ fn checkCollision(
                 .width = rect1.width,
                 .height = rect1.height,
             };
-            
+
             switch (col2.shape) {
                 .rectangle => |rect2| {
                     const r2 = ray.Rectangle{
@@ -102,7 +102,7 @@ fn checkCollision(
         },
         .circle => |circ1| {
             const center1 = ray.Vector2{ .x = pos1.x, .y = pos1.y };
-            
+
             switch (col2.shape) {
                 .rectangle => |rect2| {
                     const r2 = ray.Rectangle{
@@ -129,24 +129,74 @@ fn handleCollision(
     col2: *const components.Collider,
 ) void {
     // basic collision response - could be expanded with events system
-    
+
     // if either is a trigger, don't do physics response
     if (col1.is_trigger or col2.is_trigger) {
         // just log for now - could trigger pickup events, damage, etc.
         return;
     }
-    
-    // simple physics response - stop movement
+
+    // simple physics response - bounce off
     if (ecs.get(components.Velocity, entity1)) |_| {
         const vel1 = ecs.getUnchecked(components.Velocity, entity1);
-        vel1.x *= 0.5; // simple bounce/friction
-        vel1.y *= 0.5;
+        const pos1 = ecs.getUnchecked(components.Position, entity1);
+        const pos2 = ecs.getUnchecked(components.Position, entity2);
+
+        // calculate collision normal (simplified)
+        const dx = pos1.x - pos2.x;
+        const dy = pos1.y - pos2.y;
+        const dist = @sqrt(dx * dx + dy * dy);
+
+        if (dist > 0.01) { // avoid division by zero
+            // normalize
+            const nx = dx / dist;
+            const ny = dy / dist;
+
+            // calculate overlap amount (simplified - assumes circles)
+            const min_distance = 50.0; // approximate size
+            const overlap = min_distance - dist;
+
+            if (overlap > 0) {
+                // separate objects to prevent overlap
+                const separation = overlap * 0.5;
+                pos1.x += nx * separation;
+                pos1.y += ny * separation;
+            }
+
+            // apply bounce force
+            const bounce_force = 100.0;
+            vel1.x += nx * bounce_force;
+            vel1.y += ny * bounce_force;
+
+            // apply some damping
+            vel1.x *= 0.95;
+            vel1.y *= 0.95;
+        }
     }
-    
+
     if (ecs.get(components.Velocity, entity2)) |_| {
         const vel2 = ecs.getUnchecked(components.Velocity, entity2);
-        vel2.x *= 0.5;
-        vel2.y *= 0.5;
+        const pos1 = ecs.getUnchecked(components.Position, entity1);
+        const pos2 = ecs.getUnchecked(components.Position, entity2);
+
+        // calculate collision normal (opposite direction)
+        const dx = pos2.x - pos1.x;
+        const dy = pos2.y - pos1.y;
+        const dist = @sqrt(dx * dx + dy * dy);
+
+        if (dist > 0.01) { // avoid division by zero
+            // normalize and apply bounce
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const bounce_force = 200.0;
+
+            vel2.x += nx * bounce_force;
+            vel2.y += ny * bounce_force;
+
+            // apply some damping
+            vel2.x *= 0.9;
+            vel2.y *= 0.9;
+        }
     }
 }
 
