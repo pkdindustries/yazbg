@@ -1,24 +1,52 @@
+// engine/components.zig - Generic reusable components for any game
 const std = @import("std");
 const ecs = @import("ecs");
 const ray = @import("raylib.zig");
 
-// rendering and general positioning (pixel coordinates)
-pub const Position = struct { x: f32, y: f32 }; // Replaces anim_state.position [cite: 464]
+// ---------------------------------------------------------------------------
+// Core Components
+// ---------------------------------------------------------------------------
 
-// visual representation (color, scale, rotation)
-pub const Sprite = struct { rgba: [4]u8, size: f32, rotation: f32 = 0.0 }; // Replaces anim_state.color, scale[cite: 464], CellData.color [cite: 482]
+// Rendering and general positioning (pixel coordinates)
+pub const Position = struct { x: f32, y: f32 };
 
-// texture
+// Visual representation (color, scale, rotation)
+pub const Sprite = struct {
+    rgba: [4]u8,
+    size: f32, // Scale factor or absolute size depending on game
+    rotation: f32 = 0.0, // Rotation in normalized units (0.0-1.0 = 0-360 degrees)
+};
+
+// Texture reference with UV coordinates
 pub const Texture = struct {
-    // Pointer to the shared render texture.
+    // Pointer to the shared render texture
     texture: *const ray.RenderTexture2D,
     uv: [4]f32 = .{ 0.0, 0.0, 1.0, 1.0 },
     created: bool = false,
 };
 
-// shader
+// ---------------------------------------------------------------------------
+// Shader System
+// ---------------------------------------------------------------------------
+
+pub const UniformType = enum {
+    float,
+    vec2,
+    vec3,
+    vec4,
+    texture,
+};
+
+pub const ShaderUniform = union(UniformType) {
+    float: f32,
+    vec2: [2]f32,
+    vec3: [3]f32,
+    vec4: [4]f32,
+    texture: *const ray.Texture2D,
+};
+
 pub const Shader = struct {
-    // Pointer to the shared shader.
+    // Pointer to the shared shader
     shader: *const ray.Shader,
     // Whether this component owns the shader (responsible for unloading)
     created: bool = false,
@@ -61,27 +89,9 @@ pub const Shader = struct {
     }
 };
 
-pub const UniformType = enum {
-    float,
-    vec2,
-    vec3,
-    vec4,
-    texture,
-};
-
-pub const ShaderUniform = union(UniformType) {
-    float: f32,
-    vec2: [2]f32,
-    vec3: [3]f32,
-    vec4: [4]f32,
-    texture: *const ray.Texture2D,
-};
-
-// Tag for temporary flash/fade effects
-pub const Flash = struct {
-    ttl_ms: i64,
-    expires_at_ms: i64,
-};
+// ---------------------------------------------------------------------------
+// Animation System
+// ---------------------------------------------------------------------------
 
 pub const easing_types = enum {
     linear,
@@ -89,6 +99,7 @@ pub const easing_types = enum {
     ease_out,
     ease_in_out,
 };
+
 // Generic animation component for any property animations
 pub const Animation = struct {
     // Animation type flags - which properties to animate
@@ -141,48 +152,22 @@ pub const Animation = struct {
     on_complete: ?*const fn (entity: ecs.Entity) void = null,
 };
 
-// --- Components for later steps (define now for clarity) ---
+// ---------------------------------------------------------------------------
+// Effects
+// ---------------------------------------------------------------------------
 
-// For static blocks settled on the grid
-pub const GridPos = struct { x: i32, y: i32 }; // Logical grid coordinates (replaces CellLayer indexing [cite: 476])
-pub const BlockTag = struct {}; // Marker for settled blocks
-
-// For the active player piece
-pub const PieceKind = struct { shape: *const [4][4][4]bool, color: [4]u8 }; // From game.state.piece.current [cite: 128]
-pub const Rotation = struct { index: u2 }; // From game.state.piece.r [cite: 129]
-pub const ActivePieceTag = struct {}; // Marker for the single active piece entity
-pub const PieceBlockTag = struct {}; // Marker for blocks belonging to active piece
-pub const GhostBlockTag = struct {}; // Marker for blocks belonging to ghost preview
-
-// HUD preview tags
-pub const NextPreviewTag = struct {}; // blocks belonging to the "next" piece preview
-pub const HoldPreviewTag = struct {}; // blocks belonging to the "held" piece preview
-pub const AnimatingToHoldTag = struct {}; // blocks being animated to the hold position
-pub const AnimatingFromHoldTag = struct {}; // blocks being animated from hold position to spawn
-
-// Per-block cell indices (used by preview system for animations)
-pub const PreviewCell = struct { col: i32, row: i32 };
-
-// Player piece state - stored with the active piece entity
-pub const PlayerPieceState = struct {
-    x: i32, // logical grid x position
-    y: i32, // logical grid y position
-    prev_x: i32 = 0, // previous x position for animation
-    prev_y: i32 = 0, // previous y position for animation
-    prev_ghost_y: i32 = 0, // previous ghost y for animation
-    rotation: u32, // current rotation index
-    ghost_y: i32, // calculated landing position
-    piece_index: u32, // current piece type index
-    has_piece: bool = true, // whether this entity has an active piece
+// Tag for temporary flash/fade effects
+pub const Flash = struct {
+    ttl_ms: i64,
+    expires_at_ms: i64,
 };
 
-// --- Physics/Collision Components ---
+// ---------------------------------------------------------------------------
+// Physics/Movement
+// ---------------------------------------------------------------------------
 
 // Velocity for moving entities
-pub const Velocity = struct { 
-    x: f32 = 0.0, 
-    y: f32 = 0.0 
-};
+pub const Velocity = struct { x: f32 = 0.0, y: f32 = 0.0 };
 
 // Collision detection shape
 pub const Collider = struct {
@@ -192,4 +177,19 @@ pub const Collider = struct {
     },
     layer: u8 = 0, // collision layers (player=1, enemy=2, projectile=4, etc)
     is_trigger: bool = false, // just detect, don't block movement
+};
+
+// ---------------------------------------------------------------------------
+// Debug System
+// ---------------------------------------------------------------------------
+
+// Global debug state
+pub const DebugState = struct {
+    enabled: bool = false,
+    show_entity_count: bool = true,
+    show_fps: bool = true,
+    show_component_info: bool = true,
+    show_entity_bounds: bool = true,
+    show_grid: bool = false,
+    overlay_opacity: u8 = 128,
 };

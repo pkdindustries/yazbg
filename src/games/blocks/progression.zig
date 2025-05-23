@@ -26,12 +26,12 @@ pub const Progression = struct {
         const line_score = 1000 * cleared * cleared;
         self.score += line_score;
         // Send score update event
-        events.push(.{ .ScoreUpdate = line_score }, events.Source.Level);
+        events.push(.{ .ScoreUpdate = line_score }, events.Source.Game);
 
         self.cleared += cleared;
         // Tetris bonus
         if (cleared > 3) {
-            events.push(.Win, events.Source.Level);
+            events.push(.Win, events.Source.Game);
         }
         // Level up
         self.clearedthislevel += cleared;
@@ -41,7 +41,7 @@ pub const Progression = struct {
             const level_bonus = 1000 * self.level;
             self.score += level_bonus;
             // Send score update for level bonus
-            events.push(.{ .ScoreUpdate = level_bonus }, events.Source.Level);
+            events.push(.{ .ScoreUpdate = level_bonus }, events.Source.Game);
 
             self.dropinterval_ms -= 150;
             self.clearedthislevel = 0;
@@ -49,8 +49,8 @@ pub const Progression = struct {
                 self.dropinterval_ms = 100;
             }
 
-            events.push(.{ .LevelUp = @as(u8, @intCast(self.level)) }, events.Source.Level);
-            events.push(.NextBackground, events.Source.Level);
+            events.push(.{ .LevelUp = @as(u8, @intCast(self.level)) }, events.Source.Game);
+            events.push(.NextBackground, events.Source.Game);
         }
     }
 };

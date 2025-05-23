@@ -1,19 +1,22 @@
 // Simplified player rendering system.
 
-const std = @import("std");
-const ecs = @import("../ecs.zig");
-const ecsroot = @import("ecs");
-const components = @import("../components.zig");
-const gfx = @import("../gfx.zig");
+const common = @import("../common.zig");
+const std = common.std;
+const components = common.components;
+const ecs = common.ecs;
+const gfx = common.gfx;
+const constants = common.game_constants;
+
 const pieces = @import("../pieces.zig");
 const blocks = @import("../blockbuilder.zig");
+const ecsroot = @import("ecs");
 
 inline fn cellSize() i32 {
-    return gfx.window.cellsize;
+    return constants.CELL_SIZE;
 }
 
-fn getPieceBlocks() @TypeOf(ecs.getPieceBlocksView().entityIterator()) {
-    var view = ecs.getPieceBlocksView();
+fn getPieceBlocks() @TypeOf(common.getPieceBlocksView().entityIterator()) {
+    var view = common.getPieceBlocksView();
     return view.entityIterator();
 }
 
@@ -23,8 +26,8 @@ var last_rotation: u32 = 0;
 var last_piece_index: u32 = 0;
 var last_ghost_y: i32 = 0;
 
-fn getGhostBlocks() @TypeOf(ecs.getGhostBlocksView().entityIterator()) {
-    var view = ecs.getGhostBlocksView();
+fn getGhostBlocks() @TypeOf(common.getGhostBlocksView().entityIterator()) {
+    var view = common.getGhostBlocksView();
     return view.entityIterator();
 }
 
@@ -48,8 +51,8 @@ pub fn updatePlayerPosition(
     // 1. Translate logical grid coordinates to pixel coordinates (top-left
     //    corner of the piece in the off-screen 640×760 render target).
     const cs = cellSize();
-    const origin_x = gfx.window.gridoffsetx + x * cs;
-    const origin_y = gfx.window.gridoffsety + y * cs;
+    const origin_x = constants.GRID_OFFSET_X + x * cs;
+    const origin_y = constants.GRID_OFFSET_Y + y * cs;
 
     // 2. Retrieve shape & colour of the piece to draw.
     const t = pieces.tetraminos[piece_index];
@@ -62,7 +65,7 @@ pub fn updatePlayerPosition(
     blocks.createPlayerPiece(origin_x, origin_y, shape, colour);
 
     // Ghost – same shape & colour but semi-transparent at landing Y.
-    const ghost_origin_y = gfx.window.gridoffsety + ghost_y * cs;
+    const ghost_origin_y = constants.GRID_OFFSET_Y + ghost_y * cs;
     blocks.createGhostPiece(origin_x, ghost_origin_y, shape, colour);
 
     // Persist values for the hard-drop effect.
@@ -81,8 +84,8 @@ pub fn redraw() void {
 
 // Provide the pixel-space origin (top-left) of the most recently stored piece.
 pub fn lastOriginPixels() [2]f32 {
-    const x_px = gfx.window.gridoffsetx + last_piece_x * cellSize();
-    const y_px = gfx.window.gridoffsety + last_piece_y * cellSize();
+    const x_px = constants.GRID_OFFSET_X + last_piece_x * cellSize();
+    const y_px = constants.GRID_OFFSET_Y + last_piece_y * cellSize();
     return .{ @floatFromInt(x_px), @floatFromInt(y_px) };
 }
 
@@ -110,7 +113,7 @@ pub fn harddrop() void {
     const now = std.time.milliTimestamp();
 
     // The logical spawn row (y = 0) in pixel space.
-    const spawn_origin_y = @as(f32, @floatFromInt(gfx.window.gridoffsety));
+    const spawn_origin_y = @as(f32, @floatFromInt(constants.GRID_OFFSET_Y));
 
     // For every piece block currently on the board, create a transient clone
     // that starts at the spawn row and travels to its final resting place.
@@ -120,7 +123,7 @@ pub fn harddrop() void {
         // Compute the block's row offset inside the piece so we can position
         // the starting y correctly (row offset * cellSize).
         const pixel_y_i32: i32 = @as(i32, @intFromFloat(p_pos.y));
-        const row_offset_pixels: i32 = @mod(pixel_y_i32 - gfx.window.gridoffsety, cellSize());
+        const row_offset_pixels: i32 = @mod(pixel_y_i32 - constants.GRID_OFFSET_Y, cellSize());
         const row_offset: f32 = @floatFromInt(row_offset_pixels);
         const start_y = spawn_origin_y + row_offset;
 

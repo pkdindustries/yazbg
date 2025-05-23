@@ -1,30 +1,30 @@
-# yazbg
-yet another zig block game! 
+# yazge
+yet another zig game engine! 
 
-![Screenshot of yazbg](screenshot.jpg)
+because the world clearly needed another "engine" 
 
+its just raylib taped to zig-ecs with bad opinions 
 
-block games [tm] have always been my goto project for learning a new language. so here we are, my first zig program.
-(it started as my first zig program, now it's also has a bunch of claude vibes)
-
-raylib is used for graphics and input
-zig-ecs for entities
+current status: can render falling squares
 
 https://www.raylib.com/
 https://github.com/prime31/zig-ecs
+
+![Screenshot of yazbg](screenshot.jpg)
+
 
 ## install
 ```bash
 git clone https://github.com/pkdindustries/yazbg
 cd yazbg
-# native
-zig build run
+# build and run the blocks game
+zig build blocks
 # wasm
 zig build -Dtarget=wasm32-emscripten -Doptimize=ReleaseSmall --sysroot <emsdk>
 
 ```
 
-## controls
+## blocks game controls
 ```
   left/right: move
   up: rotate

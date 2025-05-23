@@ -1,13 +1,12 @@
-const std = @import("std");
-
-// External modules -----------------------------------------------------------
-
-const ray = @import("raylib.zig");
-const ecs = @import("ecs.zig");
+const common = @import("common.zig");
+const std = common.std;
+const components = common.components;
+const ecs = common.ecs;
+const gfx = common.gfx;
+const textures = common.textures;
+const ray = common.ray;
+const game_constants = common.game_constants;
 const ecsroot = @import("ecs");
-const components = @import("components.zig");
-const gfx = @import("gfx.zig");
-const textures = @import("textures.zig");
 
 pub const Color = textures.Color;
 pub const UV = textures.UV;
@@ -35,7 +34,9 @@ fn spawnBlock(x: f32, y: f32, rgba: Color, comptime Tag: type) !ecsroot.Entity {
     ecs.replace(components.Sprite, e, components.Sprite{ .rgba = rgba, .size = 1.0 });
 
     try addBlockTextureWithAtlas(e, rgba);
-    ecs.replace(Tag, e, Tag{});
+    if (!ecs.has(Tag, e)) {
+        ecs.add(e, Tag{});
+    }
 
     return e;
 }
@@ -70,7 +71,7 @@ fn buildPieceEntities(
     color: Color,
     is_ghost: bool,
 ) void {
-    const cs: i32 = gfx.window.cellsize;
+    const cs: i32 = game_constants.CELL_SIZE;
 
     for (shape, 0..) |row, col_idx| {
         for (row, 0..) |cell, row_idx| {
@@ -170,7 +171,7 @@ pub fn drawBlockIntoTile(
     _: []const u8,
     context: ?*const anyopaque,
 ) void {
-    const padding: f32 = @as(f32, @floatFromInt(gfx.window.cellpadding)) * 2.0;
+    const padding: f32 = @as(f32, @floatFromInt(game_constants.CELL_PADDING)) * 2.0;
     const block_size = @as(f32, @floatFromInt(tile_size)) - padding * 2.0;
 
     const rect = ray.Rectangle{

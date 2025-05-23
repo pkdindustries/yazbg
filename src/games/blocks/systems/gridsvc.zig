@@ -1,15 +1,18 @@
-const std = @import("std");
+const common = @import("../common.zig");
+const std = common.std;
+const components = common.components;
+const ecs = common.ecs;
+const gfx = common.gfx;
+const textures = common.textures;
+const shaders = common.shaders;
+const animsys = common.animsys;
+const events = common.events;
+const constants = common.game_constants;
+
 const cells = @import("../cell.zig");
 const pieces = @import("../pieces.zig");
-const events = @import("../events.zig");
-const ecs = @import("../ecs.zig");
-const ecsroot = @import("ecs");
-const components = @import("../components.zig");
-const animsys = @import("anim.zig");
-const shaders = @import("../shaders.zig");
-const gfx = @import("../gfx.zig");
-const textures = @import("../textures.zig");
 const blocks = @import("../blockbuilder.zig");
+const ecsroot = @import("ecs");
 
 pub fn occupyCell(gridx: usize, gridy: usize, color: [4]u8) void {
     const entity = ecs.createEntity();
@@ -17,12 +20,14 @@ pub fn occupyCell(gridx: usize, gridy: usize, color: [4]u8) void {
     const gy: i32 = @intCast(gridy);
 
     ecs.replace(components.GridPos, entity, components.GridPos{ .x = gx, .y = gy });
-    ecs.replace(components.BlockTag, entity, components.BlockTag{});
+    if (!ecs.has(components.BlockTag, entity)) {
+        ecs.add(entity, components.BlockTag{});
+    }
 
     // Translate logical grid coordinates into absolute pixel positions (top-left).
-    const cellsize_f32: f32 = @as(f32, @floatFromInt(gfx.window.cellsize));
-    const px = @as(f32, @floatFromInt(gfx.window.gridoffsetx)) + @as(f32, @floatFromInt(gridx)) * cellsize_f32;
-    const py = @as(f32, @floatFromInt(gfx.window.gridoffsety)) + @as(f32, @floatFromInt(gridy)) * cellsize_f32;
+    const cellsize_f32: f32 = @as(f32, @floatFromInt(constants.CELL_SIZE));
+    const px = @as(f32, @floatFromInt(constants.GRID_OFFSET_X)) + @as(f32, @floatFromInt(gridx)) * cellsize_f32;
+    const py = @as(f32, @floatFromInt(constants.GRID_OFFSET_Y)) + @as(f32, @floatFromInt(gridy)) * cellsize_f32;
 
     ecs.replace(components.Position, entity, components.Position{ .x = px, .y = py });
     ecs.replace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
@@ -42,7 +47,7 @@ pub fn occupyCell(gridx: usize, gridy: usize, color: [4]u8) void {
 
 pub fn vacateCell(gridy: i32, gridx: i32) void {
     // Find and remove entity at this position
-    var blocks_view = ecs.getBlocksView();
+    var blocks_view = common.getBlocksView();
     var iter = blocks_view.entityIterator();
     var found_entity: ?ecsroot.Entity = null;
 
@@ -62,7 +67,7 @@ pub fn vacateCell(gridy: i32, gridx: i32) void {
 
 pub fn clearAllCells() void {
     // Remove all block entities
-    var blocks_view = ecs.getBlocksView();
+    var blocks_view = common.getBlocksView();
 
     // We know the maximum entities is WIDTH*HEIGHT (from grid.zig)
     var buffer: [10 * 20]ecsroot.Entity = undefined;
@@ -85,7 +90,7 @@ pub fn clearAllCells() void {
 
 pub fn removeLineCells(line: usize) void {
     // get blocks in this line
-    var blocks_view = ecs.getBlocksView();
+    var blocks_view = common.getBlocksView();
 
     var buffer: [10]ecsroot.Entity = undefined;
     var count: usize = 0;
@@ -117,7 +122,7 @@ var shiftpbuffer: [10]components.Position = undefined;
 var shiftgbuffer: [10]components.GridPos = undefined;
 pub fn shiftRowCells(line: usize) void {
     // Sshift all entities in this line down
-    var blocks_view = ecs.getBlocksView();
+    var blocks_view = common.getBlocksView();
 
     var count: usize = 0;
 
@@ -132,17 +137,17 @@ pub fn shiftRowCells(line: usize) void {
 
                     // Store position
                     if (ecs.get(components.Position, entity)) |pos| {
-                        shiftpbuffer[count] = pos;
+                        shiftpbuffer[count] = pos.*;
                     } else {
                         // If no position component, use default (unlikely)
-                        const cellsize_f32: f32 = @as(f32, @floatFromInt(gfx.window.cellsize));
-                        const px = @as(f32, @floatFromInt(gfx.window.gridoffsetx)) + @as(f32, @floatFromInt(grid_pos.x)) * cellsize_f32;
-                        const py = @as(f32, @floatFromInt(gfx.window.gridoffsety)) + @as(f32, @floatFromInt(grid_pos.y)) * cellsize_f32;
+                        const cellsize_f32: f32 = @as(f32, @floatFromInt(constants.CELL_SIZE));
+                        const px = @as(f32, @floatFromInt(constants.GRID_OFFSET_X)) + @as(f32, @floatFromInt(grid_pos.x)) * cellsize_f32;
+                        const py = @as(f32, @floatFromInt(constants.GRID_OFFSET_Y)) + @as(f32, @floatFromInt(grid_pos.y)) * cellsize_f32;
                         shiftpbuffer[count] = .{ .x = px, .y = py };
                     }
 
                     // Store grid position
-                    shiftgbuffer[count] = grid_pos;
+                    shiftgbuffer[count] = grid_pos.*;
 
                     count += 1;
                 }
@@ -153,7 +158,7 @@ pub fn shiftRowCells(line: usize) void {
     // Update all collected entities
     for (0..count) |idx| {
         const entity = shiftbuffer[idx];
-        const cellsize_f32: f32 = @as(f32, @floatFromInt(gfx.window.cellsize));
+        const cellsize_f32: f32 = @as(f32, @floatFromInt(constants.CELL_SIZE));
         var pos = shiftpbuffer[idx];
         var grid_pos = shiftgbuffer[idx];
 

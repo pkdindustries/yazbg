@@ -1,6 +1,6 @@
 const std = @import("std");
 const events = @import("events.zig");
-const ray = @import("raylib.zig");
+const ray = @import("engine").raylib;
 const shapes = @import("pieces.zig");
 
 // Lightweight, event‑driven heads‑up display state.  The renderer queries the

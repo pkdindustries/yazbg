@@ -1,17 +1,19 @@
-const std = @import("std");
-
 // Live HUD previews for "next" and "held" pieces implemented using regular
 // ECS entities.  Each individual block is a tiny sprite entity tagged with one
 // of the marker components below so we can query and animate them later
 // without keeping any external lists.
 
-const ecs = @import("../ecs.zig");
-const ecsroot = @import("ecs");
-const components = @import("../components.zig");
-const gfx = @import("../gfx.zig");
+const common = @import("../common.zig");
+const std = common.std;
+const components = common.components;
+const ecs = common.ecs;
+const gfx = common.gfx;
+const constants = common.game_constants;
+
 const pieces = @import("../pieces.zig");
 const blocks = @import("../blockbuilder.zig");
 const playersys = @import("player.zig");
+const ecsroot = @import("ecs");
 
 // ---------------------------------------------------------------------------
 // Additional components used only by this system
@@ -50,29 +52,29 @@ pub fn reset() void {
 
 inline fn holdAnchorY() i32 {
     // 35 pixels below the top + the grid offset (70).
-    return gfx.window.gridoffsety + 35;
+    return constants.GRID_OFFSET_Y + 35;
 }
 
 inline fn nextAnchorX() i32 {
     // Mirrors the old immediate-draw HUD implementation.
-    return gfx.Window.OGWIDTH - 250 + gfx.window.gridoffsetx; // 640 – 250 + 165 = 555
+    return gfx.Window.OGWIDTH - 250 + constants.GRID_OFFSET_X; // 640 – 250 + 165 = 555
 }
 
 inline fn nextAnchorY() i32 {
-    return gfx.window.gridoffsety + 35;
+    return constants.GRID_OFFSET_Y + 35;
 }
 
 // Spawn location (top-left corner of a freshly spawned piece).
 inline fn spawnX() i32 {
-    return gfx.window.gridoffsetx + 4 * gfx.window.cellsize;
+    return constants.GRID_OFFSET_X + 4 * constants.CELL_SIZE;
 }
 
 inline fn spawnY() i32 {
-    return gfx.window.gridoffsety;
+    return constants.GRID_OFFSET_Y;
 }
 
 // Convenience alias.
-const CellSize = @TypeOf(gfx.window.cellsize);
+const CellSize = @TypeOf(constants.CELL_SIZE);
 
 // ---------------------------------------------------------------------------
 // Public API – invoked from the central event dispatcher (gfx.process)
@@ -135,7 +137,7 @@ fn animateHeldToCurrentPiece() void {
     var it = view.entityIterator();
 
     const now = std.time.milliTimestamp();
-    const cs = gfx.window.cellsize;
+    const cs = constants.CELL_SIZE;
 
     while (it.next()) |ent| {
         const pos = view.get(components.Position, ent);
@@ -238,7 +240,7 @@ fn buildPreview(
     ay: i32,
     comptime Tag: type,
 ) void {
-    const cs = gfx.window.cellsize;
+    const cs = constants.CELL_SIZE;
 
     const shape = t.shape[0]; // rotation 0 is fine for the preview
     const color = t.color;
@@ -275,7 +277,7 @@ inline fn buildNextPreview(t: pieces.tetramino) void {
     // Remove any lingering preview blocks first.
     clearTag(NextPreviewTag);
 
-    const cs = gfx.window.cellsize;
+    const cs = constants.CELL_SIZE;
     const ax = nextAnchorX();
     const ay = nextAnchorY();
 
@@ -343,7 +345,7 @@ fn animateNextPreviewToSpawn() void {
     var view = world.view(.{ NextPreviewTag, PreviewCell, components.Position }, .{});
     var it = view.entityIterator();
 
-    const cs = gfx.window.cellsize;
+    const cs = constants.CELL_SIZE;
     const now = std.time.milliTimestamp();
 
     while (it.next()) |ent| {

@@ -3,7 +3,7 @@ const std = @import("std");
 const Grid = @import("grid.zig").Grid;
 const shapes = @import("pieces.zig");
 const events = @import("events.zig");
-const level = @import("level.zig");
+const level = @import("progression.zig");
 
 // helper: pick a random tetramino
 fn randomTetramino(rng: *std.Random.DefaultPrng) shapes.tetramino {
@@ -170,8 +170,8 @@ fn dropToBottom() void {
 }
 
 // result type for lock piece operation
-const LockResult = struct { 
-    blocks: [4]events.CellDataPos, 
+const LockResult = struct {
+    blocks: [4]struct { x: i32, y: i32, color: [4]u8 },
     count: usize,
 };
 
@@ -181,7 +181,7 @@ fn lockPiece() LockResult {
         .blocks = undefined,
         .count = 0,
     };
-    
+
     if (state.piece.current) |piece| {
         const shape = piece.shape[state.piece.r];
         for (shape, 0..) |row, i| {
@@ -192,19 +192,19 @@ fn lockPiece() LockResult {
                     if (gx >= 0 and gx < Grid.WIDTH and gy >= 0 and gy < Grid.HEIGHT) {
                         const ix = @as(usize, @intCast(gx));
                         const iy = @as(usize, @intCast(gy));
-                        
+
                         if (result.count < result.blocks.len) {
-                            result.blocks[result.count] = .{ .x = ix, .y = iy, .color = piece.color };
+                            result.blocks[result.count] = .{ .x = @intCast(ix), .y = @intCast(iy), .color = piece.color };
                             result.count += 1;
                         }
-                        
+
                         state.grid.occupyBlocks(ix, iy, piece.color);
                     }
                 }
             }
         }
     }
-    
+
     return result;
 }
 
@@ -220,28 +220,40 @@ fn clearCompletedLines() void {
 // drop piece to bottom and clear lines
 pub fn harddrop() void {
     if (frozen()) return;
-    
+
     // drop to bottom
     dropToBottom();
-    
+
     // lock piece and get block positions
     const lock_result = lockPiece();
-    
+
     // emit events
     events.push(.HardDropEffect, events.Source.Game);
     if (lock_result.count > 0) {
-        events.push(.{ .PieceLocked = .{ 
-            .blocks = lock_result.blocks, 
-            .count = lock_result.count 
-        } }, events.Source.Game);
+        // Create PieceLocked event directly with the data
+        var piece_locked_event = events.Event{ 
+            .PieceLocked = .{
+                .blocks = undefined,
+                .count = lock_result.count,
+            }
+        };
+        // Copy the blocks
+        for (0..4) |i| {
+            piece_locked_event.PieceLocked.blocks[i] = .{
+                .x = lock_result.blocks[i].x,
+                .y = lock_result.blocks[i].y,
+                .color = lock_result.blocks[i].color,
+            };
+        }
+        events.push(piece_locked_event, events.Source.Game);
     }
-    
+
     // update timing
     state.lastmove_ms = state.current_time_ms;
-    
+
     // clear lines
     clearCompletedLines();
-    
+
     // spawn next piece
     nextpiece();
 }
