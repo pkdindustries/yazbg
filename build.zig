@@ -1,18 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-// wasm references used to create this:
-// https://github.com/permutationlock/zig_emscripten_threads/blob/main/build.zig
-// https://ziggit.dev/docs?topic=3531
-// https://ziggit.dev/t/state-of-concurrency-support-on-wasm32-freestanding/1465/8
-// https://ziggit.dev/t/why-suse-offset-converter-is-needed/4131/3
-// https://github.com/raysan5/raylib/blob/master/src/build.zig
-// https://github.com/silbinarywolf/3d-raylib-toy-project/blob/main/raylib-zig/build.zig
-// https://github.com/ziglang/zig/issues/10836
-// https://github.com/bluesillybeard/ZigAndRaylibSetup/blob/main/build.zig
-// https://github.com/Not-Nik/raylib-zig/issues/24
-// https://github.com/raysan5/raylib/wiki/Working-for-Web-%28HTML5%29
-
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -60,7 +48,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     engine_module.addImport("ecs", ecs_dep.module("zig-ecs"));
-    
+
     // Add raylib include path to engine module
     engine_module.addIncludePath(raylib_dep.path("src"));
 
