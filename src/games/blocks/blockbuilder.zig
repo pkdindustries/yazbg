@@ -2,13 +2,21 @@ const std = @import("std");
 
 // External modules -----------------------------------------------------------
 
-const ray = @import("raylib.zig");
-const ecs = @import("ecs.zig");
+const engine = @import("engine");
+const ray = engine.raylib;
+const ecs = engine.ecs;
 const ecsroot = @import("ecs");
-const components = @import("components.zig");
-const gfx = @import("gfx.zig");
-const textures = @import("textures.zig");
+const engine_components = engine.components;
+const gfx = @import("engine").gfx;
+const textures = @import("engine").textures;
 const game_constants = @import("game_constants.zig");
+const game_components = @import("components.zig");
+
+// Use both engine and game components
+const components = struct {
+    pub usingnamespace engine_components;
+    pub usingnamespace game_components;
+};
 
 pub const Color = textures.Color;
 pub const UV = textures.UV;
@@ -36,7 +44,9 @@ fn spawnBlock(x: f32, y: f32, rgba: Color, comptime Tag: type) !ecsroot.Entity {
     ecs.replace(components.Sprite, e, components.Sprite{ .rgba = rgba, .size = 1.0 });
 
     try addBlockTextureWithAtlas(e, rgba);
-    ecs.replace(Tag, e, Tag{});
+    if (!ecs.has(Tag, e)) {
+        ecs.add(e, Tag{});
+    }
 
     return e;
 }

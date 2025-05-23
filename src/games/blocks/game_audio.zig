@@ -1,6 +1,6 @@
 // game_audio.zig - Audio configuration and event mapping for the tetris game
 const std = @import("std");
-const sfx = @import("sfx.zig");
+const sfx = @import("engine").sfx;
 const events = @import("events.zig");
 
 // ---------------------------------------------------------------------------

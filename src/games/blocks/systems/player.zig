@@ -1,10 +1,12 @@
 // Simplified player rendering system.
 
 const std = @import("std");
-const ecs = @import("../ecs.zig");
+const ecs = @import("engine").ecs;
 const ecsroot = @import("ecs");
-const components = @import("../components.zig");
-const gfx = @import("../gfx.zig");
+const components = @import("engine").components;
+const engine_components = @import("engine").components;
+const ecs_helpers = @import("../ecs_helpers.zig");
+const gfx = @import("engine").gfx;
 const pieces = @import("../pieces.zig");
 const blocks = @import("../blockbuilder.zig");
 const game_constants = @import("../game_constants.zig");
@@ -13,8 +15,8 @@ inline fn cellSize() i32 {
     return game_constants.CELL_SIZE;
 }
 
-fn getPieceBlocks() @TypeOf(ecs.getPieceBlocksView().entityIterator()) {
-    var view = ecs.getPieceBlocksView();
+fn getPieceBlocks() @TypeOf(ecs_helpers.getPieceBlocksView().entityIterator()) {
+    var view = ecs_helpers.getPieceBlocksView();
     return view.entityIterator();
 }
 
@@ -24,8 +26,8 @@ var last_rotation: u32 = 0;
 var last_piece_index: u32 = 0;
 var last_ghost_y: i32 = 0;
 
-fn getGhostBlocks() @TypeOf(ecs.getGhostBlocksView().entityIterator()) {
-    var view = ecs.getGhostBlocksView();
+fn getGhostBlocks() @TypeOf(ecs_helpers.getGhostBlocksView().entityIterator()) {
+    var view = ecs_helpers.getGhostBlocksView();
     return view.entityIterator();
 }
 
@@ -116,7 +118,7 @@ pub fn harddrop() void {
     // For every piece block currently on the board, create a transient clone
     // that starts at the spawn row and travels to its final resting place.
     for (piece_list.items) |p_ent| {
-        const p_pos = ecs.get(components.Position, p_ent) orelse continue;
+        const p_pos = ecs.get(engine_components.Position, p_ent) orelse continue;
 
         // Compute the block's row offset inside the piece so we can position
         // the starting y correctly (row offset * cellSize).
@@ -126,16 +128,16 @@ pub fn harddrop() void {
         const start_y = spawn_origin_y + row_offset;
 
         var colour: [4]u8 = [_]u8{ 255, 255, 255, 255 };
-        if (ecs.get(components.Sprite, p_ent)) |spr| {
+        if (ecs.get(engine_components.Sprite, p_ent)) |spr| {
             colour = spr.rgba;
         }
 
         const e = ecs.getWorld().create();
-        ecs.getWorld().add(e, components.Position{ .x = p_pos.x, .y = start_y });
-        ecs.getWorld().add(e, components.Sprite{ .rgba = colour, .size = 1.0 });
+        ecs.getWorld().add(e, engine_components.Position{ .x = p_pos.x, .y = start_y });
+        ecs.getWorld().add(e, engine_components.Sprite{ .rgba = colour, .size = 1.0 });
         _ = blocks.addBlockTextureWithAtlas(e, colour) catch {};
 
-        ecs.getWorld().add(e, components.Animation{
+        ecs.getWorld().add(e, engine_components.Animation{
             .animate_position = true,
             .start_pos = .{ p_pos.x, start_y },
             .target_pos = .{ p_pos.x, p_pos.y },

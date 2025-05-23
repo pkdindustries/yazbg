@@ -1,11 +1,15 @@
 const std = @import("std");
-const ray = @import("raylib.zig");
+
+// Engine imports
+const ray = @import("engine").raylib;
+const ecs = @import("engine").ecs;
+const gfx = @import("engine").gfx;
+const sfx = @import("engine").sfx;
+
+// Game imports
 const game = @import("game.zig");
-const sfx = @import("sfx.zig");
-const gfx = @import("gfx.zig");
 const hud = @import("hud.zig");
 const events = @import("events.zig");
-const ecs = @import("ecs.zig");
 const game_layers = @import("game_layers.zig");
 const game_audio = @import("game_audio.zig");
 const game_constants = @import("game_constants.zig");
@@ -25,6 +29,9 @@ pub fn main() !void {
 
     ecs.init(allocator);
     defer ecs.deinit();
+
+    events.init(allocator);
+    defer events.deinit();
 
     try game.init(allocator);
     defer game.deinit();
@@ -90,16 +97,16 @@ pub fn main() !void {
         }
 
         // queued events
-        game.process(&events.queue);
-        game_audio.processEvents(&events.queue);
-        hud.process(&events.queue);
+        game.process(events.queue());
+        game_audio.processEvents(events.queue());
+        hud.process(events.queue());
         
         // Process events for all layers
-        for (events.queue.items()) |event| {
-            gfx.window.processEvent(event.event);
+        for (events.queue().items()) |event| {
+            gfx.window.processEvent(&event.event);
         }
         
-        events.queue.clear();
+        events.queue().clear();
         const gamelogic_elapsed = timer.lap();
 
         // draw the frame with delta time

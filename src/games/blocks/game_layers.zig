@@ -1,20 +1,21 @@
 // game_layers.zig - Adapts the existing game rendering to the layer system
 const std = @import("std");
-const ray = @import("raylib.zig");
-const gfx = @import("gfx.zig");
+const ray = @import("engine").raylib;
+const gfx = @import("engine").gfx;
 const game = @import("game.zig");
 const hud = @import("hud.zig");
 const events = @import("events.zig");
-const ecs = @import("ecs.zig");
+const ecs = @import("engine").ecs;
 const ecsroot = @import("ecs");
-const components = @import("components.zig");
+const components = @import("engine").components;
 const game_constants = @import("game_constants.zig");
-const animsys = @import("systems/anim.zig");
+const engine = @import("engine");
+const animsys = engine.systems.anim;
 const playersys = @import("systems/player.zig");
-const collisionsys = @import("systems/collision.zig");
+const collisionsys = engine.systems.collision;
 const gridsvc = @import("systems/gridsvc.zig");
 const previewsys = @import("systems/preview.zig");
-const shaders = @import("shaders.zig");
+const shaders = @import("engine").shaders;
 const pieces = @import("pieces.zig");
 
 // ---------------------------------------------------------------------------
@@ -144,10 +145,11 @@ fn backgroundRender(ctx: *anyopaque, rc: gfx.RenderContext) void {
     ray.EndShaderMode();
 }
 
-fn backgroundProcessEvent(ctx: *anyopaque, event: events.Event) void {
+fn backgroundProcessEvent(ctx: *anyopaque, event: *const anyopaque) void {
     const self = @as(*BackgroundContext, @ptrCast(@alignCast(ctx)));
+    const e = @as(*const events.Event, @ptrCast(@alignCast(event))).*;
     
-    switch (event) {
+    switch (e) {
         .LevelUp => |newlevel| {
             self.level = newlevel;
         },
@@ -230,10 +232,11 @@ fn calculateSizeFromScale(scale: f32) f32 {
     return @as(f32, @floatFromInt(game_constants.CELL_SIZE)) * scale;
 }
 
-fn gameProcessEvent(ctx: *anyopaque, event: events.Event) void {
+fn gameProcessEvent(ctx: *anyopaque, event: *const anyopaque) void {
     _ = ctx;
+    const e = @as(*const events.Event, @ptrCast(@alignCast(event))).*;
     
-    switch (event) {
+    switch (e) {
         .GameOver => {
             animsys.createExplosionAll();
         },
@@ -251,15 +254,15 @@ fn gameProcessEvent(ctx: *anyopaque, event: events.Event) void {
         .PieceLocked => |data| {
             for (0..data.count) |i| {
                 const block = data.blocks[i];
-                gridsvc.occupyCell(block.x, block.y, block.color);
+                gridsvc.occupyCell(@intCast(block.x), @intCast(block.y), block.color);
             }
         },
         .LineClearing => |data| {
-            gridsvc.removeLineCells(data.y);
+            gridsvc.removeLineCells(@intCast(data.y));
         },
         .RowsShiftedDown => |data| {
-            for (0..data.count) |i| {
-                gridsvc.shiftRowCells(data.start_y + i);
+            for (0..@as(usize, @intCast(data.count))) |i| {
+                gridsvc.shiftRowCells(@intCast(data.start_y + @as(i32, @intCast(i))));
             }
         },
         .Hold => {

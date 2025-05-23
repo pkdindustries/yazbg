@@ -10,18 +10,19 @@
 //!     zig build benchmark
 
 const std = @import("std");
-const ray = @import("raylib.zig");
+const engine = @import("engine");
+const ray = engine.raylib;
 
-const ecs = @import("ecs.zig");
+const ecs = engine.ecs;
 const ecsroot = @import("ecs");
-const components = @import("components.zig");
-const textures = @import("textures.zig");
+const components = engine.components;
+const textures = @import("engine").textures;
 const blockbuilder = @import("blockbuilder.zig");
 const pieces = @import("pieces.zig");
 // render system is now part of gfx
-const animsys = @import("systems/anim.zig");
-const gfx = @import("gfx.zig");
-const shaders = @import("shaders.zig");
+const animsys = engine.systems.anim;
+const gfx = @import("engine").gfx;
+const shaders = @import("engine").shaders;
 const game_constants = @import("game_constants.zig");
 
 // Convert sprite scale to actual pixel size

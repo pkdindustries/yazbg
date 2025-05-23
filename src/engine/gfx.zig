@@ -140,7 +140,7 @@ pub const Layer = struct {
     render: *const fn (ctx: *anyopaque, rc: RenderContext) void,
     
     // Optional event handling  
-    processEvent: ?*const fn (ctx: *anyopaque, event: events.Event) void = null,
+    processEvent: ?*const fn (ctx: *anyopaque, event: *const anyopaque) void = null,
     
     // Internal
     context: *anyopaque = undefined,
@@ -341,16 +341,6 @@ pub const Window = struct {
         }
     }
     
-    // Process events for all layers
-    pub fn processEvent(self: *Window, event: events.Event) void {
-        for (self.layers.items) |*layer| {
-            if (!layer.enabled) continue;
-            if (layer.processEvent) |processFn| {
-                processFn(layer.context, event);
-            }
-        }
-    }
-    
     // Render all layers
     fn renderLayers(self: *Window) void {
         const elapsed_ms = std.time.milliTimestamp() - self.start_time;
@@ -380,6 +370,15 @@ pub const Window = struct {
         }
         
         ray.EndMode2D();
+    }
+    
+    pub fn processEvent(self: *Window, event: *const anyopaque) void {
+        for (self.layers.items) |*layer| {
+            if (!layer.enabled) continue;
+            if (layer.processEvent) |handler| {
+                handler(layer.context, event);
+            }
+        }
     }
 };
 

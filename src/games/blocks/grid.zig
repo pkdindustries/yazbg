@@ -70,7 +70,7 @@ pub const Grid = struct {
         // Emit event for ECS operations
         events.push(.{
             .LineClearing = .{
-                .y = line,
+                .y = @intCast(line),
             },
         }, .Game);
     }
@@ -95,7 +95,7 @@ pub const Grid = struct {
         // Emit event for ECS operations
         events.push(.{
             .RowsShiftedDown = .{
-                .start_y = line,
+                .start_y = @intCast(line),
                 .count = 1,
             },
         }, .Game);

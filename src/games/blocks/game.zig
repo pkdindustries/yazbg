@@ -171,7 +171,7 @@ fn dropToBottom() void {
 
 // result type for lock piece operation
 const LockResult = struct {
-    blocks: [4]events.CellDataPos,
+    blocks: [4]struct { x: i32, y: i32, color: [4]u8 },
     count: usize,
 };
 
@@ -194,7 +194,7 @@ fn lockPiece() LockResult {
                         const iy = @as(usize, @intCast(gy));
 
                         if (result.count < result.blocks.len) {
-                            result.blocks[result.count] = .{ .x = ix, .y = iy, .color = piece.color };
+                            result.blocks[result.count] = .{ .x = @intCast(ix), .y = @intCast(iy), .color = piece.color };
                             result.count += 1;
                         }
 
@@ -230,7 +230,22 @@ pub fn harddrop() void {
     // emit events
     events.push(.HardDropEffect, events.Source.Game);
     if (lock_result.count > 0) {
-        events.push(.{ .PieceLocked = .{ .blocks = lock_result.blocks, .count = lock_result.count } }, events.Source.Game);
+        // Create PieceLocked event directly with the data
+        var piece_locked_event = events.Event{ 
+            .PieceLocked = .{
+                .blocks = undefined,
+                .count = lock_result.count,
+            }
+        };
+        // Copy the blocks
+        for (0..4) |i| {
+            piece_locked_event.PieceLocked.blocks[i] = .{
+                .x = lock_result.blocks[i].x,
+                .y = lock_result.blocks[i].y,
+                .color = lock_result.blocks[i].color,
+            };
+        }
+        events.push(piece_locked_event, events.Source.Game);
     }
 
     // update timing
