@@ -241,5 +241,29 @@ pub fn build(b: *std.Build) void {
         const run_unit_tests = b.addRunArtifact(unit_tests);
         const test_step = b.step("test", "Run unit tests");
         test_step.dependOn(&run_unit_tests.step);
+
+        // Spaced game executable
+        const spaced_exe = b.addExecutable(.{
+            .name = "spaced",
+            .root_source_file = b.path("src/games/spaced/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .omit_frame_pointer = false, // keep frame pointer
+        });
+        spaced_exe.root_module.strip = strip;
+        spaced_exe.linkLibrary(raylib_artifact);
+        spaced_exe.root_module.addImport("engine", engine_module);
+        spaced_exe.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+
+        b.installArtifact(spaced_exe);
+
+        const run_spaced = b.addRunArtifact(spaced_exe);
+        run_spaced.step.dependOn(b.getInstallStep());
+        if (b.args) |args| {
+            run_spaced.addArgs(args);
+        }
+
+        const spaced_step = b.step("spaced", "Run the spaced game");
+        spaced_step.dependOn(&run_spaced.step);
     }
 }
