@@ -44,6 +44,7 @@ pub const Event = union(enum) {
     NextBackground,
     MuteAudio,
     Debug,
+    ToggleDebugLayer,
     
     // Animation/feedback
     Error, // Invalid move attempted

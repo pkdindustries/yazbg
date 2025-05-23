@@ -1,7 +1,7 @@
-//! Tetromino benchmark – renders 5 000 animated tetromino sprites.
+//! Tetromino benchmark – renders 10,000 animated tetromino sprites using modern layer system.
 //!
 //! Every tetromino is pre-rendered once into its own 4×4-cell render texture
-//! (with the familiar rounded-corner block look).  At runtime we spawn 5 000
+//! (with the familiar rounded-corner block look).  At runtime we spawn 10,000
 //! ECS entities that share those textures.  Each entity carries an Animation
 //! component that drives position, scale *and* rotation, so the entire piece
 //! moves and morphs as a single sprite.
@@ -19,59 +19,211 @@ const textures = common.textures;
 const shaders = common.shaders;
 const animsys = common.animsys;
 const game_constants = common.game_constants;
+const engine = @import("engine");
 
 const blockbuilder = @import("blockbuilder.zig");
 const pieces = @import("pieces.zig");
 const ecsroot = @import("ecs");
 
+// ---------------------------------------------------------------------------
+// Benchmark Layer Context
+// ---------------------------------------------------------------------------
+
+pub const BenchmarkContext = struct {
+    allocator: std.mem.Allocator,
+    piece_entries: [pieces.tetraminos.len]textures.AtlasEntry,
+    global_prng: std.Random.DefaultPrng,
+    last_reset_ms: i64,
+    total_pieces: usize,
+
+    const RESET_INTERVAL_MS: i64 = 3_000;
+
+    pub fn init(allocator: std.mem.Allocator) !*BenchmarkContext {
+        const self = try allocator.create(BenchmarkContext);
+
+        // Initialize PRNG
+        var seed: u64 = undefined;
+        std.crypto.random.bytes(std.mem.asBytes(&seed));
+
+        self.* = .{
+            .allocator = allocator,
+            .piece_entries = undefined,
+            .global_prng = std.Random.DefaultPrng.init(seed),
+            .last_reset_ms = std.time.milliTimestamp(),
+            .total_pieces = 10000,
+        };
+
+        // Create atlas entries for all tetrominos
+        try self.createPieceAtlasEntries();
+
+        // Spawn initial pieces
+        try self.spawnAllPieces();
+        self.randomizeAllAnimations();
+
+        return self;
+    }
+
+    pub fn deinit(self: *BenchmarkContext) void {
+        self.allocator.destroy(self);
+    }
+
+    pub fn update(self: *BenchmarkContext, dt: f32) void {
+        _ = dt;
+
+        // Periodically reset animations for visual variety
+        const now_ms = std.time.milliTimestamp();
+        if (now_ms - self.last_reset_ms >= RESET_INTERVAL_MS) {
+            self.randomizeAllAnimations();
+            self.last_reset_ms = now_ms;
+        }
+    }
+
+    pub fn render(self: *BenchmarkContext, rc: gfx.RenderContext) void {
+        _ = self;
+        _ = rc;
+        ray.DrawFPS(0, 0); // reset FPS counter
+
+        // Draw all entities using the engine's optimized renderer
+        gfx.drawEntities(calculateSizeFromScale);
+    }
+
+    // Create atlas entries for all seven tetrominos
+    fn createPieceAtlasEntries(self: *BenchmarkContext) !void {
+        const alloc = self.allocator;
+        var i: usize = 0;
+        while (i < pieces.tetraminos.len) : (i += 1) {
+            const key_heap = try std.fmt.allocPrint(alloc, "benchmark_piece_{d}", .{i});
+            self.piece_entries[i] = try textures.createEntry(key_heap, drawTetrominoIntoTile, &pieces.tetraminos[i]);
+        }
+    }
+
+    // Spawn all benchmark pieces
+    fn spawnAllPieces(self: *BenchmarkContext) !void {
+        const rng = self.global_prng.random();
+        var i: usize = 0;
+        while (i < self.total_pieces) : (i += 1) {
+            try self.spawnAnimatedTetromino(rng);
+        }
+    }
+
+    // Spawn one animated tetromino
+    fn spawnAnimatedTetromino(self: *BenchmarkContext, rng: anytype) !void {
+        const screen_w: f32 = @floatFromInt(gfx.Window.OGWIDTH);
+        const screen_h: f32 = @floatFromInt(gfx.Window.OGHEIGHT);
+
+        // Random tetromino type
+        const t_index = rng.intRangeAtMost(usize, 0, pieces.tetraminos.len - 1);
+        const entry = self.piece_entries[t_index];
+
+        // Random starting position
+        const piece_px_f: f32 = @floatFromInt(piecePx());
+        const start_x = rng.float(f32) * (screen_w - piece_px_f);
+        const start_y = rng.float(f32) * (screen_h - piece_px_f);
+
+        // Random scale and rotation
+        const scale0_blocks = (rng.float(f32) * 2.0) - 0.5; // -0.5 to 1.5
+        const size0 = 4.0 * scale0_blocks;
+        const rot0 = rng.float(f32) * 2.0; // 0-2 turns
+        const duration_ms: i64 = @intFromFloat(3000.0 + rng.float(f32) * 4000.0);
+
+        // Create entity with components
+        const entity = ecs.createEntity();
+
+        ecs.replace(components.Position, entity, .{ .x = start_x, .y = start_y });
+        ecs.replace(components.Sprite, entity, .{ .rgba = .{ 255, 255, 255, 255 }, .size = size0, .rotation = rot0 });
+        ecs.replace(components.Texture, entity, .{ .texture = entry.tex, .uv = entry.uv, .created = false });
+
+        // Add animation component
+        const start_time = std.time.milliTimestamp();
+        ecs.replace(components.Animation, entity, .{
+            .animate_position = true,
+            .start_pos = .{ start_x, start_y },
+            .target_pos = .{ start_x, start_y },
+            .animate_scale = true,
+            .target_scale = 1,
+            .animate_rotation = true,
+            .start_rotation = rot0,
+            .target_rotation = 0,
+            .start_time = start_time,
+            .duration = duration_ms,
+            .easing = .ease_in_out,
+            .remove_when_done = false,
+        });
+    }
+
+    // Randomize all animations for visual variety
+    fn randomizeAllAnimations(self: *BenchmarkContext) void {
+        const world = ecs.getWorld();
+        var view = world.view(.{ components.Position, components.Sprite, components.Animation }, .{});
+        var it = view.entityIterator();
+
+        const rng = self.global_prng.random();
+        const screen_w: f32 = @floatFromInt(gfx.Window.OGWIDTH);
+        const screen_h: f32 = @floatFromInt(gfx.Window.OGHEIGHT);
+        const piece_px_f: f32 = @floatFromInt(piecePx());
+
+        while (it.next()) |entity| {
+            const pos_ptr = view.get(components.Position, entity);
+            const sprite_ptr = view.get(components.Sprite, entity);
+            const anim_ptr = view.get(components.Animation, entity);
+
+            // New random start position
+            const start_x = rng.float(f32) * (screen_w - piece_px_f);
+            const start_y = rng.float(f32) * (screen_h - piece_px_f);
+            pos_ptr.* = .{ .x = start_x, .y = start_y };
+
+            // Huge outward burst – pick a direction and push far off-screen
+            const max_offset_x = screen_w * 1.5;
+            const max_offset_y = screen_h * 1.5;
+            const offset_x = (rng.float(f32) * max_offset_x * 2.0) - max_offset_x;
+            const offset_y = (rng.float(f32) * max_offset_y * 2.0) - max_offset_y;
+
+            // Start small then expand
+            const size0 = 4.0 * (0.2 + rng.float(f32) * 0.6);
+            sprite_ptr.size = size0;
+
+            // Multi-spin rotation
+            const rot0 = rng.float(f32) * 4.0;
+            const rot1 = rot0 + ((rng.float(f32) * 6.0) - 3.0);
+            sprite_ptr.rotation = rot0;
+
+            const now_ms = std.time.milliTimestamp();
+            anim_ptr.* = .{
+                .animate_position = true,
+                .start_pos = .{ start_x, start_y },
+                .target_pos = .{ start_x + offset_x, start_y + offset_y },
+                .animate_scale = true,
+                .animate_rotation = true,
+                .start_rotation = rot0,
+                .target_rotation = rot1,
+                .start_time = now_ms,
+                .duration = @intFromFloat(1200.0 + rng.float(f32) * 1800.0), // 1.2 – 3.0 s
+                .easing = .ease_out,
+                .remove_when_done = false,
+            };
+        }
+    }
+};
+
+// ---------------------------------------------------------------------------
+// Helper Functions
+// ---------------------------------------------------------------------------
+
 // Convert sprite scale to actual pixel size
 fn calculateSizeFromScale(scale: f32) f32 {
-    return @as(f32, @floatFromInt(game_constants.CELL_SIZE)) * scale;
+    return 10.0 * scale; // match the gfx.init cell size
 }
 
-// ---------------------------------------------------------------------------
-// Globals – one atlas entry per tetromino (shared between entities)
-// ---------------------------------------------------------------------------
-
-var piece_entries: [pieces.tetraminos.len]textures.AtlasEntry = undefined;
-
-// PRNG for runtime randomisations
-var global_prng: std.Random.DefaultPrng = undefined;
-
-// Size of one block while drawing into the piece texture (double resolution to
-// match the atlas quality used elsewhere).
+// Size calculations for tetromino pieces
 fn tilePx() i32 {
-    return game_constants.CELL_SIZE * 2;
+    return 10 * 2; // match the gfx.init cell size
 }
 
-// Width/height of the full tetromino texture in pixels (4 blocks wide).
 fn piecePx() i32 {
     return tilePx() * 4;
 }
 
-// Draw one rounded block at `col,row` (0-3,0-3) inside the currently bound
-// render-texture.  Drawing style matches textures.drawBlockIntoTile().
-fn drawBlock(col: i32, row: i32, color: [4]u8) void {
-    const px = tilePx();
-    const padding: f32 = @as(f32, @floatFromInt(gfx.window.cellpadding)) * 2.0;
-
-    const x = @as(f32, @floatFromInt(col * px)) + padding;
-    const y = @as(f32, @floatFromInt(row * px)) + padding;
-    const size = @as(f32, @floatFromInt(px)) - padding * 2.0;
-
-    const rect = ray.Rectangle{ .x = x, .y = y, .width = size, .height = size };
-
-    const base_color = gfx.toRayColor(color);
-
-    ray.DrawRectangleRounded(rect, 0.4, 20, base_color);
-}
-
-// Create (once) a 4×4-block texture for the given tetromino.
-// ---------------------------------------------------------------------------
-// Texture atlas helpers – one tile per tetromino (4×4 blocks shrunk to tile)
-// ---------------------------------------------------------------------------
-
-// Draw a tetromino into a single atlas tile by re-using the block helper.
+// Draw a tetromino into a single atlas tile
 fn drawTetrominoIntoTile(
     page_tex: *const ray.RenderTexture2D,
     tile_x: i32,
@@ -83,9 +235,8 @@ fn drawTetrominoIntoTile(
     const t_unaligned: *align(1) const pieces.tetramino = @ptrCast(context.?);
     const t: *const pieces.tetramino = @alignCast(t_unaligned);
 
-    // One block == 1/4 of the tile.
+    // One block == 1/4 of the tile
     const sub_px: i32 = @divTrunc(tile_size, 4);
-
     const shape = t.shape[0]; // first rotation is enough
 
     var row: usize = 0;
@@ -103,201 +254,68 @@ fn drawTetrominoIntoTile(
     }
 }
 
-// Create atlas entries for all seven tetrominos.
-fn createPieceAtlasEntries() !void {
-    const alloc = std.heap.c_allocator;
-    var i: usize = 0;
-    while (i < pieces.tetraminos.len) : (i += 1) {
-        const key_heap = try std.fmt.allocPrint(alloc, "piece_{d}", .{i});
-        piece_entries[i] = try textures.createEntry(key_heap, drawTetrominoIntoTile, &pieces.tetraminos[i]);
-    }
+// ---------------------------------------------------------------------------
+// Layer Factory Functions
+// ---------------------------------------------------------------------------
+
+fn benchmarkInit(allocator: std.mem.Allocator) anyerror!*anyopaque {
+    const ctx = try BenchmarkContext.init(allocator);
+    return ctx;
+}
+
+fn benchmarkDeinit(ctx: *anyopaque) void {
+    const self = @as(*BenchmarkContext, @ptrCast(@alignCast(ctx)));
+    self.deinit();
+}
+
+fn benchmarkUpdate(ctx: *anyopaque, dt: f32) void {
+    const self = @as(*BenchmarkContext, @ptrCast(@alignCast(ctx)));
+    self.update(dt);
+}
+
+fn benchmarkRender(ctx: *anyopaque, rc: gfx.RenderContext) void {
+    const self = @as(*BenchmarkContext, @ptrCast(@alignCast(ctx)));
+    self.render(rc);
+}
+
+// Create the benchmark layer
+pub fn createBenchmarkLayer() !gfx.Layer {
+    return gfx.Layer{
+        .name = "benchmark",
+        .order = 100,
+        .init = benchmarkInit,
+        .deinit = benchmarkDeinit,
+        .update = benchmarkUpdate,
+        .render = benchmarkRender,
+    };
 }
 
 // ---------------------------------------------------------------------------
-// Animation re-randomiser (called every few seconds)
-// ---------------------------------------------------------------------------
-
-const RESET_INTERVAL_MS: i64 = 3_000;
-
-fn randomizeAllAnimations() void {
-    const world = ecs.getWorld();
-    var view = world.view(.{ components.Position, components.Sprite, components.Animation }, .{});
-    var it = view.entityIterator();
-
-    const rng = global_prng.random();
-
-    const screen_w: f32 = @floatFromInt(ray.GetScreenWidth());
-    const screen_h: f32 = @floatFromInt(ray.GetScreenHeight());
-    const piece_px_f: f32 = @floatFromInt(piecePx());
-
-    while (it.next()) |entity| {
-        const pos_ptr = view.get(components.Position, entity);
-        const sprite_ptr = view.get(components.Sprite, entity);
-        const anim_ptr = view.get(components.Animation, entity);
-
-        // New random start position
-        const start_x = rng.float(f32) * (screen_w - piece_px_f);
-        const start_y = rng.float(f32) * (screen_h - piece_px_f);
-        pos_ptr.* = .{ .x = start_x, .y = start_y };
-
-        // Huge outward burst – pick a direction and push far off-screen
-        const max_offset_x = screen_w * 1.5; // up to 2× screen dimension
-        const max_offset_y = screen_h * 1.5;
-        const offset_x = (rng.float(f32) * max_offset_x * 2.0) - max_offset_x;
-        const offset_y = (rng.float(f32) * max_offset_y * 2.0) - max_offset_y;
-
-        // Start small then expand massively (up to 10×)
-        const size0 = 4.0 * (0.2 + rng.float(f32) * 0.6); // 0.8 – 3.2 block size
-        // const size1 = 4.0 * (3.0 + rng.float(f32) * 1.0);
-        sprite_ptr.size = size0;
-
-        // Multi-spin rotation (several full turns)
-        const rot0 = rng.float(f32) * 4.0;
-        const rot1 = rot0 + ((rng.float(f32) * 6.0) - 3.0);
-        sprite_ptr.rotation = rot0;
-
-        const now_ms = std.time.milliTimestamp();
-        anim_ptr.* = components.Animation{
-            .animate_position = true,
-            .start_pos = .{ start_x, start_y },
-            .target_pos = .{ start_x + offset_x, start_y + offset_y },
-            .animate_scale = true,
-            .animate_rotation = true,
-            .start_rotation = rot0,
-            .target_rotation = rot1,
-            .start_time = now_ms,
-            .duration = @intFromFloat(1200.0 + rng.float(f32) * 1800.0), // 1.2 – 3.0 s
-            .easing = .ease_out,
-            .remove_when_done = false,
-        };
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Spawning helpers
-// ---------------------------------------------------------------------------
-
-// Spawn one tetromino sprite entity and attach an Animation component that
-// drives position, scale and rotation.
-fn spawnAnimatedTetromino(rng: anytype) !void {
-    const screen_w: f32 = @floatFromInt(ray.GetScreenWidth());
-    const screen_h: f32 = @floatFromInt(ray.GetScreenHeight());
-
-    // Random tetromino type ----------------------------------------------
-    const t_index = rng.intRangeAtMost(usize, 0, pieces.tetraminos.len - 1);
-    const entry = piece_entries[t_index];
-
-    // Random starting top-left position (keep fully on-screen) -------------
-    const piece_px_f: f32 = @floatFromInt(piecePx());
-    const start_x = rng.float(f32) * (screen_w - piece_px_f);
-    const start_y = rng.float(f32) * (screen_h - piece_px_f);
-
-    // Random scale (-0.5‒1.5) and target scale (-0.5‒2.0) -------------------
-    const scale0_blocks = (rng.float(f32) * 2.0) - 0.5; // Range from -0.5 to 1.5
-
-    // Convert to sprite.size domain (1.0 == one cell) ----------------------
-    const size0 = 4.0 * scale0_blocks;
-
-    // Random rotations and duration ---------------------------------------
-    const rot0 = rng.float(f32) * 2.0; // turns (0–2)
-    const duration_ms: i64 = @intFromFloat(3000.0 + rng.float(f32) * 4000.0);
-
-    // ---------------------------------------------------------------------
-    const entity = ecs.createEntity();
-
-    if (t_index == 4) {
-        // try shaders.addShaderToEntity(entity, "static");
-    }
-
-    ecs.replace(components.Position, entity, components.Position{ .x = start_x, .y = start_y });
-
-    // White tint so texture shows original colours.
-    ecs.replace(components.Sprite, entity, components.Sprite{ .rgba = .{ 255, 255, 255, 255 }, .size = size0, .rotation = rot0 });
-
-    ecs.replace(components.Texture, entity, components.Texture{
-        .texture = entry.tex,
-        .uv = entry.uv,
-        .created = false,
-    });
-
-    // Unified animation for the whole piece.
-    const start_time = std.time.milliTimestamp();
-    ecs.replace(components.Animation, entity, components.Animation{
-        .animate_position = true,
-        .start_pos = .{ start_x, start_y },
-        .target_pos = .{ start_x, start_y },
-
-        .animate_scale = true,
-        .target_scale = 1,
-
-        .animate_rotation = true,
-        .start_rotation = rot0,
-        .target_rotation = 0,
-
-        .start_time = start_time,
-        .duration = duration_ms,
-        .easing = .ease_in_out,
-        .remove_when_done = false,
-    });
-}
-
-// ---------------------------------------------------------------------------
-// main
+// Main Function
 // ---------------------------------------------------------------------------
 
 pub fn main() !void {
-    // ---- Basic init ------------------------------------------------------
-    ecs.init(std.heap.c_allocator);
+    var timer = try std.time.Timer.start();
+    ray.SetTraceLogLevel(ray.LOG_WARNING);
 
-    // Minimal window globals for helpers.
-    gfx.window = gfx.Window{};
-    gfx.window.width = ray.GetScreenWidth();
-    gfx.window.height = ray.GetScreenHeight();
+    const allocator = std.heap.c_allocator;
 
-    // Initialize graphics + texture systems (textures.init is called inside gfx.init)
+    // Initialize engine systems
+    ecs.init(allocator);
+    defer ecs.deinit();
+
     try gfx.init(std.heap.c_allocator, game_constants.CELL_SIZE * 2);
+    defer gfx.deinit();
 
-    // Create atlas tiles for all tetrominos
-    try createPieceAtlasEntries();
+    // Add the benchmark layer
+    const benchmark_layer = try createBenchmarkLayer();
+    try gfx.window.addLayer(benchmark_layer);
 
-    // ---- Spawn 5 000 animated tetrominos -------------------------------
-    var seed: u64 = undefined;
-    std.crypto.random.bytes(std.mem.asBytes(&seed));
-    global_prng = std.Random.DefaultPrng.init(seed);
-    const rng = global_prng.random();
+    std.debug.print("benchmark init {}ms\n", .{timer.lap() / 1_000_000});
 
-    const total_pieces: usize = 10000;
-    var i: usize = 0;
-    while (i < total_pieces) : (i += 1) {
-        try spawnAnimatedTetromino(rng);
-    }
-    randomizeAllAnimations();
-    // ---- Main loop -------------------------------------------------------
-    var last_reset_ms: i64 = std.time.milliTimestamp();
-
+    // Main loop using modern engine frame system
     while (!ray.WindowShouldClose()) {
-        ray.BeginDrawing();
-        defer ray.EndDrawing();
-
-        ray.ClearBackground(ray.BLACK);
-
-        // Update & draw
-        animsys.update();
-        gfx.drawEntities(calculateSizeFromScale);
-
-        ray.DrawText("10 000 animated tetrominos", 100, 100, 20, ray.WHITE);
-        ray.DrawFPS(10, 35);
-
-        // periodically reset animations
-        const now_ms = std.time.milliTimestamp();
-        if (now_ms - last_reset_ms >= RESET_INTERVAL_MS) {
-            randomizeAllAnimations();
-            last_reset_ms = now_ms;
-        }
+        const dt = ray.GetFrameTime();
+        gfx.frame(dt);
     }
-
-    // ---- Shutdown --------------------------------------------------------
-    textures.deinit(); // atlas pages
-    ecs.deinit();
-    ray.CloseWindow();
 }

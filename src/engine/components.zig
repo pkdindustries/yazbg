@@ -11,10 +11,10 @@ const ray = @import("raylib.zig");
 pub const Position = struct { x: f32, y: f32 };
 
 // Visual representation (color, scale, rotation)
-pub const Sprite = struct { 
-    rgba: [4]u8, 
-    size: f32,           // Scale factor or absolute size depending on game
-    rotation: f32 = 0.0  // Rotation in normalized units (0.0-1.0 = 0-360 degrees)
+pub const Sprite = struct {
+    rgba: [4]u8,
+    size: f32, // Scale factor or absolute size depending on game
+    rotation: f32 = 0.0, // Rotation in normalized units (0.0-1.0 = 0-360 degrees)
 };
 
 // Texture reference with UV coordinates
@@ -167,10 +167,7 @@ pub const Flash = struct {
 // ---------------------------------------------------------------------------
 
 // Velocity for moving entities
-pub const Velocity = struct { 
-    x: f32 = 0.0, 
-    y: f32 = 0.0 
-};
+pub const Velocity = struct { x: f32 = 0.0, y: f32 = 0.0 };
 
 // Collision detection shape
 pub const Collider = struct {
@@ -180,4 +177,19 @@ pub const Collider = struct {
     },
     layer: u8 = 0, // collision layers (player=1, enemy=2, projectile=4, etc)
     is_trigger: bool = false, // just detect, don't block movement
+};
+
+// ---------------------------------------------------------------------------
+// Debug System
+// ---------------------------------------------------------------------------
+
+// Global debug state
+pub const DebugState = struct {
+    enabled: bool = false,
+    show_entity_count: bool = true,
+    show_fps: bool = true,
+    show_component_info: bool = true,
+    show_entity_bounds: bool = true,
+    show_grid: bool = false,
+    overlay_opacity: u8 = 128,
 };

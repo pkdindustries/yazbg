@@ -8,6 +8,7 @@ pub const components = @import("components.zig");
 pub const events = @import("events.zig");
 pub const textures = @import("textures.zig");
 pub const shaders = @import("shaders.zig");
+pub const debug_layer = @import("debug_layer.zig");
 
 // Systems
 pub const systems = struct {

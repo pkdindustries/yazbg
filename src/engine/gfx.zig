@@ -7,6 +7,8 @@ const ecsroot = @import("ecs");
 const components = @import("components.zig");
 const textures = @import("textures.zig");
 const shaders = @import("shaders.zig");
+const debug_layer = @import("debug_layer.zig");
+const systems = @import("engine.zig").systems;
 
 // ---------------------------------------------------------------------------
 // ECS Rendering System
@@ -391,6 +393,10 @@ pub fn init(allocator: std.mem.Allocator, texture_tile_size: i32) !void {
     // Initialize texture and shader systems
     try textures.init(allocator, texture_tile_size);
     try shaders.init(allocator);
+    
+    // Automatically add the engine debug layer
+    const debug = try debug_layer.createDebugLayer(allocator);
+    try window.addLayer(debug);
 }
 
 pub fn deinit() void {
@@ -403,8 +409,25 @@ pub fn deinit() void {
 }
 
 pub fn frame(dt: f32) void {
+    var timer = std.time.Timer.start() catch return;
+    
     // Handle window resizing
     window.updateScale();
+    
+    // Check for debug layer toggle (Shift+D)
+    checkDebugToggle();
+    
+    // Time animation system
+    const anim_start = timer.read();
+    systems.anim.update(); // no dt parameter
+    const anim_end = timer.read();
+    const anim_time = anim_end - anim_start;
+    
+    // Time collision system  
+    const collision_start = timer.read();
+    systems.collision.update();
+    const collision_end = timer.read();
+    const collision_time = collision_end - collision_start;
     
     // Update all enabled layers
     window.updateLayers(dt);
@@ -412,14 +435,59 @@ pub fn frame(dt: f32) void {
     ray.BeginDrawing();
     ray.BeginTextureMode(window.texture);
     
+    // Time rendering
+    const render_start = timer.read();
+    
     // Render all enabled layers
     window.renderLayers();
     
+    const render_end = timer.read();
+    const render_time = render_end - render_start;
+    
     ray.EndTextureMode();
+    
+    // Time shader operations (this happens during rendering but we'll approximate)
+    const shader_time: u64 = render_time / 4; // rough estimate - shaders are part of render
     
     // Scale render texture to actual window size
     window.drawScaled();
     ray.EndDrawing();
+    
+    const total_systems_time = anim_time + collision_time + render_time;
+    
+    // Update debug timing stats
+    updateDebugSystemTiming(
+        anim_time / 1000,           // convert to microseconds
+        shader_time / 1000,
+        collision_time / 1000,
+        render_time / 1000,
+        total_systems_time / 1000
+    );
+}
+
+// Check for debug layer toggle input
+fn checkDebugToggle() void {
+    if ((ray.IsKeyDown(ray.KEY_LEFT_SHIFT) or ray.IsKeyDown(ray.KEY_RIGHT_SHIFT)) and ray.IsKeyPressed(ray.KEY_D)) {
+        toggleDebugLayer();
+    }
+}
+
+// Toggle the debug layer visibility
+pub fn toggleDebugLayer() void {
+    if (window.getLayer("engine_debug")) |debug_layer_ptr| {
+        const ctx = debug_layer_ptr.context;
+        const debug_ctx: *debug_layer.DebugLayerContext = @ptrCast(@alignCast(ctx));
+        debug_ctx.toggle();
+    }
+}
+
+// Update debug layer timing statistics for engine systems
+pub fn updateDebugSystemTiming(anim_us: u64, shader_us: u64, collision_us: u64, render_us: u64, total_us: u64) void {
+    if (window.getLayer("engine_debug")) |debug_layer_ptr| {
+        const ctx = debug_layer_ptr.context;
+        const debug_ctx: *debug_layer.DebugLayerContext = @ptrCast(@alignCast(ctx));
+        debug_ctx.updateSystemTiming(anim_us, shader_us, collision_us, render_us, total_us);
+    }
 }
 
 // Convert RGBA array to raylib Color
