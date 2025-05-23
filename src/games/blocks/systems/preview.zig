@@ -1,32 +1,31 @@
-const std = @import("std");
-
 // Live HUD previews for "next" and "held" pieces implemented using regular
 // ECS entities.  Each individual block is a tiny sprite entity tagged with one
 // of the marker components below so we can query and animate them later
 // without keeping any external lists.
 
-const ecs = @import("engine").ecs;
-const ecsroot = @import("ecs");
-const components = @import("engine").components;
-const game_components = @import("../components.zig");
-const engine_components = @import("engine").components;
-const gfx = @import("engine").gfx;
+const common = @import("../common.zig");
+const std = common.std;
+const components = common.components;
+const ecs = common.ecs;
+const gfx = common.gfx;
+const constants = common.game_constants;
+
 const pieces = @import("../pieces.zig");
 const blocks = @import("../blockbuilder.zig");
 const playersys = @import("player.zig");
-const game_constants = @import("../game_constants.zig");
+const ecsroot = @import("ecs");
 
 // ---------------------------------------------------------------------------
 // Additional components used only by this system
 // ---------------------------------------------------------------------------
 
 // Tag components for easy filtering.
-const NextPreviewTag = game_components.NextPreviewTag;
-const HoldPreviewTag = game_components.HoldPreviewTag;
+const NextPreviewTag = components.NextPreviewTag;
+const HoldPreviewTag = components.HoldPreviewTag;
 
 // Alias to the globally defined component so we don't have to spell out the
 // fully-qualified name each time.
-const PreviewCell = game_components.PreviewCell;
+const PreviewCell = components.PreviewCell;
 
 // ---------------------------------------------------------------------------
 // Fixed HUD coordinates in the original 640×760 render target – the main game
@@ -47,35 +46,35 @@ inline fn holdAnchorX() i32 {
 pub fn reset() void {
     clearTag(HoldPreviewTag);
     clearTag(NextPreviewTag);
-    clearTag(game_components.AnimatingToHoldTag);
-    clearTag(game_components.AnimatingFromHoldTag);
+    clearTag(components.AnimatingToHoldTag);
+    clearTag(components.AnimatingFromHoldTag);
 }
 
 inline fn holdAnchorY() i32 {
     // 35 pixels below the top + the grid offset (70).
-    return game_constants.GRID_OFFSET_Y + 35;
+    return constants.GRID_OFFSET_Y + 35;
 }
 
 inline fn nextAnchorX() i32 {
     // Mirrors the old immediate-draw HUD implementation.
-    return gfx.Window.OGWIDTH - 250 + game_constants.GRID_OFFSET_X; // 640 – 250 + 165 = 555
+    return gfx.Window.OGWIDTH - 250 + constants.GRID_OFFSET_X; // 640 – 250 + 165 = 555
 }
 
 inline fn nextAnchorY() i32 {
-    return game_constants.GRID_OFFSET_Y + 35;
+    return constants.GRID_OFFSET_Y + 35;
 }
 
 // Spawn location (top-left corner of a freshly spawned piece).
 inline fn spawnX() i32 {
-    return game_constants.GRID_OFFSET_X + 4 * game_constants.CELL_SIZE;
+    return constants.GRID_OFFSET_X + 4 * constants.CELL_SIZE;
 }
 
 inline fn spawnY() i32 {
-    return game_constants.GRID_OFFSET_Y;
+    return constants.GRID_OFFSET_Y;
 }
 
 // Convenience alias.
-const CellSize = @TypeOf(game_constants.CELL_SIZE);
+const CellSize = @TypeOf(constants.CELL_SIZE);
 
 // ---------------------------------------------------------------------------
 // Public API – invoked from the central event dispatcher (gfx.process)
@@ -123,7 +122,7 @@ fn animateHeldToCurrentPiece() void {
 
     // First, clean up any existing animations from hold position to prevent overlapping
     // animations when swapping rapidly
-    clearTag(game_components.AnimatingFromHoldTag);
+    clearTag(components.AnimatingFromHoldTag);
 
     // Get player entity and position
     // Use the last stored player-piece origin from the player system – this
@@ -134,22 +133,22 @@ fn animateHeldToCurrentPiece() void {
     const player_pos_y: f32 = last_origin[1];
 
     // Now animate the hold preview blocks
-    var view = world.view(.{ HoldPreviewTag, engine_components.Position, game_components.PreviewCell, engine_components.Sprite }, .{});
+    var view = world.view(.{ HoldPreviewTag, components.Position, components.PreviewCell, components.Sprite }, .{});
     var it = view.entityIterator();
 
     const now = std.time.milliTimestamp();
-    const cs = game_constants.CELL_SIZE;
+    const cs = constants.CELL_SIZE;
 
     while (it.next()) |ent| {
-        const pos = view.get(engine_components.Position, ent);
-        const cell = view.get(game_components.PreviewCell, ent);
-        const sprite = view.get(engine_components.Sprite, ent);
+        const pos = view.get(components.Position, ent);
+        const cell = view.get(components.PreviewCell, ent);
+        const sprite = view.get(components.Sprite, ent);
 
         // Calculate target position offset by cell coordinates from current player position
         const tgt_x: f32 = player_pos_x + @as(f32, @floatFromInt(cell.col * cs));
         const tgt_y: f32 = player_pos_y + @as(f32, @floatFromInt(cell.row * cs));
 
-        const anim = engine_components.Animation{
+        const anim = components.Animation{
             .animate_position = true,
             .start_pos = .{ pos.x, pos.y },
             .target_pos = .{ tgt_x, tgt_y },
@@ -166,11 +165,11 @@ fn animateHeldToCurrentPiece() void {
             .destroy_entity_when_done = true,
         };
 
-        ecs.replace(engine_components.Animation, ent, anim);
+        ecs.replace(components.Animation, ent, anim);
 
         // Remove the hold preview tag and add the animating tag
         world.remove(HoldPreviewTag, ent);
-        world.add(ent, game_components.AnimatingFromHoldTag{});
+        world.add(ent, components.AnimatingFromHoldTag{});
     }
 }
 
@@ -181,17 +180,17 @@ fn animateCurrentPieceToHeld() void {
 
     // First, clean up any existing animations to hold position to prevent overlapping
     // animations when swapping rapidly
-    clearTag(game_components.AnimatingToHoldTag);
+    clearTag(components.AnimatingToHoldTag);
 
     // Now animate the current piece blocks
-    var view = world.view(.{ game_components.PieceBlockTag, engine_components.Position, engine_components.Sprite }, .{});
+    var view = world.view(.{ components.PieceBlockTag, components.Position, components.Sprite }, .{});
     var it = view.entityIterator();
 
     const now = std.time.milliTimestamp();
 
     while (it.next()) |ent| {
-        const pos = view.get(engine_components.Position, ent);
-        const sprite = view.get(engine_components.Sprite, ent);
+        const pos = view.get(components.Position, ent);
+        const sprite = view.get(components.Sprite, ent);
 
         // Calculate rough position in the hold area
         // We don't have exact cell positions since these are free-moving piece blocks,
@@ -199,7 +198,7 @@ fn animateCurrentPieceToHeld() void {
         const tgt_x: f32 = @floatFromInt(holdAnchorX() + 35); // Add offset to center in hold area
         const tgt_y: f32 = @floatFromInt(holdAnchorY() + 35); // Add offset to center in hold area
 
-        const anim = engine_components.Animation{
+        const anim = components.Animation{
             .animate_position = true,
             .start_pos = .{ pos.x, pos.y },
             .target_pos = .{ tgt_x, tgt_y },
@@ -216,11 +215,11 @@ fn animateCurrentPieceToHeld() void {
             .destroy_entity_when_done = true,
         };
 
-        ecs.replace(engine_components.Animation, ent, anim);
+        ecs.replace(components.Animation, ent, anim);
 
         // Remove the piece-specific tag and add the animating tag
-        world.remove(game_components.PieceBlockTag, ent);
-        world.add(ent, game_components.AnimatingToHoldTag{});
+        world.remove(components.PieceBlockTag, ent);
+        world.add(ent, components.AnimatingToHoldTag{});
     }
 }
 
@@ -241,7 +240,7 @@ fn buildPreview(
     ay: i32,
     comptime Tag: type,
 ) void {
-    const cs = game_constants.CELL_SIZE;
+    const cs = constants.CELL_SIZE;
 
     const shape = t.shape[0]; // rotation 0 is fine for the preview
     const color = t.color;
@@ -278,7 +277,7 @@ inline fn buildNextPreview(t: pieces.tetramino) void {
     // Remove any lingering preview blocks first.
     clearTag(NextPreviewTag);
 
-    const cs = game_constants.CELL_SIZE;
+    const cs = constants.CELL_SIZE;
     const ax = nextAnchorX();
     const ay = nextAnchorY();
 
@@ -314,7 +313,7 @@ inline fn buildNextPreview(t: pieces.tetramino) void {
             };
 
             // Attach slide-in animation.
-            ecs.replace(engine_components.Animation, ent, engine_components.Animation{
+            ecs.replace(components.Animation, ent, components.Animation{
                 .animate_position = true,
                 .start_pos = .{ @floatFromInt(start_x), @floatFromInt(final_y) },
                 .target_pos = .{ @floatFromInt(final_x), @floatFromInt(final_y) },
@@ -343,19 +342,19 @@ inline fn buildHoldPreview(t: pieces.tetramino) void {
 // them for destruction once the animation ends.
 fn animateNextPreviewToSpawn() void {
     const world = ecs.getWorld();
-    var view = world.view(.{ NextPreviewTag, PreviewCell, engine_components.Position }, .{});
+    var view = world.view(.{ NextPreviewTag, PreviewCell, components.Position }, .{});
     var it = view.entityIterator();
 
-    const cs = game_constants.CELL_SIZE;
+    const cs = constants.CELL_SIZE;
     const now = std.time.milliTimestamp();
 
     while (it.next()) |ent| {
         const cell = view.get(PreviewCell, ent);
-        const pos = view.get(engine_components.Position, ent);
+        const pos = view.get(components.Position, ent);
         const tgt_x: f32 = @floatFromInt(spawnX() + cell.col * cs);
         const tgt_y: f32 = @floatFromInt(spawnY() + cell.row * cs);
 
-        const anim = engine_components.Animation{
+        const anim = components.Animation{
             .animate_position = true,
             .start_pos = .{ pos.x, pos.y }, // current position will be used as start
             .target_pos = .{ tgt_x, tgt_y },
@@ -369,7 +368,7 @@ fn animateNextPreviewToSpawn() void {
             .destroy_entity_when_done = true,
         };
 
-        ecs.replace(engine_components.Animation, ent, anim);
+        ecs.replace(components.Animation, ent, anim);
 
         // Remove the preview-specific tags so the animation components are the
         // only remaining ones – clean separation of concerns.

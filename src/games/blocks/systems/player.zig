@@ -1,18 +1,19 @@
 // Simplified player rendering system.
 
-const std = @import("std");
-const ecs = @import("engine").ecs;
-const ecsroot = @import("ecs");
-const components = @import("engine").components;
-const engine_components = @import("engine").components;
+const common = @import("../common.zig");
+const std = common.std;
+const components = common.components;
+const ecs = common.ecs;
+const gfx = common.gfx;
+const constants = common.game_constants;
+
 const ecs_helpers = @import("../ecs_helpers.zig");
-const gfx = @import("engine").gfx;
 const pieces = @import("../pieces.zig");
 const blocks = @import("../blockbuilder.zig");
-const game_constants = @import("../game_constants.zig");
+const ecsroot = @import("ecs");
 
 inline fn cellSize() i32 {
-    return game_constants.CELL_SIZE;
+    return constants.CELL_SIZE;
 }
 
 fn getPieceBlocks() @TypeOf(ecs_helpers.getPieceBlocksView().entityIterator()) {
@@ -51,8 +52,8 @@ pub fn updatePlayerPosition(
     // 1. Translate logical grid coordinates to pixel coordinates (top-left
     //    corner of the piece in the off-screen 640×760 render target).
     const cs = cellSize();
-    const origin_x = game_constants.GRID_OFFSET_X + x * cs;
-    const origin_y = game_constants.GRID_OFFSET_Y + y * cs;
+    const origin_x = constants.GRID_OFFSET_X + x * cs;
+    const origin_y = constants.GRID_OFFSET_Y + y * cs;
 
     // 2. Retrieve shape & colour of the piece to draw.
     const t = pieces.tetraminos[piece_index];
@@ -65,7 +66,7 @@ pub fn updatePlayerPosition(
     blocks.createPlayerPiece(origin_x, origin_y, shape, colour);
 
     // Ghost – same shape & colour but semi-transparent at landing Y.
-    const ghost_origin_y = game_constants.GRID_OFFSET_Y + ghost_y * cs;
+    const ghost_origin_y = constants.GRID_OFFSET_Y + ghost_y * cs;
     blocks.createGhostPiece(origin_x, ghost_origin_y, shape, colour);
 
     // Persist values for the hard-drop effect.
@@ -84,8 +85,8 @@ pub fn redraw() void {
 
 // Provide the pixel-space origin (top-left) of the most recently stored piece.
 pub fn lastOriginPixels() [2]f32 {
-    const x_px = game_constants.GRID_OFFSET_X + last_piece_x * cellSize();
-    const y_px = game_constants.GRID_OFFSET_Y + last_piece_y * cellSize();
+    const x_px = constants.GRID_OFFSET_X + last_piece_x * cellSize();
+    const y_px = constants.GRID_OFFSET_Y + last_piece_y * cellSize();
     return .{ @floatFromInt(x_px), @floatFromInt(y_px) };
 }
 
@@ -113,31 +114,31 @@ pub fn harddrop() void {
     const now = std.time.milliTimestamp();
 
     // The logical spawn row (y = 0) in pixel space.
-    const spawn_origin_y = @as(f32, @floatFromInt(game_constants.GRID_OFFSET_Y));
+    const spawn_origin_y = @as(f32, @floatFromInt(constants.GRID_OFFSET_Y));
 
     // For every piece block currently on the board, create a transient clone
     // that starts at the spawn row and travels to its final resting place.
     for (piece_list.items) |p_ent| {
-        const p_pos = ecs.get(engine_components.Position, p_ent) orelse continue;
+        const p_pos = ecs.get(components.Position, p_ent) orelse continue;
 
         // Compute the block's row offset inside the piece so we can position
         // the starting y correctly (row offset * cellSize).
         const pixel_y_i32: i32 = @as(i32, @intFromFloat(p_pos.y));
-        const row_offset_pixels: i32 = @mod(pixel_y_i32 - game_constants.GRID_OFFSET_Y, cellSize());
+        const row_offset_pixels: i32 = @mod(pixel_y_i32 - constants.GRID_OFFSET_Y, cellSize());
         const row_offset: f32 = @floatFromInt(row_offset_pixels);
         const start_y = spawn_origin_y + row_offset;
 
         var colour: [4]u8 = [_]u8{ 255, 255, 255, 255 };
-        if (ecs.get(engine_components.Sprite, p_ent)) |spr| {
+        if (ecs.get(components.Sprite, p_ent)) |spr| {
             colour = spr.rgba;
         }
 
         const e = ecs.getWorld().create();
-        ecs.getWorld().add(e, engine_components.Position{ .x = p_pos.x, .y = start_y });
-        ecs.getWorld().add(e, engine_components.Sprite{ .rgba = colour, .size = 1.0 });
+        ecs.getWorld().add(e, components.Position{ .x = p_pos.x, .y = start_y });
+        ecs.getWorld().add(e, components.Sprite{ .rgba = colour, .size = 1.0 });
         _ = blocks.addBlockTextureWithAtlas(e, colour) catch {};
 
-        ecs.getWorld().add(e, engine_components.Animation{
+        ecs.getWorld().add(e, components.Animation{
             .animate_position = true,
             .start_pos = .{ p_pos.x, start_y },
             .target_pos = .{ p_pos.x, p_pos.y },

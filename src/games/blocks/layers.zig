@@ -1,22 +1,23 @@
-// game_layers.zig - Adapts the existing game rendering to the layer system
-const std = @import("std");
-const ray = @import("engine").raylib;
-const gfx = @import("engine").gfx;
+// layers.zig - Adapts the existing game rendering to the layer system
+const common = @import("common.zig");
+const std = common.std;
+const components = common.components;
+const ecs = common.ecs;
+const gfx = common.gfx;
+const ray = common.ray;
+const shaders = common.shaders;
+const animsys = common.animsys;
+const collisionsys = common.collisionsys;
+const events = common.events;
+const constants = common.game_constants;
+
 const game = @import("game.zig");
 const hud = @import("hud.zig");
-const events = @import("events.zig");
-const ecs = @import("engine").ecs;
-const ecsroot = @import("ecs");
-const components = @import("engine").components;
-const game_constants = @import("game_constants.zig");
-const engine = @import("engine");
-const animsys = engine.systems.anim;
 const playersys = @import("systems/player.zig");
-const collisionsys = engine.systems.collision;
 const gridsvc = @import("systems/gridsvc.zig");
 const previewsys = @import("systems/preview.zig");
-const shaders = @import("engine").shaders;
 const pieces = @import("pieces.zig");
+const ecsroot = @import("ecs");
 
 // ---------------------------------------------------------------------------
 // Background Layer
@@ -33,7 +34,7 @@ pub const BackgroundContext = struct {
     pub fn init(allocator: std.mem.Allocator) !*BackgroundContext {
         const self = try allocator.create(BackgroundContext);
         self.* = .{ .allocator = allocator };
-        
+
         // Load background textures
         self.texture[0] = ray.LoadTexture("resources/texture/starfield.png");
         self.texture[1] = ray.LoadTexture("resources/texture/starfield2.png");
@@ -43,7 +44,7 @@ pub const BackgroundContext = struct {
         self.texture[5] = ray.LoadTexture("resources/texture/bokefall.png");
         self.texture[6] = ray.LoadTexture("resources/texture/starmap.png");
         self.texture[7] = ray.LoadTexture("resources/texture/warpgate.png");
-        
+
         // Create entity for shader
         self.shader_entity = ecs.createEntity();
         try shaders.addShaderToEntity(self.shader_entity, "warp");
@@ -63,7 +64,7 @@ pub const BackgroundContext = struct {
             @floatFromInt(gfx.Window.OGHEIGHT * gfx.Window.SCALE),
         };
         try shader_component.setVec2("size", size);
-        
+
         return self;
     }
 
@@ -118,7 +119,7 @@ fn backgroundDeinit(ctx: *anyopaque) void {
 
 fn backgroundRender(ctx: *anyopaque, rc: gfx.RenderContext) void {
     const self = @as(*BackgroundContext, @ptrCast(@alignCast(ctx)));
-    
+
     // Update shader
     self.updateShader() catch {};
     const shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
@@ -128,18 +129,8 @@ fn backgroundRender(ctx: *anyopaque, rc: gfx.RenderContext) void {
     ray.BeginShaderMode(shader.*);
 
     // Draw background
-    const src = ray.Rectangle{ 
-        .x = 0, 
-        .y = 0, 
-        .width = @floatFromInt(self.texture[self.index].width), 
-        .height = @floatFromInt(self.texture[self.index].height) 
-    };
-    const tgt = ray.Rectangle{ 
-        .x = 0, 
-        .y = 0, 
-        .width = @floatFromInt(rc.logical_width), 
-        .height = @floatFromInt(rc.logical_height) 
-    };
+    const src = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(self.texture[self.index].width), .height = @floatFromInt(self.texture[self.index].height) };
+    const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(rc.logical_width), .height = @floatFromInt(rc.logical_height) };
 
     ray.DrawTexturePro(self.texture[self.index], src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
     ray.EndShaderMode();
@@ -148,7 +139,7 @@ fn backgroundRender(ctx: *anyopaque, rc: gfx.RenderContext) void {
 fn backgroundProcessEvent(ctx: *anyopaque, event: *const anyopaque) void {
     const self = @as(*BackgroundContext, @ptrCast(@alignCast(ctx)));
     const e = @as(*const events.Event, @ptrCast(@alignCast(event))).*;
-    
+
     switch (e) {
         .LevelUp => |newlevel| {
             self.level = newlevel;
@@ -186,10 +177,10 @@ pub const GameContext = struct {
     pub fn init(allocator: std.mem.Allocator) !*GameContext {
         const self = try allocator.create(GameContext);
         self.* = .{ .allocator = allocator };
-        
+
         // Initialize player system
         playersys.init();
-        
+
         return self;
     }
 
@@ -212,7 +203,7 @@ fn gameDeinit(ctx: *anyopaque) void {
 fn gameUpdate(ctx: *anyopaque, dt: f32) void {
     _ = ctx;
     _ = dt;
-    
+
     // Update game systems
     playersys.update();
     collisionsys.update();
@@ -222,20 +213,20 @@ fn gameUpdate(ctx: *anyopaque, dt: f32) void {
 fn gameRender(ctx: *anyopaque, rc: gfx.RenderContext) void {
     _ = ctx;
     _ = rc;
-    
+
     // Render all game entities with cell-based sizing
     gfx.drawEntities(calculateSizeFromScale);
 }
 
 // Convert sprite scale to actual pixel size
 fn calculateSizeFromScale(scale: f32) f32 {
-    return @as(f32, @floatFromInt(game_constants.CELL_SIZE)) * scale;
+    return @as(f32, @floatFromInt(constants.CELL_SIZE)) * scale;
 }
 
 fn gameProcessEvent(ctx: *anyopaque, event: *const anyopaque) void {
     _ = ctx;
     const e = @as(*const events.Event, @ptrCast(@alignCast(event))).*;
-    
+
     switch (e) {
         .GameOver => {
             animsys.createExplosionAll();
@@ -308,7 +299,7 @@ fn hudDeinit(ctx: *anyopaque) void {
 
 fn hudRender(ctx: *anyopaque, rc: gfx.RenderContext) void {
     const self = @as(*HudContext, @ptrCast(@alignCast(ctx)));
-    
+
     // Draw HUD
     hud.draw(.{
         .gridoffsetx = self.gridoffsetx,

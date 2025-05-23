@@ -9,21 +9,20 @@
 //! Build/run:
 //!     zig build benchmark
 
-const std = @import("std");
-const engine = @import("engine");
-const ray = engine.raylib;
+const common = @import("common.zig");
+const std = common.std;
+const components = common.components;
+const ecs = common.ecs;
+const gfx = common.gfx;
+const ray = common.ray;
+const textures = common.textures;
+const shaders = common.shaders;
+const animsys = common.animsys;
+const game_constants = common.game_constants;
 
-const ecs = engine.ecs;
-const ecsroot = @import("ecs");
-const components = engine.components;
-const textures = @import("engine").textures;
 const blockbuilder = @import("blockbuilder.zig");
 const pieces = @import("pieces.zig");
-// render system is now part of gfx
-const animsys = engine.systems.anim;
-const gfx = @import("engine").gfx;
-const shaders = @import("engine").shaders;
-const game_constants = @import("game_constants.zig");
+const ecsroot = @import("ecs");
 
 // Convert sprite scale to actual pixel size
 fn calculateSizeFromScale(scale: f32) f32 {

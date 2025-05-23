@@ -1,38 +1,37 @@
-const std = @import("std");
+const common = @import("../common.zig");
+const std = common.std;
+const components = common.components;
+const ecs = common.ecs;
+const gfx = common.gfx;
+const textures = common.textures;
+const shaders = common.shaders;
+const animsys = common.animsys;
+const events = common.events;
+const constants = common.game_constants;
+
 const cells = @import("../cell.zig");
 const pieces = @import("../pieces.zig");
-const events = @import("../events.zig");
-const engine = @import("engine");
-const ecs = engine.ecs;
-const ecsroot = @import("ecs");
-const components = engine.components;
-const engine_components = engine.components;
 const ecs_helpers = @import("../ecs_helpers.zig");
-const animsys = engine.systems.anim;
-const shaders = engine.shaders;
-const gfx = engine.gfx;
-const textures = engine.textures;
 const blocks = @import("../blockbuilder.zig");
-const game_constants = @import("../game_constants.zig");
-const game_components = @import("../components.zig");
+const ecsroot = @import("ecs");
 
 pub fn occupyCell(gridx: usize, gridy: usize, color: [4]u8) void {
     const entity = ecs.createEntity();
     const gx: i32 = @intCast(gridx);
     const gy: i32 = @intCast(gridy);
 
-    ecs.replace(game_components.GridPos, entity, game_components.GridPos{ .x = gx, .y = gy });
-    if (!ecs.has(game_components.BlockTag, entity)) {
-        ecs.add(entity, game_components.BlockTag{});
+    ecs.replace(components.GridPos, entity, components.GridPos{ .x = gx, .y = gy });
+    if (!ecs.has(components.BlockTag, entity)) {
+        ecs.add(entity, components.BlockTag{});
     }
 
     // Translate logical grid coordinates into absolute pixel positions (top-left).
-    const cellsize_f32: f32 = @as(f32, @floatFromInt(game_constants.CELL_SIZE));
-    const px = @as(f32, @floatFromInt(game_constants.GRID_OFFSET_X)) + @as(f32, @floatFromInt(gridx)) * cellsize_f32;
-    const py = @as(f32, @floatFromInt(game_constants.GRID_OFFSET_Y)) + @as(f32, @floatFromInt(gridy)) * cellsize_f32;
+    const cellsize_f32: f32 = @as(f32, @floatFromInt(constants.CELL_SIZE));
+    const px = @as(f32, @floatFromInt(constants.GRID_OFFSET_X)) + @as(f32, @floatFromInt(gridx)) * cellsize_f32;
+    const py = @as(f32, @floatFromInt(constants.GRID_OFFSET_Y)) + @as(f32, @floatFromInt(gridy)) * cellsize_f32;
 
-    ecs.replace(engine_components.Position, entity, engine_components.Position{ .x = px, .y = py });
-    ecs.replace(engine_components.Sprite, entity, engine_components.Sprite{ .rgba = color, .size = 1.0 });
+    ecs.replace(components.Position, entity, components.Position{ .x = px, .y = py });
+    ecs.replace(components.Sprite, entity, components.Sprite{ .rgba = color, .size = 1.0 });
     _ = blocks.addBlockTextureWithAtlas(entity, color) catch |err| {
         std.debug.print("Failed to add texture component: {}\n", .{err});
         return;
@@ -54,7 +53,7 @@ pub fn vacateCell(gridy: i32, gridx: i32) void {
     var found_entity: ?ecsroot.Entity = null;
 
     while (iter.next()) |entity| {
-        if (ecs.get(game_components.GridPos, entity)) |grid_pos| {
+        if (ecs.get(components.GridPos, entity)) |grid_pos| {
             if (grid_pos.x == gridx and grid_pos.y == gridy) {
                 found_entity = entity;
                 break;
@@ -99,7 +98,7 @@ pub fn removeLineCells(line: usize) void {
 
     var iter = blocks_view.entityIterator();
     while (iter.next()) |entity| {
-        if (ecs.get(game_components.GridPos, entity)) |grid_pos| {
+        if (ecs.get(components.GridPos, entity)) |grid_pos| {
             if (grid_pos.y == @as(i32, @intCast(line))) {
                 if (count < buffer.len) {
                     buffer[count] = entity;
@@ -111,8 +110,8 @@ pub fn removeLineCells(line: usize) void {
 
     // detach the cleared-line blocks from the logical grid
     for (buffer[0..count]) |entity| {
-        ecs.getWorld().remove(game_components.GridPos, entity);
-        ecs.getWorld().remove(game_components.BlockTag, entity);
+        ecs.getWorld().remove(components.GridPos, entity);
+        ecs.getWorld().remove(components.BlockTag, entity);
     }
 
     // these self destruct
@@ -120,8 +119,8 @@ pub fn removeLineCells(line: usize) void {
 }
 
 var shiftbuffer: [10]ecsroot.Entity = undefined;
-var shiftpbuffer: [10]engine_components.Position = undefined;
-var shiftgbuffer: [10]game_components.GridPos = undefined;
+var shiftpbuffer: [10]components.Position = undefined;
+var shiftgbuffer: [10]components.GridPos = undefined;
 pub fn shiftRowCells(line: usize) void {
     // Sshift all entities in this line down
     var blocks_view = ecs_helpers.getBlocksView();
@@ -131,20 +130,20 @@ pub fn shiftRowCells(line: usize) void {
     // Collect entities to update
     var iter = blocks_view.entityIterator();
     while (iter.next()) |entity| {
-        if (ecs.get(game_components.GridPos, entity)) |grid_pos| {
+        if (ecs.get(components.GridPos, entity)) |grid_pos| {
             if (grid_pos.y == @as(i32, @intCast(line))) {
                 if (count < shiftbuffer.len) {
                     // Store entity
                     shiftbuffer[count] = entity;
 
                     // Store position
-                    if (ecs.get(engine_components.Position, entity)) |pos| {
+                    if (ecs.get(components.Position, entity)) |pos| {
                         shiftpbuffer[count] = pos.*;
                     } else {
                         // If no position component, use default (unlikely)
-                        const cellsize_f32: f32 = @as(f32, @floatFromInt(game_constants.CELL_SIZE));
-                        const px = @as(f32, @floatFromInt(game_constants.GRID_OFFSET_X)) + @as(f32, @floatFromInt(grid_pos.x)) * cellsize_f32;
-                        const py = @as(f32, @floatFromInt(game_constants.GRID_OFFSET_Y)) + @as(f32, @floatFromInt(grid_pos.y)) * cellsize_f32;
+                        const cellsize_f32: f32 = @as(f32, @floatFromInt(constants.CELL_SIZE));
+                        const px = @as(f32, @floatFromInt(constants.GRID_OFFSET_X)) + @as(f32, @floatFromInt(grid_pos.x)) * cellsize_f32;
+                        const py = @as(f32, @floatFromInt(constants.GRID_OFFSET_Y)) + @as(f32, @floatFromInt(grid_pos.y)) * cellsize_f32;
                         shiftpbuffer[count] = .{ .x = px, .y = py };
                     }
 
@@ -160,7 +159,7 @@ pub fn shiftRowCells(line: usize) void {
     // Update all collected entities
     for (0..count) |idx| {
         const entity = shiftbuffer[idx];
-        const cellsize_f32: f32 = @as(f32, @floatFromInt(game_constants.CELL_SIZE));
+        const cellsize_f32: f32 = @as(f32, @floatFromInt(constants.CELL_SIZE));
         var pos = shiftpbuffer[idx];
         var grid_pos = shiftgbuffer[idx];
 
@@ -169,15 +168,15 @@ pub fn shiftRowCells(line: usize) void {
         const target_pos_y = start_pos_y + cellsize_f32;
 
         // Remove old components
-        ecs.getWorld().remove(game_components.GridPos, entity);
-        ecs.getWorld().remove(engine_components.Position, entity);
+        ecs.getWorld().remove(components.GridPos, entity);
+        ecs.getWorld().remove(components.Position, entity);
 
         // Add updated components (logical update happens immediately)
         grid_pos.y += 1;
-        ecs.replace(game_components.GridPos, entity, grid_pos);
+        ecs.replace(components.GridPos, entity, grid_pos);
 
         pos.y = target_pos_y;
-        ecs.replace(engine_components.Position, entity, pos);
+        ecs.replace(components.Position, entity, pos);
 
         // Add animation component
         animsys.createRowShiftAnimation(entity, start_pos_y, target_pos_y);

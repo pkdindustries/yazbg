@@ -1,7 +1,8 @@
 // games/blocks/events.zig - Tetris-specific event types
 const std = @import("std");
-const engine_events = @import("engine").events;
-const ray = @import("../../raylib.zig");
+const engine = @import("engine");
+const engine_events = engine.events;
+const ray = engine.raylib;
 
 // ---------------------------------------------------------------------------
 // Tetris Event Types

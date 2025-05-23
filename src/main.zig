@@ -1,36 +1,25 @@
-const common = @import("common.zig");
-const std = common.std;
-const ecs = common.ecs;
-const gfx = common.gfx;
-const sfx = common.sfx;
-const ray = common.ray;
-const events = common.events;
-const constants = common.game_constants;
-
-// Game imports
+const std = @import("std");
+const ray = @import("raylib.zig");
 const game = @import("game.zig");
+const sfx = @import("sfx.zig");
+const gfx = @import("gfx.zig");
 const hud = @import("hud.zig");
+const events = @import("events.zig");
+const ecs = @import("ecs.zig");
 const layers = @import("layers.zig");
 const audio = @import("game_audio.zig");
+const constants = @import("game_constants.zig");
 
 const MS = 1_000_000;
-pub var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
 pub fn main() !void {
     var timer = try std.time.Timer.start();
     ray.SetTraceLogLevel(ray.LOG_WARNING);
 
-    // Create central allocator to use throughout the application
-    // const allocator = gpa.allocator();
-    // defer _ = gpa.deinit();
-
     const allocator = std.heap.c_allocator;
 
     ecs.init(allocator);
     defer ecs.deinit();
-
-    events.init(allocator);
-    defer events.deinit();
 
     try game.init(allocator);
     defer game.deinit();
@@ -46,8 +35,8 @@ pub fn main() !void {
     defer gfx.deinit();
 
     // Initialize game layers
-    const layerarray = try layers.createLayers();
-    for (layerarray) |layer| {
+    const layers = try layers.createLayers();
+    for (layers) |layer| {
         try gfx.window.addLayer(layer);
     }
 
@@ -96,16 +85,16 @@ pub fn main() !void {
         }
 
         // queued events
-        game.process(events.queue());
-        audio.processEvents(events.queue());
-        hud.process(events.queue());
+        game.process(&events.queue);
+        audio.processEvents(&events.queue);
+        hud.process(&events.queue);
 
         // Process events for all layers
-        for (events.queue().items()) |event| {
-            gfx.window.processEvent(&event.event);
+        for (events.queue.items()) |event| {
+            gfx.window.processEvent(event.event);
         }
 
-        events.queue().clear();
+        events.queue.clear();
         const gamelogic_elapsed = timer.lap();
 
         // draw the frame with delta time

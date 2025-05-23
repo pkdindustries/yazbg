@@ -1,22 +1,12 @@
-const std = @import("std");
-
-// External modules -----------------------------------------------------------
-
-const engine = @import("engine");
-const ray = engine.raylib;
-const ecs = engine.ecs;
+const common = @import("common.zig");
+const std = common.std;
+const components = common.components;
+const ecs = common.ecs;
+const gfx = common.gfx;
+const textures = common.textures;
+const ray = common.ray;
+const game_constants = common.game_constants;
 const ecsroot = @import("ecs");
-const engine_components = engine.components;
-const gfx = @import("engine").gfx;
-const textures = @import("engine").textures;
-const game_constants = @import("game_constants.zig");
-const game_components = @import("components.zig");
-
-// Use both engine and game components
-const components = struct {
-    pub usingnamespace engine_components;
-    pub usingnamespace game_components;
-};
 
 pub const Color = textures.Color;
 pub const UV = textures.UV;
