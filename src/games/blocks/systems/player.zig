@@ -7,7 +7,6 @@ const ecs = common.ecs;
 const gfx = common.gfx;
 const constants = common.game_constants;
 
-const ecs_helpers = @import("../ecs_helpers.zig");
 const pieces = @import("../pieces.zig");
 const blocks = @import("../blockbuilder.zig");
 const ecsroot = @import("ecs");
@@ -16,8 +15,8 @@ inline fn cellSize() i32 {
     return constants.CELL_SIZE;
 }
 
-fn getPieceBlocks() @TypeOf(ecs_helpers.getPieceBlocksView().entityIterator()) {
-    var view = ecs_helpers.getPieceBlocksView();
+fn getPieceBlocks() @TypeOf(common.getPieceBlocksView().entityIterator()) {
+    var view = common.getPieceBlocksView();
     return view.entityIterator();
 }
 
@@ -27,8 +26,8 @@ var last_rotation: u32 = 0;
 var last_piece_index: u32 = 0;
 var last_ghost_y: i32 = 0;
 
-fn getGhostBlocks() @TypeOf(ecs_helpers.getGhostBlocksView().entityIterator()) {
-    var view = ecs_helpers.getGhostBlocksView();
+fn getGhostBlocks() @TypeOf(common.getGhostBlocksView().entityIterator()) {
+    var view = common.getGhostBlocksView();
     return view.entityIterator();
 }
 

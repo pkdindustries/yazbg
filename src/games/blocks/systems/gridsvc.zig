@@ -11,7 +11,6 @@ const constants = common.game_constants;
 
 const cells = @import("../cell.zig");
 const pieces = @import("../pieces.zig");
-const ecs_helpers = @import("../ecs_helpers.zig");
 const blocks = @import("../blockbuilder.zig");
 const ecsroot = @import("ecs");
 
@@ -48,7 +47,7 @@ pub fn occupyCell(gridx: usize, gridy: usize, color: [4]u8) void {
 
 pub fn vacateCell(gridy: i32, gridx: i32) void {
     // Find and remove entity at this position
-    var blocks_view = ecs_helpers.getBlocksView();
+    var blocks_view = common.getBlocksView();
     var iter = blocks_view.entityIterator();
     var found_entity: ?ecsroot.Entity = null;
 
@@ -68,7 +67,7 @@ pub fn vacateCell(gridy: i32, gridx: i32) void {
 
 pub fn clearAllCells() void {
     // Remove all block entities
-    var blocks_view = ecs_helpers.getBlocksView();
+    var blocks_view = common.getBlocksView();
 
     // We know the maximum entities is WIDTH*HEIGHT (from grid.zig)
     var buffer: [10 * 20]ecsroot.Entity = undefined;
@@ -91,7 +90,7 @@ pub fn clearAllCells() void {
 
 pub fn removeLineCells(line: usize) void {
     // get blocks in this line
-    var blocks_view = ecs_helpers.getBlocksView();
+    var blocks_view = common.getBlocksView();
 
     var buffer: [10]ecsroot.Entity = undefined;
     var count: usize = 0;
@@ -123,7 +122,7 @@ var shiftpbuffer: [10]components.Position = undefined;
 var shiftgbuffer: [10]components.GridPos = undefined;
 pub fn shiftRowCells(line: usize) void {
     // Sshift all entities in this line down
-    var blocks_view = ecs_helpers.getBlocksView();
+    var blocks_view = common.getBlocksView();
 
     var count: usize = 0;
 
