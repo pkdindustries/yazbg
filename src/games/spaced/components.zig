@@ -26,6 +26,7 @@ pub const Health = struct {
 pub const Enemy = struct {
     damage: f32 = 10.0,
     speed: f32 = 50.0,
+    collision_cooldown: f32 = 0.0, // Time before AI can chase again after collision
 };
 
 // ---------------------------------------------------------------------------
