@@ -1,6 +1,6 @@
-//! tetramino benchmark – renders 5 000 animated tetramino sprites.
+//! Tetromino benchmark – renders 5 000 animated tetromino sprites.
 //!
-//! Every tetramino is pre-rendered once into its own 4×4-cell render texture
+//! Every tetromino is pre-rendered once into its own 4×4-cell render texture
 //! (with the familiar rounded-corner block look).  At runtime we spawn 5 000
 //! ECS entities that share those textures.  Each entity carries an Animation
 //! component that drives position, scale *and* rotation, so the entire piece
@@ -23,7 +23,7 @@ const animsys = @import("systems/anim.zig");
 const gfx = @import("gfx.zig");
 const shaders = @import("shaders.zig");
 // ---------------------------------------------------------------------------
-// Globals – one atlas entry per tetramino (shared between entities)
+// Globals – one atlas entry per tetromino (shared between entities)
 // ---------------------------------------------------------------------------
 
 var piece_entries: [pieces.tetraminos.len]textures.AtlasEntry = undefined;
@@ -37,7 +37,7 @@ fn tilePx() i32 {
     return gfx.window.cellsize * 2;
 }
 
-// Width/height of the full tetramino texture in pixels (4 blocks wide).
+// Width/height of the full tetromino texture in pixels (4 blocks wide).
 fn piecePx() i32 {
     return tilePx() * 4;
 }
@@ -59,13 +59,13 @@ fn drawBlock(col: i32, row: i32, color: [4]u8) void {
     ray.DrawRectangleRounded(rect, 0.4, 20, base_color);
 }
 
-// Create (once) a 4×4-block texture for the given tetramino.
+// Create (once) a 4×4-block texture for the given tetromino.
 // ---------------------------------------------------------------------------
-// Texture atlas helpers – one tile per tetramino (4×4 blocks shrunk to tile)
+// Texture atlas helpers – one tile per tetromino (4×4 blocks shrunk to tile)
 // ---------------------------------------------------------------------------
 
-// Draw a tetramino into a single atlas tile by re-using the block helper.
-fn drawtetraminoIntoTile(
+// Draw a tetromino into a single atlas tile by re-using the block helper.
+fn drawTetrominoIntoTile(
     page_tex: *const ray.RenderTexture2D,
     tile_x: i32,
     tile_y: i32,
@@ -96,13 +96,13 @@ fn drawtetraminoIntoTile(
     }
 }
 
-// Create atlas entries for all seven tetraminos.
+// Create atlas entries for all seven tetrominos.
 fn createPieceAtlasEntries() !void {
     const alloc = std.heap.c_allocator;
     var i: usize = 0;
     while (i < pieces.tetraminos.len) : (i += 1) {
         const key_heap = try std.fmt.allocPrint(alloc, "piece_{d}", .{i});
-        piece_entries[i] = try textures.createEntry(key_heap, drawtetraminoIntoTile, &pieces.tetraminos[i]);
+        piece_entries[i] = try textures.createEntry(key_heap, drawTetrominoIntoTile, &pieces.tetraminos[i]);
     }
 }
 
@@ -132,15 +132,6 @@ fn randomizeAllAnimations() void {
         const start_x = rng.float(f32) * (screen_w - piece_px_f);
         const start_y = rng.float(f32) * (screen_h - piece_px_f);
         pos_ptr.* = .{ .x = start_x, .y = start_y };
-
-        // reset physics with new explosive velocity
-        if (ecs.get(components.Velocity, entity)) |_| {
-            const vel = ecs.getUnchecked(components.Velocity, entity);
-            const explosion_speed = 200.0 + rng.float(f32) * 400.0;
-            const angle = rng.float(f32) * std.math.tau;
-            vel.x = std.math.cos(angle) * explosion_speed;
-            vel.y = std.math.sin(angle) * explosion_speed - 100.0; // slight upward bias
-        }
 
         // Huge outward burst – pick a direction and push far off-screen
         const max_offset_x = screen_w * 1.5; // up to 2× screen dimension
@@ -179,13 +170,13 @@ fn randomizeAllAnimations() void {
 // Spawning helpers
 // ---------------------------------------------------------------------------
 
-// Spawn one tetramino sprite entity and attach an Animation component that
+// Spawn one tetromino sprite entity and attach an Animation component that
 // drives position, scale and rotation.
-fn spawnAnimatedtetramino(rng: anytype) !void {
+fn spawnAnimatedTetromino(rng: anytype) !void {
     const screen_w: f32 = @floatFromInt(ray.GetScreenWidth());
     const screen_h: f32 = @floatFromInt(ray.GetScreenHeight());
 
-    // Random tetramino type ----------------------------------------------
+    // Random tetromino type ----------------------------------------------
     const t_index = rng.intRangeAtMost(usize, 0, pieces.tetraminos.len - 1);
     const entry = piece_entries[t_index];
 
@@ -215,19 +206,6 @@ fn spawnAnimatedtetramino(rng: anytype) !void {
 
     // White tint so texture shows original colours.
     ecs.replace(components.Sprite, entity, components.Sprite{ .rgba = .{ 255, 255, 255, 255 }, .size = size0, .rotation = rot0 });
-
-    // add physics to benchmark pieces for stress testing
-    const vel_x = (rng.float(f32) - 0.5) * 400.0; // random horizontal velocity
-    const vel_y = rng.float(f32) * -200.0; // upward initial velocity
-    ecs.replace(components.Velocity, entity, components.Velocity{ .x = vel_x, .y = vel_y });
-
-    // add colliders - make them different sizes for variety
-    const radius = 20.0 + rng.float(f32) * 30.0; // random size 20-50px
-    ecs.replace(components.Collider, entity, components.Collider{
-        .shape = .{ .circle = .{ .radius = radius } },
-        .layer = 1, // all on same layer so they bounce off each other
-        .is_trigger = false,
-    });
 
     ecs.replace(components.Texture, entity, components.Texture{
         .texture = entry.tex,
@@ -276,10 +254,10 @@ pub fn main() !void {
     // Initialize graphics + texture systems (textures.init is called inside gfx.init)
     try gfx.init(std.heap.c_allocator);
 
-    // Create atlas tiles for all tetraminos
+    // Create atlas tiles for all tetrominos
     try createPieceAtlasEntries();
 
-    // ---- Spawn 5 000 animated tetraminos -------------------------------
+    // ---- Spawn 5 000 animated tetrominos -------------------------------
     var seed: u64 = undefined;
     std.crypto.random.bytes(std.mem.asBytes(&seed));
     global_prng = std.Random.DefaultPrng.init(seed);
@@ -288,7 +266,7 @@ pub fn main() !void {
     const total_pieces: usize = 10000;
     var i: usize = 0;
     while (i < total_pieces) : (i += 1) {
-        try spawnAnimatedtetramino(rng);
+        try spawnAnimatedTetromino(rng);
     }
     randomizeAllAnimations();
     // ---- Main loop -------------------------------------------------------
@@ -304,7 +282,7 @@ pub fn main() !void {
         animsys.update();
         rendersys.draw();
 
-        ray.DrawText("10 000 animated tetraminos", 100, 100, 20, ray.WHITE);
+        ray.DrawText("10 000 animated tetrominos", 100, 100, 20, ray.WHITE);
         ray.DrawFPS(10, 35);
 
         // periodically reset animations

@@ -5,7 +5,6 @@ const sfx = @import("sfx.zig");
 const gfx = @import("gfx.zig");
 const hud = @import("hud.zig");
 const events = @import("events.zig");
-const level = @import("level.zig");
 const ecs = @import("ecs.zig");
 
 const MS = 1_000_000;
