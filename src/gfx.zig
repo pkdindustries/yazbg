@@ -1,20 +1,58 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const ray = @import("raylib.zig");
-const game = @import("game.zig");
-const hud = @import("hud.zig");
 const events = @import("events.zig");
 const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
-const rendersys = @import("systems/render.zig");
-const animsys = @import("systems/anim.zig");
-const playersys = @import("systems/player.zig");
-const collisionsys = @import("systems/collision.zig");
 const textures = @import("textures.zig");
 const shaders = @import("shaders.zig");
-const gridsvc = @import("systems/gridsvc.zig");
-const previewsys = @import("systems/preview.zig");
+
+// ---------------------------------------------------------------------------
+// Layer System
+// ---------------------------------------------------------------------------
+
+pub const Layer = struct {
+    name: []const u8,
+    order: i32,              // Render order (lower = first)
+    enabled: bool = true,    // Can toggle layers on/off
+    
+    // Lifecycle - init returns context, others receive it
+    init: ?*const fn (allocator: std.mem.Allocator) anyerror!*anyopaque = null,
+    deinit: ?*const fn (ctx: *anyopaque) void = null,
+    
+    // Called every frame
+    update: ?*const fn (ctx: *anyopaque, dt: f32) void = null,
+    render: *const fn (ctx: *anyopaque, rc: RenderContext) void,
+    
+    // Optional event handling  
+    processEvent: ?*const fn (ctx: *anyopaque, event: events.Event) void = null,
+    
+    // Internal
+    context: *anyopaque = undefined,
+};
+
+pub const RenderContext = struct {
+    camera: ray.Camera2D,
+    window_width: i32,
+    window_height: i32,
+    logical_width: i32,   // OGWIDTH
+    logical_height: i32,  // OGHEIGHT  
+    font: ray.Font,
+    time: f32,           // Total elapsed time
+};
+
+// Layer comparison for sorting
+fn layerLessThan(context: void, a: Layer, b: Layer) bool {
+    _ = context;
+    return a.order < b.order;
+}
+
+// Default cell size for compatibility with existing code
+pub const DEFAULT_CELL_SIZE: i32 = 35;
+pub const DEFAULT_CELL_PADDING: i32 = 2;
+pub const DEFAULT_GRID_OFFSET_X: i32 = 165;
+pub const DEFAULT_GRID_OFFSET_Y: i32 = 70;
 
 pub const Window = struct {
     // Logical resolution of the off-screen render target (in pixels).
@@ -33,13 +71,14 @@ pub const Window = struct {
     height: i32 = OGHEIGHT,
     texture: ray.RenderTexture2D = undefined,
     font: ray.Font = undefined,
-    gridoffsetx: i32 = 165,
-    gridoffsety: i32 = 70,
-    cellsize: i32 = 35,
-    cellpadding: i32 = 2,
     drag_active: bool = false,
+    
+    // Layer management
+    layers: std.ArrayList(Layer) = undefined,
+    allocator: std.mem.Allocator = undefined,
+    start_time: i64 = undefined,
 
-    pub fn init(self: *Window) !void {
+    pub fn init(self: *Window, allocator: std.mem.Allocator) !void {
         // Initialize window
         ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
         ray.InitWindow(Window.OGWIDTH, Window.OGHEIGHT, "yazbg");
@@ -61,9 +100,24 @@ pub const Window = struct {
         self.font = ray.LoadFont("resources/font/space.ttf");
         ray.GenTextureMipmaps(&self.font.texture);
         ray.SetTextureFilter(self.font.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);
+        
+        // Initialize layer system
+        self.allocator = allocator;
+        self.layers = std.ArrayList(Layer).init(allocator);
+        self.start_time = std.time.milliTimestamp();
     }
 
     pub fn deinit(self: *Window) void {
+        // Deinit layers in reverse order
+        var i = self.layers.items.len;
+        while (i > 0) : (i -= 1) {
+            const layer = &self.layers.items[i - 1];
+            if (layer.deinit) |deinitFn| {
+                deinitFn(layer.context);
+            }
+        }
+        self.layers.deinit();
+        
         ray.UnloadTexture(self.texture.texture);
         ray.UnloadFont(self.font);
     }
@@ -130,217 +184,134 @@ pub const Window = struct {
         const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(self.width), .height = @floatFromInt(self.height) };
         ray.DrawTexturePro(self.texture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
     }
-};
-
-pub const Background = struct {
-    index: usize = 0,
-    texture: [8]ray.Texture2D = undefined,
-    shader_entity: ecsroot.Entity = undefined,
-
-    // Store when warp effect should end
-    warp_end_ms: i64 = 0,
-    level: u8 = 0,
-
-    pub fn init(self: *Background) !void {
-        // _ = self;
-        // Load background textures
-        self.texture[0] = ray.LoadTexture("resources/texture/starfield.png");
-        self.texture[1] = ray.LoadTexture("resources/texture/starfield2.png");
-        self.texture[2] = ray.LoadTexture("resources/texture/nebula.png");
-        self.texture[3] = ray.LoadTexture("resources/texture/nebula2.png");
-        self.texture[4] = ray.LoadTexture("resources/texture/bluestars.png");
-        self.texture[5] = ray.LoadTexture("resources/texture/bokefall.png");
-        self.texture[6] = ray.LoadTexture("resources/texture/starmap.png");
-        self.texture[7] = ray.LoadTexture("resources/texture/warpgate.png");
-        // Create entity for shader
-        self.shader_entity = ecs.createEntity();
-        try shaders.addShaderToEntity(self.shader_entity, "warp");
-
-        // Set initial shader parameters
-        var shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
-        try shader_component.setFloat("seconds", 0.0);
-        try shader_component.setFloat("freqX", 10.0);
-        try shader_component.setFloat("freqY", 10.0);
-        try shader_component.setFloat("ampX", 2.0);
-        try shader_component.setFloat("ampY", 2.0);
-        try shader_component.setFloat("speedX", 0.15);
-        try shader_component.setFloat("speedY", 0.15);
-
-        const size = [2]f32{
-            @floatFromInt(Window.OGWIDTH * Window.SCALE),
-            @floatFromInt(Window.OGHEIGHT * Window.SCALE),
+    
+    // Layer management
+    pub fn addLayer(self: *Window, layer: Layer) !void {
+        var new_layer = layer;
+        
+        // Initialize layer if it has an init function
+        if (new_layer.init) |initFn| {
+            new_layer.context = try initFn(self.allocator);
+        }
+        
+        try self.layers.append(new_layer);
+        
+        // Sort layers by order
+        std.sort.heap(Layer, self.layers.items, {}, layerLessThan);
+    }
+    
+    pub fn getLayer(self: *Window, name: []const u8) ?*Layer {
+        for (self.layers.items) |*layer| {
+            if (std.mem.eql(u8, layer.name, name)) {
+                return layer;
+            }
+        }
+        return null;
+    }
+    
+    pub fn removeLayer(self: *Window, name: []const u8) void {
+        var i: usize = 0;
+        while (i < self.layers.items.len) {
+            if (std.mem.eql(u8, self.layers.items[i].name, name)) {
+                const layer = self.layers.orderedRemove(i);
+                if (layer.deinit) |deinitFn| {
+                    deinitFn(layer.context);
+                }
+            } else {
+                i += 1;
+            }
+        }
+    }
+    
+    // Update all layers
+    fn updateLayers(self: *Window, dt: f32) void {
+        for (self.layers.items) |*layer| {
+            if (!layer.enabled) continue;
+            if (layer.update) |updateFn| {
+                updateFn(layer.context, dt);
+            }
+        }
+    }
+    
+    // Process events for all layers
+    pub fn processEvent(self: *Window, event: events.Event) void {
+        for (self.layers.items) |*layer| {
+            if (!layer.enabled) continue;
+            if (layer.processEvent) |processFn| {
+                processFn(layer.context, event);
+            }
+        }
+    }
+    
+    // Render all layers
+    fn renderLayers(self: *Window) void {
+        const elapsed_ms = std.time.milliTimestamp() - self.start_time;
+        const time = @as(f32, @floatFromInt(elapsed_ms)) / 1000.0;
+        
+        const rc = RenderContext{
+            .camera = ray.Camera2D{
+                .offset = ray.Vector2{ .x = 0, .y = 0 },
+                .target = ray.Vector2{ .x = 0, .y = 0 },
+                .rotation = 0,
+                .zoom = @as(f32, @floatFromInt(Window.SCALE)),
+            },
+            .window_width = self.width,
+            .window_height = self.height,
+            .logical_width = Window.OGWIDTH,
+            .logical_height = Window.OGHEIGHT,
+            .font = self.font,
+            .time = time,
         };
-        try shader_component.setVec2("size", size);
-    }
-
-    pub fn deinit(self: *Background) void {
-        // Unload all textures
-        for (self.texture) |texture| {
-            ray.UnloadTexture(texture);
+        
+        ray.BeginMode2D(rc.camera);
+        ray.ClearBackground(ray.BLACK);
+        
+        for (self.layers.items) |*layer| {
+            if (!layer.enabled) continue;
+            layer.render(layer.context, rc);
         }
-
-        // Destroy shader entity
-        ecs.destroyEntity(self.shader_entity);
-    }
-
-    pub fn next(self: *Background) void {
-        self.index = (self.index + 1) % self.texture.len;
-    }
-
-    pub fn updateShader(self: *Background) !void {
-        // Get shader component
-        var shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
-
-        // Set background warp parameters based on game state
-        const now = std.time.milliTimestamp();
-        if (self.warp_end_ms > now) {
-            // Intense warp effect for special events
-            try shader_component.setFloat("freqX", 25.0);
-            try shader_component.setFloat("freqY", 25.0);
-            try shader_component.setFloat("ampX", 10.0);
-            try shader_component.setFloat("ampY", 10.0);
-            try shader_component.setFloat("speedX", 25.0);
-            try shader_component.setFloat("speedY", 25.0);
-        } else {
-            // Normal warp effect scaling with level
-            const speed_factor = 0.15 * (@as(f32, @floatFromInt(self.level)) + 2.0);
-            try shader_component.setFloat("freqX", 10.0);
-            try shader_component.setFloat("freqY", 10.0);
-            try shader_component.setFloat("ampX", 2.0);
-            try shader_component.setFloat("ampY", 2.0);
-            try shader_component.setFloat("speedX", speed_factor);
-            try shader_component.setFloat("speedY", speed_factor);
-        }
-
-        // Update time uniform
-        const current_time = @as(f32, @floatCast(ray.GetTime()));
-        try shader_component.setFloat("seconds", current_time);
-        try shaders.updateShaderUniforms(self.shader_entity);
-    }
-
-    pub fn setWarpEffect(self: *Background, duration_ms: i64) void {
-        const now = std.time.milliTimestamp();
-        if (self.warp_end_ms < now + duration_ms) {
-            self.warp_end_ms = now + duration_ms;
-        }
-    }
-
-    pub fn setLevel(self: *Background, new_level: u8) void {
-        self.level = new_level;
-    }
-
-    pub fn reset(self: *Background) void {
-        self.index = 0;
-        self.level = 0;
-    }
-
-    pub fn draw(self: *Background) void {
-        background.updateShader() catch {};
-        const shader_component = ecs.getUnchecked(components.Shader, self.shader_entity);
-        const shader = shader_component.shader;
-
-        // Apply the warp shader when drawing the background
-        ray.BeginShaderMode(shader.*);
-
-        // Source and destination rectangles
-        const src = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(self.texture[self.index].width), .height = @floatFromInt(self.texture[self.index].height) };
-        const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(Window.OGWIDTH), .height = @floatFromInt(Window.OGHEIGHT) };
-
-        // Draw background texture with shader applied
-        ray.DrawTexturePro(self.texture[self.index], src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
-        ray.EndShaderMode();
+        
+        ray.EndMode2D();
     }
 };
 
 pub var window = Window{};
-var background = Background{};
 
 pub fn init(allocator: std.mem.Allocator) !void {
     std.debug.print("init gfx\n", .{});
-    // Initialize window
-    try window.init();
-    // Initialize texture, blocks and shader systems
+    // Initialize window with layer system
+    try window.init(allocator);
+    // Initialize texture and shader systems
     try textures.init(allocator);
     try shaders.init(allocator);
-    // Initialize background
-    try background.init();
-
-    // Initialize player system
-    playersys.init();
 }
 
 pub fn deinit() void {
-    // std.debug.print("deinit gfx\n", .{});
-
-    // Clean up window resources
+    // Clean up window resources (includes layers)
     window.deinit();
-
-    // Clean up background resources
-    background.deinit();
-
-    // Clean up player system
-    playersys.deinit();
-
+    
     // Clean up texture and shader systems
     textures.deinit();
     shaders.deinit();
 }
 
-pub fn nextbackground() void {
-    background.next();
-}
-
-pub fn frame() void {
+pub fn frame(dt: f32) void {
     // Handle window resizing
     window.updateScale();
-
-    playersys.update();
-    collisionsys.update();
-    animsys.update();
+    
+    // Update all enabled layers
+    window.updateLayers(dt);
 
     ray.BeginDrawing();
-    {
-        ray.BeginTextureMode(window.texture);
-        {
-            // -----------------------------------------------------------------
-            // Render everything at a higher resolution via a camera zoom.
-            // -----------------------------------------------------------------
-            const camera = ray.Camera2D{
-                .offset = ray.Vector2{ .x = 0, .y = 0 },
-                .target = ray.Vector2{ .x = 0, .y = 0 },
-                .rotation = 0,
-                .zoom = @as(f32, @floatFromInt(Window.SCALE)),
-            };
-
-            ray.BeginMode2D(camera);
-            {
-                ray.ClearBackground(ray.BLACK);
-
-                // Update and draw background with shader
-                background.draw();
-
-                rendersys.draw();
-
-                // Draw HUD elements
-                hud.draw(.{
-                    .gridoffsetx = window.gridoffsetx,
-                    .gridoffsety = window.gridoffsety,
-                    .cellsize = window.cellsize,
-                    .cellpadding = window.cellpadding,
-                    .font = window.font,
-                    .og_width = Window.OGWIDTH,
-                    .og_height = Window.OGHEIGHT,
-                    .next_piece = game.state.piece.next,
-                    .held_piece = game.state.piece.held,
-                });
-            }
-            ray.EndMode2D();
-        }
-        ray.EndTextureMode();
-
-        // Scale render texture to actual window size
-        window.drawScaled();
-    }
+    ray.BeginTextureMode(window.texture);
+    
+    // Render all enabled layers
+    window.renderLayers();
+    
+    ray.EndTextureMode();
+    
+    // Scale render texture to actual window size
+    window.drawScaled();
     ray.EndDrawing();
 }
 
@@ -382,7 +353,7 @@ pub fn drawTexture(
 ) void {
 
     // Calculate the scaled sprite size (width == height).
-    const cellsize_scaled = @as(f32, @floatFromInt(window.cellsize)) * scale;
+    const cellsize_scaled = @as(f32, @floatFromInt(DEFAULT_CELL_SIZE)) * scale;
 
     // Source rectangle (using UV coordinates).
     const texture_width = @as(f32, @floatFromInt(texture.*.texture.width));
@@ -427,67 +398,4 @@ pub fn calculateUV(col: i32, row: i32, tile_size: i32, atlas_size: i32) [4]f32 {
     const mv1 = @as(f32, @floatFromInt((row + 1) * tile_size)) / @as(f32, @floatFromInt(atlas_size));
 
     return .{ mu0, mv0, mu1, mv1 };
-}
-
-pub fn process(queue: *events.EventQueue) void {
-    for (queue.items()) |rec| {
-        switch (rec.event) {
-            // Original event handlers
-            .LevelUp => |newlevel| {
-                background.setLevel(newlevel);
-            },
-            .NextBackground => background.next(),
-            .Clear => |lines| {
-                const extra_ms: i64 = 120 * @as(i64, @intCast(lines));
-                background.setWarpEffect(extra_ms);
-            },
-            .GameOver => {
-                animsys.createExplosionAll();
-                background.next();
-                background.setWarpEffect(300);
-            },
-            .Reset => {
-                animsys.createExplosionAll();
-                background.reset();
-                previewsys.reset();
-            },
-
-            .HardDropEffect => playersys.harddrop(),
-            .Spawn => {
-                // Gameplay side already promoted the next piece – animate the
-                // preview blocks, then refresh the sidebar preview.
-                previewsys.spawn(game.state.piece.next);
-            },
-
-            // Position update events for player system
-            .PlayerPositionUpdated => |update| {
-                // Update player system state with the new position data
-                playersys.updatePlayerPosition(update.x, update.y, update.rotation, update.ghost_y, update.piece_index);
-            },
-
-            // Grid service handling
-            .PieceLocked => |data| {
-                for (0..data.count) |i| {
-                    const block = data.blocks[i];
-                    gridsvc.occupyCell(block.x, block.y, block.color);
-                }
-            },
-            .LineClearing => |data| {
-                gridsvc.removeLineCells(data.y);
-            },
-            .RowsShiftedDown => |data| {
-                // Handle row shifts from line clearing
-                for (0..data.count) |i| {
-                    gridsvc.shiftRowCells(data.start_y + i);
-                }
-            },
-            .GridReset => {},
-            .Hold => {
-                // Animate current piece to held position and update hold preview
-                previewsys.hold(game.state.piece.held);
-                playersys.redraw(); // ensure the new active piece is visible
-            },
-            else => {},
-        }
-    }
 }

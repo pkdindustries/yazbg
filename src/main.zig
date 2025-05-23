@@ -6,6 +6,8 @@ const gfx = @import("gfx.zig");
 const hud = @import("hud.zig");
 const events = @import("events.zig");
 const ecs = @import("ecs.zig");
+const game_layers = @import("game_layers.zig");
+const game_audio = @import("game_audio.zig");
 
 const MS = 1_000_000;
 pub var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -28,9 +30,18 @@ pub fn main() !void {
 
     try sfx.init(allocator);
     defer sfx.deinit();
+    
+    // Load audio configuration
+    try sfx.loadConfig(game_audio.audio_config);
 
     try gfx.init(allocator);
     defer gfx.deinit();
+    
+    // Initialize game layers
+    const layers = try game_layers.createLayers();
+    for (layers) |layer| {
+        try gfx.window.addLayer(layer);
+    }
 
     std.debug.print("system init {}ms\n", .{timer.lap() / MS});
 
@@ -78,14 +89,20 @@ pub fn main() !void {
 
         // queued events
         game.process(&events.queue);
-        sfx.process(&events.queue);
+        game_audio.processEvents(&events.queue);
         hud.process(&events.queue);
-        gfx.process(&events.queue);
+        
+        // Process events for all layers
+        for (events.queue.items()) |event| {
+            gfx.window.processEvent(event.event);
+        }
+        
         events.queue.clear();
         const gamelogic_elapsed = timer.lap();
 
-        // draw the frame
-        gfx.frame();
+        // draw the frame with delta time
+        const dt = ray.GetFrameTime();
+        gfx.frame(dt);
 
         // performance stats
         const frametime_elapsed = timer.lap();

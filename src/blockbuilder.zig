@@ -70,7 +70,7 @@ fn buildPieceEntities(
     color: Color,
     is_ghost: bool,
 ) void {
-    const cs: i32 = gfx.window.cellsize;
+    const cs: i32 = gfx.DEFAULT_CELL_SIZE;
 
     for (shape, 0..) |row, col_idx| {
         for (row, 0..) |cell, row_idx| {
@@ -170,7 +170,7 @@ pub fn drawBlockIntoTile(
     _: []const u8,
     context: ?*const anyopaque,
 ) void {
-    const padding: f32 = @as(f32, @floatFromInt(gfx.window.cellpadding)) * 2.0;
+    const padding: f32 = @as(f32, @floatFromInt(gfx.DEFAULT_CELL_PADDING)) * 2.0;
     const block_size = @as(f32, @floatFromInt(tile_size)) - padding * 2.0;
 
     const rect = ray.Rectangle{

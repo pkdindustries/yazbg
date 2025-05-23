@@ -34,7 +34,7 @@ var global_prng: std.Random.DefaultPrng = undefined;
 // Size of one block while drawing into the piece texture (double resolution to
 // match the atlas quality used elsewhere).
 fn tilePx() i32 {
-    return gfx.window.cellsize * 2;
+    return gfx.DEFAULT_CELL_SIZE * 2;
 }
 
 // Width/height of the full tetromino texture in pixels (4 blocks wide).
@@ -246,10 +246,6 @@ pub fn main() !void {
     gfx.window = gfx.Window{};
     gfx.window.width = ray.GetScreenWidth();
     gfx.window.height = ray.GetScreenHeight();
-    gfx.window.cellsize = 35;
-    gfx.window.cellpadding = 1;
-    gfx.window.gridoffsetx = 10;
-    gfx.window.gridoffsety = 10;
 
     // Initialize graphics + texture systems (textures.init is called inside gfx.init)
     try gfx.init(std.heap.c_allocator);
