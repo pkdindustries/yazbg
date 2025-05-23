@@ -18,7 +18,7 @@ https://github.com/prime31/zig-ecs
 git clone https://github.com/pkdindustries/yazbg
 cd yazbg
 # build and run the blocks game
-zig build run
+zig build blocks
 # wasm
 zig build -Dtarget=wasm32-emscripten -Doptimize=ReleaseSmall --sysroot <emsdk>
 

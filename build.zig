@@ -193,8 +193,8 @@ pub fn build(b: *std.Build) void {
             run_cmd.addArgs(args);
         }
 
-        const run_step = b.step("run", "Run the app");
-        run_step.dependOn(&run_cmd.step);
+        const run_blocks = b.step("blocks", "Run blocks game");
+        run_blocks.dependOn(&run_cmd.step);
 
         // Benchmark executable
         const benchmark_exe = b.addExecutable(.{
@@ -217,7 +217,7 @@ pub fn build(b: *std.Build) void {
             run_benchmark.addArgs(args);
         }
 
-        const benchmark_step = b.step("benchmark", "Run the animation/render benchmark");
+        const benchmark_step = b.step("benchmark", "Run the blocks benchmark");
         benchmark_step.dependOn(&run_benchmark.step);
 
         const unit_tests = b.addTest(.{

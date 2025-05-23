@@ -11,7 +11,7 @@ const constants = common.game_constants;
 const game = @import("game.zig");
 const hud = @import("hud.zig");
 const layers = @import("layers.zig");
-const audio = @import("game_audio.zig");
+const audio = @import("audio.zig");
 
 const MS = 1_000_000;
 pub var gpa = std.heap.GeneralPurposeAllocator(.{}){};
