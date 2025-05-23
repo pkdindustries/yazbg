@@ -18,10 +18,17 @@ const components = @import("components.zig");
 const textures = @import("textures.zig");
 const blockbuilder = @import("blockbuilder.zig");
 const pieces = @import("pieces.zig");
-const rendersys = @import("systems/render.zig");
+// render system is now part of gfx
 const animsys = @import("systems/anim.zig");
 const gfx = @import("gfx.zig");
 const shaders = @import("shaders.zig");
+const game_constants = @import("game_constants.zig");
+
+// Convert sprite scale to actual pixel size
+fn calculateSizeFromScale(scale: f32) f32 {
+    return @as(f32, @floatFromInt(game_constants.CELL_SIZE)) * scale;
+}
+
 // ---------------------------------------------------------------------------
 // Globals – one atlas entry per tetromino (shared between entities)
 // ---------------------------------------------------------------------------
@@ -34,7 +41,7 @@ var global_prng: std.Random.DefaultPrng = undefined;
 // Size of one block while drawing into the piece texture (double resolution to
 // match the atlas quality used elsewhere).
 fn tilePx() i32 {
-    return gfx.DEFAULT_CELL_SIZE * 2;
+    return game_constants.CELL_SIZE * 2;
 }
 
 // Width/height of the full tetromino texture in pixels (4 blocks wide).
@@ -248,7 +255,7 @@ pub fn main() !void {
     gfx.window.height = ray.GetScreenHeight();
 
     // Initialize graphics + texture systems (textures.init is called inside gfx.init)
-    try gfx.init(std.heap.c_allocator);
+    try gfx.init(std.heap.c_allocator, game_constants.CELL_SIZE * 2);
 
     // Create atlas tiles for all tetrominos
     try createPieceAtlasEntries();
@@ -276,7 +283,7 @@ pub fn main() !void {
 
         // Update & draw
         animsys.update();
-        rendersys.draw();
+        gfx.drawEntities(calculateSizeFromScale);
 
         ray.DrawText("10 000 animated tetrominos", 100, 100, 20, ray.WHITE);
         ray.DrawFPS(10, 35);

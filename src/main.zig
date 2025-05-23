@@ -8,6 +8,7 @@ const events = @import("events.zig");
 const ecs = @import("ecs.zig");
 const game_layers = @import("game_layers.zig");
 const game_audio = @import("game_audio.zig");
+const game_constants = @import("game_constants.zig");
 
 const MS = 1_000_000;
 pub var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -34,7 +35,8 @@ pub fn main() !void {
     // Load audio configuration
     try sfx.loadConfig(game_audio.audio_config);
 
-    try gfx.init(allocator);
+    // Initialize graphics with texture tile size (2x cell size for high quality)
+    try gfx.init(allocator, game_constants.CELL_SIZE * 2);
     defer gfx.deinit();
     
     // Initialize game layers

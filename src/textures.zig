@@ -38,11 +38,11 @@ var texture_lut: std.StringHashMap(AtlasEntry) = undefined;
 // Store allocator for future use
 var allocator: std.mem.Allocator = undefined;
 
-// needs gfx.window.cellsize
-pub fn init(alloc: std.mem.Allocator) !void {
+// Initialize with configurable tile size
+pub fn init(alloc: std.mem.Allocator, tile_size: i32) !void {
     //std.debug.print("textures init\n", .{});
     allocator = alloc;
-    tile_px = gfx.DEFAULT_CELL_SIZE * 2; // match previous implementation
+    tile_px = tile_size;
     atlas_px = tile_px * TILES_PER_ROW;
 
     pages = std.ArrayList(Page).init(allocator);

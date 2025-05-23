@@ -8,7 +8,7 @@ const events = @import("events.zig");
 const ecs = @import("ecs.zig");
 const ecsroot = @import("ecs");
 const components = @import("components.zig");
-const rendersys = @import("systems/render.zig");
+const game_constants = @import("game_constants.zig");
 const animsys = @import("systems/anim.zig");
 const playersys = @import("systems/player.zig");
 const collisionsys = @import("systems/collision.zig");
@@ -221,8 +221,13 @@ fn gameRender(ctx: *anyopaque, rc: gfx.RenderContext) void {
     _ = ctx;
     _ = rc;
     
-    // Render all game entities
-    rendersys.draw();
+    // Render all game entities with cell-based sizing
+    gfx.drawEntities(calculateSizeFromScale);
+}
+
+// Convert sprite scale to actual pixel size
+fn calculateSizeFromScale(scale: f32) f32 {
+    return @as(f32, @floatFromInt(game_constants.CELL_SIZE)) * scale;
 }
 
 fn gameProcessEvent(ctx: *anyopaque, event: events.Event) void {

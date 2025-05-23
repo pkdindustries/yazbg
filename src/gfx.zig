@@ -9,6 +9,120 @@ const textures = @import("textures.zig");
 const shaders = @import("shaders.zig");
 
 // ---------------------------------------------------------------------------
+// ECS Rendering System
+// ---------------------------------------------------------------------------
+
+// Sorting helper: order Shader components by the pointer value so that all
+// entities using the same Shader end up contiguous in the group array.
+fn shaderLess(_: void, a: components.Shader, b: components.Shader) bool {
+    return @intFromPtr(a.shader) < @intFromPtr(b.shader);
+}
+
+// We create the groups once and reuse them every frame.  `world.group()` is
+// cheap, but avoiding the call removes a tiny bit of overhead and keeps the
+// hot loop free of hashing work.
+
+const NoShaderGroupType = @TypeOf(ecs.getWorld().group(
+    .{},
+    .{ components.Sprite, components.Position, components.Texture },
+    .{components.Shader},
+));
+
+const ShaderGroupType = @TypeOf(ecs.getWorld().group(
+    .{ components.Sprite, components.Position, components.Texture, components.Shader },
+    .{},
+    .{},
+));
+
+var no_shader_group: ?NoShaderGroupType = null;
+var shader_group: ?ShaderGroupType = null;
+
+fn ensureGroups() void {
+    if (no_shader_group == null) {
+        const w = ecs.getWorld();
+        no_shader_group = w.group(
+            .{},
+            .{ components.Sprite, components.Position, components.Texture },
+            .{components.Shader},
+        );
+        shader_group = w.group(
+            .{ components.Sprite, components.Position, components.Texture, components.Shader },
+            .{},
+            .{},
+        );
+    }
+}
+
+// Draw all entities with Position, Sprite, and Texture components
+// If size_callback is provided, it's used to calculate size from sprite.size
+// Otherwise, sprite.size is used directly as the size in pixels
+pub fn drawEntities(size_callback: ?*const fn (scale: f32) f32) void {
+    ensureGroups();
+
+    // ---------------------------------------------------------------------
+    // Pass 1: draw all entities that do NOT have a Shader component.
+    //   BasicGroup caches membership for us; no run-time filtering needed.
+    // ---------------------------------------------------------------------
+
+    var rit = no_shader_group.?.iterator();
+    while (rit.next()) |e| {
+        const sprite = no_shader_group.?.get(components.Sprite, e);
+        const pos = no_shader_group.?.get(components.Position, e);
+        const tex = no_shader_group.?.get(components.Texture, e);
+
+        const size = if (size_callback) |cb| cb(sprite.size) else sprite.size;
+        drawTexture(pos.x, pos.y, size, size, tex.texture, tex.uv, sprite.rgba, sprite.rotation);
+    }
+
+    // ---------------------------------------------------------------------
+    // Pass 2: draw entities WITH a Shader component using an OWNING group so
+    // that Sprite/Position/Texture/Shader storages are kept zipped.  Sorting
+    // will therefore keep all component arrays in sync which improves cache
+    // locality when we touch multiple components per entity.
+    // ---------------------------------------------------------------------
+
+    var shader_group_local = shader_group.?;
+
+    if (shader_group_local.len() == 0) return;
+
+    const IterComp = struct {
+        sprite: *components.Sprite,
+        position: *components.Position,
+        texture: *components.Texture,
+        shader: *components.Shader,
+    };
+
+    var it = shader_group_local.iterator(IterComp);
+    var current_shader_ptr: ?*const ray.Shader = null;
+
+    while (it.next()) |comps| {
+        if (current_shader_ptr == null or comps.shader.shader != current_shader_ptr.?) {
+            if (current_shader_ptr != null) ray.EndShaderMode();
+            current_shader_ptr = comps.shader.shader;
+            ray.BeginShaderMode(current_shader_ptr.?.*);
+        }
+
+        shaders.updateShaderUniforms(it.entity()) catch |err| {
+            std.debug.print("Shader uniforms error: {}\n", .{err});
+        };
+
+        const size = if (size_callback) |cb| cb(comps.sprite.size) else comps.sprite.size;
+        drawTexture(
+            comps.position.x,
+            comps.position.y,
+            size,
+            size,
+            comps.texture.texture,
+            comps.texture.uv,
+            comps.sprite.rgba,
+            comps.sprite.rotation,
+        );
+    }
+
+    if (current_shader_ptr != null) ray.EndShaderMode();
+}
+
+// ---------------------------------------------------------------------------
 // Layer System
 // ---------------------------------------------------------------------------
 
@@ -47,12 +161,6 @@ fn layerLessThan(context: void, a: Layer, b: Layer) bool {
     _ = context;
     return a.order < b.order;
 }
-
-// Default cell size for compatibility with existing code
-pub const DEFAULT_CELL_SIZE: i32 = 35;
-pub const DEFAULT_CELL_PADDING: i32 = 2;
-pub const DEFAULT_GRID_OFFSET_X: i32 = 165;
-pub const DEFAULT_GRID_OFFSET_Y: i32 = 70;
 
 pub const Window = struct {
     // Logical resolution of the off-screen render target (in pixels).
@@ -277,12 +385,12 @@ pub const Window = struct {
 
 pub var window = Window{};
 
-pub fn init(allocator: std.mem.Allocator) !void {
+pub fn init(allocator: std.mem.Allocator, texture_tile_size: i32) !void {
     std.debug.print("init gfx\n", .{});
     // Initialize window with layer system
     try window.init(allocator);
     // Initialize texture and shader systems
-    try textures.init(allocator);
+    try textures.init(allocator, texture_tile_size);
     try shaders.init(allocator);
 }
 
@@ -345,15 +453,13 @@ pub fn rotationToDegrees(rotation: f32) f32 {
 pub fn drawTexture(
     x: f32,
     y: f32,
+    width: f32,
+    height: f32,
     texture: *const ray.RenderTexture2D,
     uv: [4]f32,
     tint: [4]u8,
-    scale: f32,
     rotation: f32,
 ) void {
-
-    // Calculate the scaled sprite size (width == height).
-    const cellsize_scaled = @as(f32, @floatFromInt(DEFAULT_CELL_SIZE)) * scale;
 
     // Source rectangle (using UV coordinates).
     const texture_width = @as(f32, @floatFromInt(texture.*.texture.width));
@@ -370,14 +476,14 @@ pub fn drawTexture(
     const dest = ray.Rectangle{
         .x = x,
         .y = y,
-        .width = cellsize_scaled,
-        .height = cellsize_scaled,
+        .width = width,
+        .height = height,
     };
 
     // Rotate around the centre of the sprite.
     const origin = ray.Vector2{
-        .x = cellsize_scaled / 2.0,
-        .y = cellsize_scaled / 2.0,
+        .x = width / 2.0,
+        .y = height / 2.0,
     };
 
     ray.DrawTexturePro(

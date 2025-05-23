@@ -8,6 +8,7 @@ const ecsroot = @import("ecs");
 const components = @import("components.zig");
 const gfx = @import("gfx.zig");
 const textures = @import("textures.zig");
+const game_constants = @import("game_constants.zig");
 
 pub const Color = textures.Color;
 pub const UV = textures.UV;
@@ -70,7 +71,7 @@ fn buildPieceEntities(
     color: Color,
     is_ghost: bool,
 ) void {
-    const cs: i32 = gfx.DEFAULT_CELL_SIZE;
+    const cs: i32 = game_constants.CELL_SIZE;
 
     for (shape, 0..) |row, col_idx| {
         for (row, 0..) |cell, row_idx| {
@@ -170,7 +171,7 @@ pub fn drawBlockIntoTile(
     _: []const u8,
     context: ?*const anyopaque,
 ) void {
-    const padding: f32 = @as(f32, @floatFromInt(gfx.DEFAULT_CELL_PADDING)) * 2.0;
+    const padding: f32 = @as(f32, @floatFromInt(game_constants.CELL_PADDING)) * 2.0;
     const block_size = @as(f32, @floatFromInt(tile_size)) - padding * 2.0;
 
     const rect = ray.Rectangle{
