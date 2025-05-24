@@ -1,14 +1,14 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-// game configuration - name, has_benchmark
+// game configuration
 const GameConfig = struct {
     name: []const u8,
-    has_benchmark: bool = false,
+    secondaries: []const []const u8 = &.{},
 };
 
 const games = [_]GameConfig{
-    .{ .name = "blocks", .has_benchmark = true },
+    .{ .name = "blocks", .secondaries = &.{"benchmark"} },
     .{ .name = "spaced" },
 };
 
@@ -84,6 +84,26 @@ pub fn build(b: *std.Build) void {
         const resource_src = b.path("resources").getPath(b);
         const resource_arg = std.fmt.allocPrint(b.allocator, "{s}@/resources", .{resource_src}) catch unreachable;
 
+        // common emcc args
+        const emcc_args = [_][]const u8{
+            "-O3",
+            "-flto",
+            "--closure 1",
+            "-sMINIFY_HTML=1",
+            "-sUSE_GLFW=3",
+            "-sASYNCIFY",
+            "-sSTACK_SIZE=16777216",
+            "-sAUDIO_WORKLET=0",
+            "-sUSE_OFFSET_CONVERTER",
+            "-sEXPORTED_RUNTIME_METHODS=['HEAPF32', 'ccall', 'cwrap']",
+            "--preload-file",
+            resource_arg,
+            "--shell-file",
+            b.path("web/shell.html").getPath(b),
+            "--preload-file",
+            resource_arg,
+        };
+
         // build each game for wasm
         for (games) |game| {
             // main game executable
@@ -106,23 +126,8 @@ pub fn build(b: *std.Build) void {
             emcc_command.addArgs(&[_][]const u8{
                 "-o",
                 b.fmt("zig-out/web/{s}.html", .{game.name}),
-                "-O3",
-                "-flto",
-                "--closure 1",
-                "-sMINIFY_HTML=1",
-                "-sUSE_GLFW=3",
-                "-sASYNCIFY",
-                "-sSTACK_SIZE=16777216",
-                "-sAUDIO_WORKLET=0",
-                "-sUSE_OFFSET_CONVERTER",
-                "-sEXPORTED_RUNTIME_METHODS=['HEAPF32', 'ccall', 'cwrap']",
-                "--preload-file",
-                resource_arg,
-                "--shell-file",
-                b.path("web/shell.html").getPath(b),
-                "--preload-file",
-                resource_arg,
             });
+            emcc_command.addArgs(&emcc_args);
 
             const link_items: []const *std.Build.Step.Compile = &.{
                 raylib_artifact,
@@ -134,53 +139,39 @@ pub fn build(b: *std.Build) void {
             }
             b.default_step.dependOn(&emcc_command.step);
 
-            // benchmark if it exists
-            if (game.has_benchmark) {
-                const benchmark_lib = b.addStaticLibrary(.{
-                    .name = b.fmt("{s}-benchmark", .{game.name}),
-                    .root_source_file = b.path(b.fmt("src/games/{s}/benchmark.zig", .{game.name})),
+            // secondary binaries
+            for (game.secondaries) |secondary| {
+                const secondary_lib = b.addStaticLibrary(.{
+                    .name = b.fmt("{s}-{s}", .{ game.name, secondary }),
+                    .root_source_file = b.path(b.fmt("src/games/{s}/{s}.zig", .{ game.name, secondary })),
                     .target = wasm_target,
                     .optimize = optimize,
                     .link_libc = true,
                 });
-                benchmark_lib.shared_memory = false;
-                benchmark_lib.root_module.single_threaded = true;
-                benchmark_lib.root_module.addImport("engine", engine_module);
-                benchmark_lib.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
-                benchmark_lib.linkLibrary(raylib_artifact);
-                benchmark_lib.addIncludePath(raylib_dep.path("src"));
-                benchmark_lib.addIncludePath(.{ .cwd_relative = sysroot_include });
+                secondary_lib.shared_memory = false;
+                secondary_lib.root_module.single_threaded = true;
+                secondary_lib.root_module.addImport("engine", engine_module);
+                secondary_lib.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+                secondary_lib.linkLibrary(raylib_artifact);
+                secondary_lib.addIncludePath(raylib_dep.path("src"));
+                secondary_lib.addIncludePath(.{ .cwd_relative = sysroot_include });
 
-                const emcc_benchmark = b.addSystemCommand(&[_][]const u8{emcc_exe_path});
-                emcc_benchmark.addArgs(&[_][]const u8{
+                const emcc_secondary = b.addSystemCommand(&[_][]const u8{emcc_exe_path});
+                emcc_secondary.addArgs(&[_][]const u8{
                     "-o",
-                    b.fmt("zig-out/web/{s}-benchmark.html", .{game.name}),
-                    "-sUSE_GLFW=3",
-                    "-O3",
-                    "-flto",
-                    "--closure 1",
-                    "-sMINIFY_HTML=1",
-                    "-sASYNCIFY",
-                    "-sSTACK_SIZE=16777216",
-                    "-sAUDIO_WORKLET=0",
-                    "-sUSE_OFFSET_CONVERTER",
-                    "-sEXPORTED_RUNTIME_METHODS=['HEAPF32', 'ccall', 'cwrap']",
-                    "--preload-file",
-                    resource_arg,
-                    "--shell-file",
-                    b.path("web/shell.html").getPath(b),
-                    "--preload-file",
-                    resource_arg,
+                    b.fmt("zig-out/web/{s}-{s}.html", .{ game.name, secondary }),
                 });
-                const benchmark_link_items: []const *std.Build.Step.Compile = &.{
+                emcc_secondary.addArgs(&emcc_args);
+                
+                const secondary_link_items: []const *std.Build.Step.Compile = &.{
                     raylib_artifact,
-                    benchmark_lib,
+                    secondary_lib,
                 };
-                for (benchmark_link_items) |item| {
-                    emcc_benchmark.addFileArg(item.getEmittedBin());
-                    emcc_benchmark.step.dependOn(&item.step);
+                for (secondary_link_items) |item| {
+                    emcc_secondary.addFileArg(item.getEmittedBin());
+                    emcc_secondary.step.dependOn(&item.step);
                 }
-                b.default_step.dependOn(&emcc_benchmark.step);
+                b.default_step.dependOn(&emcc_secondary.step);
             }
         }
     } else {
@@ -219,30 +210,30 @@ pub fn build(b: *std.Build) void {
                 first_game = false;
             }
 
-            // benchmark if it exists
-            if (game.has_benchmark) {
-                const benchmark_exe = b.addExecutable(.{
-                    .name = b.fmt("{s}-benchmark", .{game.name}),
-                    .root_source_file = b.path(b.fmt("src/games/{s}/benchmark.zig", .{game.name})),
+            // secondary binaries
+            for (game.secondaries) |secondary| {
+                const secondary_exe = b.addExecutable(.{
+                    .name = b.fmt("{s}-{s}", .{ game.name, secondary }),
+                    .root_source_file = b.path(b.fmt("src/games/{s}/{s}.zig", .{ game.name, secondary })),
                     .target = target,
                     .optimize = optimize,
                     .omit_frame_pointer = false, // keep frame pointer
                 });
-                benchmark_exe.root_module.strip = strip;
-                benchmark_exe.linkLibrary(raylib_artifact);
-                benchmark_exe.root_module.addImport("engine", engine_module);
-                benchmark_exe.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+                secondary_exe.root_module.strip = strip;
+                secondary_exe.linkLibrary(raylib_artifact);
+                secondary_exe.root_module.addImport("engine", engine_module);
+                secondary_exe.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
 
-                b.installArtifact(benchmark_exe);
+                b.installArtifact(secondary_exe);
 
-                const run_benchmark = b.addRunArtifact(benchmark_exe);
-                run_benchmark.step.dependOn(b.getInstallStep());
+                const run_secondary = b.addRunArtifact(secondary_exe);
+                run_secondary.step.dependOn(b.getInstallStep());
                 if (b.args) |args| {
-                    run_benchmark.addArgs(args);
+                    run_secondary.addArgs(args);
                 }
 
-                const benchmark_step = b.step(b.fmt("{s}-benchmark", .{game.name}), b.fmt("Run the {s} benchmark", .{game.name}));
-                benchmark_step.dependOn(&run_benchmark.step);
+                const secondary_step = b.step(b.fmt("{s}-{s}", .{ game.name, secondary }), b.fmt("Run {s} {s}", .{ game.name, secondary }));
+                secondary_step.dependOn(&run_secondary.step);
             }
 
             // unit tests
