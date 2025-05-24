@@ -35,27 +35,28 @@ pub fn build(b: *std.Build) void {
     });
     const raylib_artifact = raylib_dep.artifact("raylib");
 
-    // Create engine module
-    const engine_module = b.addModule("engine", .{
-        .root_source_file = b.path("src/engine/engine.zig"),
-        .target = actual_target,
-        .optimize = optimize,
-    });
-
-    // Add ECS dependency to engine module
+    // Add ECS dependency
     const ecs_dep = b.dependency("entt", .{
         .target = actual_target,
         .optimize = optimize,
     });
-    engine_module.addImport("ecs", ecs_dep.module("zig-ecs"));
-
-    // Add raylib include path to engine module
-    engine_module.addIncludePath(raylib_dep.path("src"));
 
     if (is_wasm) {
         if (b.sysroot == null) {
             @panic("Pass '--sysroot \"../emsdk/upstream/emscripten\"'");
         }
+
+        // Create engine module for WebAssembly build
+        const engine_module = b.addModule("engine", .{
+            .root_source_file = b.path("src/engine/engine.zig"),
+            .target = wasm_target,
+            .optimize = optimize,
+        });
+        engine_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+        engine_module.addIncludePath(raylib_dep.path("src"));
+        // Add emscripten system include paths for the engine module
+        const sysroot_include = b.pathJoin(&.{ b.sysroot.?, "cache", "sysroot", "include" });
+        engine_module.addIncludePath(.{ .cwd_relative = sysroot_include });
 
         const exe_lib = b.addStaticLibrary(.{
             .name = "yazbg",
@@ -74,7 +75,6 @@ pub fn build(b: *std.Build) void {
         exe_lib.linkLibrary(raylib_artifact);
         exe_lib.addIncludePath(raylib_dep.path("src"));
 
-        const sysroot_include = b.pathJoin(&.{ b.sysroot.?, "cache", "sysroot", "include" });
         var dir = std.fs.openDirAbsolute(sysroot_include, std.fs.Dir.OpenDirOptions{ .access_sub_paths = true, .no_follow = true }) catch @panic("No emscripten cache. Generate it!");
         dir.close();
 
@@ -172,7 +172,63 @@ pub fn build(b: *std.Build) void {
             emcc_benchmark.step.dependOn(&item.step);
         }
         b.default_step.dependOn(&emcc_benchmark.step);
+
+        // Spaced game HTML output for WebAssembly build
+        const spaced_lib = b.addStaticLibrary(.{
+            .name = "spaced",
+            .root_source_file = b.path("src/games/spaced/main.zig"),
+            .target = wasm_target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        spaced_lib.shared_memory = false;
+        spaced_lib.root_module.single_threaded = true;
+        spaced_lib.root_module.addImport("engine", engine_module);
+        spaced_lib.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+        spaced_lib.linkLibrary(raylib_artifact);
+        spaced_lib.addIncludePath(raylib_dep.path("src"));
+        spaced_lib.addIncludePath(.{ .cwd_relative = sysroot_include });
+
+        const emcc_spaced = b.addSystemCommand(&[_][]const u8{emcc_exe_path});
+        emcc_spaced.addArgs(&[_][]const u8{
+            "-o",
+            "zig-out/web/spaced.html",
+            "-O3",
+            "-flto",
+            "--closure 1",
+            "-sMINIFY_HTML=1",
+            "-sUSE_GLFW=3",
+            "-sASYNCIFY",
+            "-sSTACK_SIZE=16777216",
+            "-sAUDIO_WORKLET=0",
+            "-sUSE_OFFSET_CONVERTER",
+            "-sEXPORTED_RUNTIME_METHODS=['HEAPF32', 'ccall', 'cwrap']",
+            "--preload-file",
+            resource_arg,
+            "--shell-file",
+            b.path("web/shell.html").getPath(b),
+            "--preload-file",
+            resource_arg,
+        });
+        const spaced_link_items: []const *std.Build.Step.Compile = &.{
+            raylib_artifact,
+            spaced_lib,
+        };
+        for (spaced_link_items) |item| {
+            emcc_spaced.addFileArg(item.getEmittedBin());
+            emcc_spaced.step.dependOn(&item.step);
+        }
+        b.default_step.dependOn(&emcc_spaced.step);
     } else {
+        // Create engine module for native build
+        const engine_module = b.addModule("engine", .{
+            .root_source_file = b.path("src/engine/engine.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        engine_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+        engine_module.addIncludePath(raylib_dep.path("src"));
+
         const exe = b.addExecutable(.{
             .name = "yazbg",
             .root_source_file = b.path("src/games/blocks/main.zig"),
