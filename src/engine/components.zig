@@ -174,6 +174,7 @@ pub const Collider = struct {
     shape: union(enum) {
         rectangle: ray.Rectangle,
         circle: struct { radius: f32 },
+        triangle: struct { p1: [2]f32, p2: [2]f32, p3: [2]f32 },
     },
     layer: u8 = 0, // collision layers (player=1, enemy=2, projectile=4, etc)
     is_trigger: bool = false, // just detect, don't block movement

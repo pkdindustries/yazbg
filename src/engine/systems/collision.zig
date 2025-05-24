@@ -73,6 +73,123 @@ fn checkCollisions() void {
     }
 }
 
+// triangle collision detection using sameside algorithm
+fn sameSide(p1: [2]f32, p2: [2]f32, a: [2]f32, b: [2]f32) bool {
+    // calculate cross products for 2D (z component only)
+    const ab_x = b[0] - a[0];
+    const ab_y = b[1] - a[1];
+    const ap1_x = p1[0] - a[0];
+    const ap1_y = p1[1] - a[1];
+    const ap2_x = p2[0] - a[0];
+    const ap2_y = p2[1] - a[1];
+    
+    // 2D cross product (z component)
+    const cp1 = ab_x * ap1_y - ab_y * ap1_x;
+    const cp2 = ab_x * ap2_y - ab_y * ap2_x;
+    
+    return cp1 * cp2 >= 0;
+}
+
+fn pointInTriangle(point: [2]f32, p1: [2]f32, p2: [2]f32, p3: [2]f32) bool {
+    return sameSide(point, p1, p2, p3) and 
+           sameSide(point, p2, p3, p1) and 
+           sameSide(point, p3, p1, p2);
+}
+
+fn checkTriangleTriangleCollision(pos1: *const components.Position, tri1: anytype, pos2: *const components.Position, tri2: anytype) bool {
+    // transform triangle points to world space
+    const t1_p1 = [2]f32{ pos1.x + tri1.p1[0], pos1.y + tri1.p1[1] };
+    const t1_p2 = [2]f32{ pos1.x + tri1.p2[0], pos1.y + tri1.p2[1] };
+    const t1_p3 = [2]f32{ pos1.x + tri1.p3[0], pos1.y + tri1.p3[1] };
+    
+    const t2_p1 = [2]f32{ pos2.x + tri2.p1[0], pos2.y + tri2.p1[1] };
+    const t2_p2 = [2]f32{ pos2.x + tri2.p2[0], pos2.y + tri2.p2[1] };
+    const t2_p3 = [2]f32{ pos2.x + tri2.p3[0], pos2.y + tri2.p3[1] };
+
+    // check if any vertex of triangle 2 is inside triangle 1
+    if (pointInTriangle(t2_p1, t1_p1, t1_p2, t1_p3) or
+        pointInTriangle(t2_p2, t1_p1, t1_p2, t1_p3) or
+        pointInTriangle(t2_p3, t1_p1, t1_p2, t1_p3)) {
+        return true;
+    }
+
+    // check if any vertex of triangle 1 is inside triangle 2
+    if (pointInTriangle(t1_p1, t2_p1, t2_p2, t2_p3) or
+        pointInTriangle(t1_p2, t2_p1, t2_p2, t2_p3) or
+        pointInTriangle(t1_p3, t2_p1, t2_p2, t2_p3)) {
+        return true;
+    }
+
+    return false;
+}
+
+fn checkTriangleCircleCollision(tri_pos: *const components.Position, triangle: anytype, circle_pos: *const components.Position, radius: f32) bool {
+    const t_p1 = [2]f32{ tri_pos.x + triangle.p1[0], tri_pos.y + triangle.p1[1] };
+    const t_p2 = [2]f32{ tri_pos.x + triangle.p2[0], tri_pos.y + triangle.p2[1] };
+    const t_p3 = [2]f32{ tri_pos.x + triangle.p3[0], tri_pos.y + triangle.p3[1] };
+    const circle_center = [2]f32{ circle_pos.x, circle_pos.y };
+
+    // check if circle center is inside triangle
+    if (pointInTriangle(circle_center, t_p1, t_p2, t_p3)) {
+        return true;
+    }
+
+    // check distance from circle center to each triangle edge
+    const d1 = distanceToLineSegment(circle_center[0], circle_center[1], t_p1[0], t_p1[1], t_p2[0], t_p2[1]);
+    const d2 = distanceToLineSegment(circle_center[0], circle_center[1], t_p2[0], t_p2[1], t_p3[0], t_p3[1]);
+    const d3 = distanceToLineSegment(circle_center[0], circle_center[1], t_p3[0], t_p3[1], t_p1[0], t_p1[1]);
+
+    return (d1 <= radius) or (d2 <= radius) or (d3 <= radius);
+}
+
+fn checkTriangleRectCollision(tri_pos: *const components.Position, triangle: anytype, rect: *const ray.Rectangle) bool {
+    const t_p1 = [2]f32{ tri_pos.x + triangle.p1[0], tri_pos.y + triangle.p1[1] };
+    const t_p2 = [2]f32{ tri_pos.x + triangle.p2[0], tri_pos.y + triangle.p2[1] };
+    const t_p3 = [2]f32{ tri_pos.x + triangle.p3[0], tri_pos.y + triangle.p3[1] };
+
+    // check if any triangle vertex is inside rectangle
+    if (ray.CheckCollisionPointRec(.{ .x = t_p1[0], .y = t_p1[1] }, rect.*) or
+        ray.CheckCollisionPointRec(.{ .x = t_p2[0], .y = t_p2[1] }, rect.*) or
+        ray.CheckCollisionPointRec(.{ .x = t_p3[0], .y = t_p3[1] }, rect.*)) {
+        return true;
+    }
+
+    // check if any rectangle corner is inside triangle
+    const corners = [4][2]f32{
+        [2]f32{ rect.x, rect.y },
+        [2]f32{ rect.x + rect.width, rect.y },
+        [2]f32{ rect.x, rect.y + rect.height },
+        [2]f32{ rect.x + rect.width, rect.y + rect.height },
+    };
+
+    for (corners) |corner| {
+        if (pointInTriangle(corner, t_p1, t_p2, t_p3)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+fn distanceToLineSegment(px: f32, py: f32, ax: f32, ay: f32, bx: f32, by: f32) f32 {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const length_sq = dx * dx + dy * dy;
+
+    if (length_sq < 0.0001) {
+        const dpx = px - ax;
+        const dpy = py - ay;
+        return @sqrt(dpx * dpx + dpy * dpy);
+    }
+
+    const t = std.math.clamp(((px - ax) * dx + (py - ay) * dy) / length_sq, 0.0, 1.0);
+    const closest_x = ax + t * dx;
+    const closest_y = ay + t * dy;
+    const dcx = px - closest_x;
+    const dcy = py - closest_y;
+    return @sqrt(dcx * dcx + dcy * dcy);
+}
+
 fn checkCollision(
     pos1: *const components.Position,
     col1: *const components.Collider,
@@ -102,6 +219,9 @@ fn checkCollision(
                     const center = ray.Vector2{ .x = pos2.x, .y = pos2.y };
                     return ray.CheckCollisionCircleRec(center, circ2.radius, r1);
                 },
+                .triangle => |tri2| {
+                    return checkTriangleRectCollision(pos2, &tri2, &r1);
+                },
             }
         },
         .circle => |circ1| {
@@ -120,6 +240,28 @@ fn checkCollision(
                 .circle => |circ2| {
                     const center2 = ray.Vector2{ .x = pos2.x, .y = pos2.y };
                     return ray.CheckCollisionCircles(center1, circ1.radius, center2, circ2.radius);
+                },
+                .triangle => |tri2| {
+                    return checkTriangleCircleCollision(pos2, &tri2, pos1, circ1.radius);
+                },
+            }
+        },
+        .triangle => |tri1| {
+            switch (col2.shape) {
+                .rectangle => |rect2| {
+                    const r2 = ray.Rectangle{
+                        .x = pos2.x,
+                        .y = pos2.y,
+                        .width = rect2.width,
+                        .height = rect2.height,
+                    };
+                    return checkTriangleRectCollision(pos1, &tri1, &r2);
+                },
+                .circle => |circ2| {
+                    return checkTriangleCircleCollision(pos1, &tri1, pos2, circ2.radius);
+                },
+                .triangle => |tri2| {
+                    return checkTriangleTriangleCollision(pos1, &tri1, pos2, &tri2);
                 },
             }
         },
@@ -215,6 +357,13 @@ pub fn createRectCollider(width: f32, height: f32, layer: u8) components.Collide
 pub fn createCircleCollider(radius: f32, layer: u8) components.Collider {
     return .{
         .shape = .{ .circle = .{ .radius = radius } },
+        .layer = layer,
+    };
+}
+
+pub fn createTriangleCollider(p1: [2]f32, p2: [2]f32, p3: [2]f32, layer: u8) components.Collider {
+    return .{
+        .shape = .{ .triangle = .{ .p1 = p1, .p2 = p2, .p3 = p3 } },
         .layer = layer,
     };
 }

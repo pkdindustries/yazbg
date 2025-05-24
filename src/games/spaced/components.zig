@@ -30,6 +30,39 @@ pub const Enemy = struct {
 };
 
 // ---------------------------------------------------------------------------
+// Spaceship Components
+// ---------------------------------------------------------------------------
+
+pub const Spaceship = struct {
+    // Ship physics
+    max_speed: f32 = 200.0,
+    acceleration: f32 = 300.0,
+    deceleration: f32 = 150.0,
+    turn_speed: f32 = 3.0, // radians per second
+    
+    // Current state
+    thrust: f32 = 0.0, // 0.0 to 1.0 thrust level
+    target_rotation: f32 = 0.0, // desired facing direction in radians
+    angular_velocity: f32 = 0.0, // current turn rate
+    
+    // Visual effects
+    thrust_particles: bool = false,
+    banking_angle: f32 = 0.0, // visual banking during turns
+};
+
+pub const ThrustEffect = struct {
+    intensity: f32 = 0.0, // 0.0 to 1.0
+    pulse_time: f32 = 0.0, // for pulsing effects
+    particle_spawn_timer: f32 = 0.0,
+};
+
+// Control input for spaceships (can be from player keyboard or AI)
+pub const ControlInput = struct {
+    turn_input: f32 = 0.0, // -1.0 = turn left, 0.0 = no turn, 1.0 = turn right
+    thrust_input: f32 = 0.0, // 0.0 = no thrust, 1.0 = full thrust
+};
+
+// ---------------------------------------------------------------------------
 // Combat Components
 // ---------------------------------------------------------------------------
 

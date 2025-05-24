@@ -328,32 +328,7 @@ fn renderEntityDebugInfo(ctx: *DebugLayerContext, y_offset: *i32, font_size: i32
         const half_size = sprite.size / 2.0;
         ray.DrawRectangleLines(@intFromFloat(pos.x - half_size), @intFromFloat(pos.y - half_size), @intFromFloat(sprite.size), @intFromFloat(sprite.size), bounds_color);
 
-        // draw component letters above the entity
-        var letter_x: i32 = @intFromFloat(pos.x);
-        const letter_y: i32 = @intFromFloat(pos.y - 8);
-        const letter_size = 6;
-        const letter_spacing = 7;
-
-        // check for common components and draw their letters
-        if (world.has(components.Position, entity)) {
-            ray.DrawText("p", letter_x, letter_y, letter_size, ray.WHITE);
-            letter_x += letter_spacing;
-        }
-        if (world.has(components.Sprite, entity)) {
-            ray.DrawText("s", letter_x, letter_y, letter_size, ray.GREEN);
-            letter_x += letter_spacing;
-        }
-        if (world.has(components.Texture, entity)) {
-            ray.DrawText("t", letter_x, letter_y, letter_size, ray.BLUE);
-            letter_x += letter_spacing;
-        }
-        if (world.has(components.Shader, entity)) {
-            ray.DrawText("m", letter_x, letter_y, letter_size, ray.YELLOW);
-            letter_x += letter_spacing;
-        }
         if (world.has(components.Animation, entity)) {
-            ray.DrawText("a", letter_x, letter_y, letter_size, ray.RED);
-            letter_x += letter_spacing;
 
             // Draw animation path in full monty mode (limited to first 500)
             if (ctx.debug_state.mode == .full_monty and animation_count < 500) {
@@ -408,8 +383,6 @@ fn renderEntityDebugInfo(ctx: *DebugLayerContext, y_offset: *i32, font_size: i32
             }
         }
         if (world.has(components.Velocity, entity)) {
-            ray.DrawText("v", letter_x, letter_y, letter_size, ray.PURPLE);
-            letter_x += letter_spacing;
 
             // Draw velocity vector in full monty mode
             if (ctx.debug_state.mode == .full_monty) {
@@ -446,8 +419,6 @@ fn renderEntityDebugInfo(ctx: *DebugLayerContext, y_offset: *i32, font_size: i32
         }
 
         if (world.has(components.Collider, entity)) {
-            ray.DrawText("c", letter_x, letter_y, letter_size, ray.PURPLE);
-            letter_x += letter_spacing;
 
             // Draw collision bounds with animation
             const collider = world.get(components.Collider, entity);
@@ -487,6 +458,25 @@ fn renderEntityDebugInfo(ctx: *DebugLayerContext, y_offset: *i32, font_size: i32
                         .y = pos.y - half_sprite,
                     };
                     ray.DrawCircleLinesV(center, circ.radius, collision_color);
+                },
+                .triangle => |tri| {
+                    // Adjust for sprite center origin
+                    const half_sprite = sprite.size / 2.0;
+                    const p1 = ray.Vector2{
+                        .x = pos.x + tri.p1[0] - half_sprite,
+                        .y = pos.y + tri.p1[1] - half_sprite,
+                    };
+                    const p2 = ray.Vector2{
+                        .x = pos.x + tri.p2[0] - half_sprite,
+                        .y = pos.y + tri.p2[1] - half_sprite,
+                    };
+                    const p3 = ray.Vector2{
+                        .x = pos.x + tri.p3[0] - half_sprite,
+                        .y = pos.y + tri.p3[1] - half_sprite,
+                    };
+                    ray.DrawLineEx(p1, p2, line_thickness, collision_color);
+                    ray.DrawLineEx(p2, p3, line_thickness, collision_color);
+                    ray.DrawLineEx(p3, p1, line_thickness, collision_color);
                 },
             }
         }

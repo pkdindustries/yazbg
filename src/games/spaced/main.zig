@@ -33,11 +33,11 @@ pub fn main() !void {
     const config = gfx.GraphicsConfig{
         .design_width = 1920, // Wider for space shooter
         .design_height = 1080, // 16:9 aspect ratio
-        .render_scale = 2, // Keep super-sampling for quality
+        .render_scale = 4, // Keep super-sampling for quality
         .fullscreen = false, // Can be set to true
         .vsync = false,
         .title = "spaced",
-        .texture_tile_size = 256,
+        .texture_tile_size = 512,
     };
 
     try gfx.initWithConfig(allocator, config);
@@ -80,7 +80,8 @@ pub fn main() !void {
 
 fn printControls() void {
     std.debug.print("controls:\n", .{});
-    std.debug.print("  WASD: move\n", .{});
+    std.debug.print("  A/D: turn left/right\n", .{});
+    std.debug.print("  W: thrust forward\n", .{});
     std.debug.print("  ESC: quit\n", .{});
     std.debug.print("  L: debug\n", .{});
 }
