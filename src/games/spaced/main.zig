@@ -36,10 +36,11 @@ pub fn main() !void {
         .render_scale = 2, // Keep super-sampling for quality
         .fullscreen = false, // Can be set to true
         .vsync = false,
-        .title = "Spaced - Space Shooter",
+        .title = "spaced",
+        .texture_tile_size = 256,
     };
 
-    try gfx.initWithConfig(allocator, 32, config); // 32x32 base sprite size
+    try gfx.initWithConfig(allocator, config);
     defer gfx.deinit();
 
     try game.init(allocator);

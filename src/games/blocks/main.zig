@@ -41,7 +41,16 @@ pub fn main() !void {
     // Load audio configuration
     try sfx.loadConfig(audio.audio_config);
 
-    try gfx.init(allocator, constants.CELL_SIZE * 2);
+    try gfx.initWithConfig(allocator, gfx.GraphicsConfig{
+        .design_width = 640,
+        .design_height = 760,
+        .render_scale = 4,
+        .fullscreen = false,
+        .vsync = false,
+        .title = "blocks",
+        .texture_tile_size = constants.CELL_SIZE * 2,
+    });
+
     defer gfx.deinit();
 
     // Initialize game layers

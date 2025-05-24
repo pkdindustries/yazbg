@@ -172,6 +172,7 @@ pub const GraphicsConfig = struct {
     fullscreen: bool = false,
     vsync: bool = false,
     title: []const u8 = "yazbg",
+    texture_tile_size: i32 = 64, // texture atlas tile size in pixels
 };
 
 pub const Window = struct {
@@ -275,7 +276,7 @@ pub const Window = struct {
 
     // Handle window resizing
     pub fn updateScale(self: *Window) void {
-        if (ray.IsWindowResized() and !ray.IsWindowFullscreen()) {
+        if (ray.IsWindowResized()) {
             var width = ray.GetScreenWidth();
             var height = @divTrunc(width * self.design_height, self.design_width);
             const maxheight = ray.GetMonitorHeight(0) - 100;
@@ -287,11 +288,6 @@ pub const Window = struct {
             self.height = height;
             ray.GenTextureMipmaps(&self.texture.texture);
             ray.SetWindowSize(width, height);
-        } else if (ray.IsWindowFullscreen()) {
-            // In fullscreen, update dimensions to current monitor size
-            const monitor = ray.GetCurrentMonitor();
-            self.width = ray.GetMonitorWidth(monitor);
-            self.height = ray.GetMonitorHeight(monitor);
         }
     }
 
@@ -458,19 +454,13 @@ pub var window = Window{
     .height = Window.OGHEIGHT,
 };
 
-// Legacy init function for backwards compatibility
-pub fn init(allocator: std.mem.Allocator, texture_tile_size: i32) !void {
-    const config = GraphicsConfig{};
-    try initWithConfig(allocator, texture_tile_size, config);
-}
-
 // New init function with graphics configuration
-pub fn initWithConfig(allocator: std.mem.Allocator, texture_tile_size: i32, config: GraphicsConfig) !void {
-    std.debug.print("init gfx with config: {}x{} (scale: {})\n", .{ config.design_width, config.design_height, config.render_scale });
+pub fn initWithConfig(allocator: std.mem.Allocator, config: GraphicsConfig) !void {
+    std.debug.print("init gfx with config: {}x{} (scale: {}, tile_size: {})\n", .{ config.design_width, config.design_height, config.render_scale, config.texture_tile_size });
     // Initialize window with layer system and config
     try window.init(allocator, config);
     // Initialize texture and shader systems
-    try textures.init(allocator, texture_tile_size);
+    try textures.init(allocator, config.texture_tile_size);
     try shaders.init(allocator);
 
     // Automatically add the engine debug layer

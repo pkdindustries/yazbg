@@ -321,11 +321,10 @@ pub fn main() !void {
         .fullscreen = false, // Set to true for fullscreen benchmark
         .vsync = false, // Disable vsync for uncapped FPS
         .title = "Blocks Benchmark",
+        .texture_tile_size = 256,
     };
 
-    const texture_tile_size = 256;
-
-    try gfx.initWithConfig(std.heap.c_allocator, texture_tile_size, config);
+    try gfx.initWithConfig(std.heap.c_allocator, config);
     defer gfx.deinit();
 
     // Add the benchmark layer
