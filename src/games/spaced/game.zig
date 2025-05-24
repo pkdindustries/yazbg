@@ -66,8 +66,7 @@ pub fn update(dt: f32) void {
     // Update enemy AI
     updateEnemyAI(dt);
 
-    // Update positions without gravity (custom for top-down game)
-    updateMovement(dt);
+    // Note: Movement and collision detection is handled by the collision system in gfx.frame()
 
     // Update camera to follow player
     updateCamera();
@@ -103,32 +102,18 @@ fn updatePlayerMovement(dt: f32) void {
             }
 
             ecs.replace(components.Velocity, player, new_vel);
+
+            // Keep player in bounds by clamping position
+            if (ecs.get(components.Position, player)) |pos| {
+                var new_pos = pos.*;
+                new_pos.x = std.math.clamp(new_pos.x, 0, constants.WORLD_WIDTH - constants.PLAYER_SIZE);
+                new_pos.y = std.math.clamp(new_pos.y, 0, constants.WORLD_HEIGHT - constants.PLAYER_SIZE);
+                ecs.replace(components.Position, player, new_pos);
+            }
         }
     }
 }
 
-fn updateMovement(dt: f32) void {
-    // Update all entities with position and velocity (no gravity for top-down game)
-    var view = ecs.getWorld().view(.{ components.Position, components.Velocity }, .{});
-    var iter = view.entityIterator();
-
-    while (iter.next()) |entity| {
-        const pos = view.get(components.Position, entity);
-        const vel = view.get(components.Velocity, entity);
-
-        var new_pos = pos.*;
-        new_pos.x += vel.x * dt;
-        new_pos.y += vel.y * dt;
-
-        // Keep player in bounds
-        if (ecs.has(components.Player, entity)) {
-            new_pos.x = std.math.clamp(new_pos.x, 0, constants.WORLD_WIDTH - constants.PLAYER_SIZE);
-            new_pos.y = std.math.clamp(new_pos.y, 0, constants.WORLD_HEIGHT - constants.PLAYER_SIZE);
-        }
-
-        ecs.replace(components.Position, entity, new_pos);
-    }
-}
 
 fn updateCamera() void {
     // Center camera on player

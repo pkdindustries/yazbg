@@ -271,9 +271,16 @@ fn renderEntityDebugInfo(ctx: *DebugLayerContext, y_offset: *i32, font_size: i32
         const pos = view.get(components.Position, entity);
         const sprite = view.get(components.Sprite, entity);
 
-        // draw entity bounds as a rectangle
+        // draw entity bounds as a rectangle (adjusted for center origin)
         const bounds_color = ray.Color{ .r = 255, .g = 0, .b = 255, .a = 100 }; // magenta with transparency
-        ray.DrawRectangleLines(@intFromFloat(pos.x), @intFromFloat(pos.y), @intFromFloat(sprite.size), @intFromFloat(sprite.size), bounds_color);
+        const half_size = sprite.size / 2.0;
+        ray.DrawRectangleLines(
+            @intFromFloat(pos.x - half_size), 
+            @intFromFloat(pos.y - half_size), 
+            @intFromFloat(sprite.size), 
+            @intFromFloat(sprite.size), 
+            bounds_color
+        );
 
         // draw component letters above the entity
         var letter_x: i32 = @intFromFloat(pos.x);
@@ -310,6 +317,47 @@ fn renderEntityDebugInfo(ctx: *DebugLayerContext, y_offset: *i32, font_size: i32
         if (world.has(components.Collider, entity)) {
             ray.DrawText("c", letter_x, letter_y, letter_size, ray.PURPLE);
             letter_x += letter_spacing;
+            
+            // Draw collision bounds with animation
+            const collider = world.get(components.Collider, entity);
+            
+            // determine color based on collision state
+            var collision_color = ray.Color{ .r = 0, .g = 255, .b = 0, .a = 80 }; // default green
+            var line_thickness: f32 = 1.0;
+            
+            if (world.has(components.CollisionState, entity)) {
+                const collision_state = world.get(components.CollisionState, entity);
+                if (collision_state.in_collision) {
+                    // flash red and make thicker when in collision
+                    const flash_progress = collision_state.collision_timer / collision_state.flash_duration;
+                    const flash_intensity = @as(u8, @intFromFloat((1.0 - flash_progress) * 255.0));
+                    collision_color = ray.Color{ .r = 255, .g = flash_intensity, .b = flash_intensity, .a = 150 };
+                    line_thickness = 2.0 + (1.0 - flash_progress) * 2.0; // thicker lines during collision
+                }
+            }
+            
+            switch (collider.shape) {
+                .rectangle => |rect| {
+                    // Adjust for sprite center origin
+                    const half_sprite = sprite.size / 2.0;
+                    const collision_rect = ray.Rectangle{
+                        .x = pos.x + rect.x - half_sprite,
+                        .y = pos.y + rect.y - half_sprite,
+                        .width = rect.width,
+                        .height = rect.height,
+                    };
+                    ray.DrawRectangleLinesEx(collision_rect, line_thickness, collision_color);
+                },
+                .circle => |circ| {
+                    // Adjust for sprite center origin
+                    const half_sprite = sprite.size / 2.0;
+                    const center = ray.Vector2{
+                        .x = pos.x - half_sprite,
+                        .y = pos.y - half_sprite,
+                    };
+                    ray.DrawCircleLinesV(center, circ.radius, collision_color);
+                },
+            }
         }
 
         entity_count += 1;

@@ -179,6 +179,19 @@ pub const Collider = struct {
     is_trigger: bool = false, // just detect, don't block movement
 };
 
+// Gravity component - add to entities that should be affected by gravity
+pub const Gravity = struct {
+    x: f32 = 0,
+    y: f32 = 500.0, // default gravity for platformers, set to 0 for top-down
+};
+
+// Collision state for visual feedback
+pub const CollisionState = struct {
+    in_collision: bool = false,
+    collision_timer: f32 = 0.0, // time since last collision
+    flash_duration: f32 = 0.3, // how long to flash in seconds
+};
+
 // ---------------------------------------------------------------------------
 // Debug System
 // ---------------------------------------------------------------------------

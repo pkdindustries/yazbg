@@ -9,6 +9,9 @@ pub fn update() void {
     // move all entities with velocity
     moveEntities();
 
+    // update collision state timers
+    updateCollisionStates();
+
     // check collisions between entities
     checkCollisions();
 }
@@ -18,14 +21,16 @@ fn moveEntities() void {
     var iter = moving.entityIterator();
 
     const dt = ray.GetFrameTime();
-    const gravity = 500.0; // pixels per second squared
 
     while (iter.next()) |entity| {
         const pos = moving.get(components.Position, entity);
         const vel = moving.get(components.Velocity, entity);
 
-        // apply gravity
-        vel.y += gravity * dt;
+        // apply gravity only if entity has Gravity component
+        if (ecs.get(components.Gravity, entity)) |grav| {
+            vel.x += grav.x * dt;
+            vel.y += grav.y * dt;
+        }
 
         // apply velocity
         pos.x += vel.x * dt;
@@ -57,15 +62,18 @@ fn checkCollisions() void {
 
             if (checkCollision(pos1, col1, pos2, col2)) {
                 collision_count += 1;
+                std.debug.print("collision detected: {} <-> {}\n", .{ entity1, entity2 });
+                // mark entities as in collision
+                markCollision(entity1);
+                markCollision(entity2);
                 // collision detected - could trigger events here
                 handleCollision(entity1, entity2, col1, col2);
             }
         }
     }
 
-    const frame_count = @as(u32, @intFromFloat(ray.GetTime() * 60)) % 60;
-    if (frame_count == 0 and entity_count > 0) {
-        std.debug.print("collision system: {} entities, {} collisions detected\n", .{ entity_count, collision_count / 2 }); // divide by 2 because each collision is counted twice
+    if (collision_count > 0) {
+        std.debug.print("collision system: {} entities, {} collisions detected\n", .{ entity_count, collision_count }); // divide by 2 because each collision is counted twice
     }
 }
 
@@ -221,4 +229,38 @@ pub fn createTrigger(width: f32, height: f32, layer: u8) components.Collider {
         .layer = layer,
         .is_trigger = true,
     };
+}
+
+// update collision state timers
+fn updateCollisionStates() void {
+    var collision_states = ecs.getWorld().view(.{components.CollisionState}, .{});
+    var iter = collision_states.entityIterator();
+    
+    const dt = ray.GetFrameTime();
+    
+    while (iter.next()) |entity| {
+        const state = collision_states.get(entity);
+        
+        // update timer
+        state.collision_timer += dt;
+        
+        // reset collision flag if enough time has passed
+        if (state.collision_timer > state.flash_duration) {
+            state.in_collision = false;
+        }
+    }
+}
+
+// mark an entity as being in collision
+fn markCollision(entity: ecsroot.Entity) void {
+    if (ecs.get(components.CollisionState, entity)) |state| {
+        state.in_collision = true;
+        state.collision_timer = 0.0;
+    } else {
+        // add collision state component if it doesn't exist
+        ecs.add(entity, components.CollisionState{
+            .in_collision = true,
+            .collision_timer = 0.0,
+        });
+    }
 }

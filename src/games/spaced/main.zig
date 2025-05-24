@@ -49,7 +49,7 @@ pub fn main() !void {
 
         // Input
         events.processInputs();
-        
+
         // Game update
         const dt = ray.GetFrameTime();
         game.update(dt);
@@ -62,21 +62,8 @@ pub fn main() !void {
             gfx.window.processEvent(&event.event);
         }
 
-        events.queue().clear();
-        const gamelogic_elapsed = timer.lap();
-
         // Render
         gfx.frame(dt);
-
-        // Performance stats
-        const total_elapsed = timer.read();
-        if (@mod(@as(u64, @intFromFloat(ray.GetTime() * 1000)), 1000) < 16) {
-            std.debug.print("frame {}ms, game {}ms, total {}ms\n", .{
-                total_elapsed / MS,
-                gamelogic_elapsed / MS,
-                total_elapsed / MS,
-            });
-        }
     }
 }
 
