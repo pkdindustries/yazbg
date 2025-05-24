@@ -12,6 +12,69 @@ const games = [_]GameConfig{
     .{ .name = "spaced" },
 };
 
+fn configureModule(module: *std.Build.Module, engine_module: *std.Build.Module, ecs_dep: *std.Build.Dependency, raylib_dep: *std.Build.Dependency, raylib_artifact: *std.Build.Step.Compile, sysroot_include: ?[]const u8, strip: bool) void {
+    module.addImport("engine", engine_module);
+    module.addImport("ecs", ecs_dep.module("zig-ecs"));
+    module.linkLibrary(raylib_artifact);
+    module.addIncludePath(raylib_dep.path("src"));
+    if (sysroot_include) |include| {
+        module.addIncludePath(.{ .cwd_relative = include });
+    }
+    if (strip) {
+        module.strip = true;
+    }
+}
+
+fn buildWasmBinary(b: *std.Build, name: []const u8, source_path: []const u8, wasm_target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, engine_module: *std.Build.Module, ecs_dep: *std.Build.Dependency, raylib_dep: *std.Build.Dependency, raylib_artifact: *std.Build.Step.Compile, sysroot_include: []const u8, emcc_exe_path: []const u8, emcc_args: []const []const u8) void {
+    const lib = b.addStaticLibrary(.{
+        .name = name,
+        .root_source_file = b.path(source_path),
+        .target = wasm_target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    lib.shared_memory = false;
+    lib.root_module.single_threaded = true;
+    configureModule(lib.root_module, engine_module, ecs_dep, raylib_dep, raylib_artifact, sysroot_include, false);
+
+    const emcc_command = b.addSystemCommand(&[_][]const u8{emcc_exe_path});
+    emcc_command.addArgs(&[_][]const u8{
+        "-o",
+        b.fmt("zig-out/web/{s}.html", .{name}),
+    });
+    emcc_command.addArgs(emcc_args);
+    
+    const link_items: []const *std.Build.Step.Compile = &.{ raylib_artifact, lib };
+    for (link_items) |item| {
+        emcc_command.addFileArg(item.getEmittedBin());
+        emcc_command.step.dependOn(&item.step);
+    }
+    b.default_step.dependOn(&emcc_command.step);
+}
+
+fn buildNativeBinary(b: *std.Build, name: []const u8, source_path: []const u8, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, engine_module: *std.Build.Module, ecs_dep: *std.Build.Dependency, raylib_dep: *std.Build.Dependency, raylib_artifact: *std.Build.Step.Compile, strip: bool, step_name: []const u8, step_desc: []const u8) *std.Build.Step {
+    const exe = b.addExecutable(.{
+        .name = name,
+        .root_source_file = b.path(source_path),
+        .target = target,
+        .optimize = optimize,
+        .omit_frame_pointer = false,
+    });
+    configureModule(exe.root_module, engine_module, ecs_dep, raylib_dep, raylib_artifact, null, strip);
+    
+    b.installArtifact(exe);
+    
+    const run_cmd = b.addRunArtifact(exe);
+    run_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+    }
+    
+    const run_step = b.step(step_name, step_desc);
+    run_step.dependOn(&run_cmd.step);
+    return &run_cmd.step;
+}
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -40,19 +103,19 @@ pub fn build(b: *std.Build) void {
         "Strip debug info to reduce binary size, defaults to false",
     ) orelse false;
 
+    // dependencies
     const raylib_dep = b.dependency("raylib", .{
         .target = actual_target,
         .optimize = raylib_optimize,
     });
     const raylib_artifact = raylib_dep.artifact("raylib");
-
-    // Add ECS dependency
+    
     const ecs_dep = b.dependency("entt", .{
         .target = actual_target,
         .optimize = optimize,
     });
 
-    // Create engine module (shared between native and wasm)
+    // engine module
     const engine_module = b.addModule("engine", .{
         .root_source_file = b.path("src/engine/engine.zig"),
         .target = actual_target,
@@ -106,143 +169,92 @@ pub fn build(b: *std.Build) void {
 
         // build each game for wasm
         for (games) |game| {
-            // main game executable
-            const lib = b.addStaticLibrary(.{
-                .name = game.name,
-                .root_source_file = b.path(b.fmt("src/games/{s}/main.zig", .{game.name})),
-                .target = wasm_target,
-                .optimize = optimize,
-                .link_libc = true,
-            });
-            lib.shared_memory = false;
-            lib.root_module.single_threaded = true;
-            lib.root_module.addImport("engine", engine_module);
-            lib.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
-            lib.linkLibrary(raylib_artifact);
-            lib.addIncludePath(raylib_dep.path("src"));
-            lib.addIncludePath(.{ .cwd_relative = sysroot_include });
-
-            const emcc_command = b.addSystemCommand(&[_][]const u8{emcc_exe_path});
-            emcc_command.addArgs(&[_][]const u8{
-                "-o",
-                b.fmt("zig-out/web/{s}.html", .{game.name}),
-            });
-            emcc_command.addArgs(&emcc_args);
-
-            const link_items: []const *std.Build.Step.Compile = &.{
+            buildWasmBinary(
+                b,
+                game.name,
+                b.fmt("src/games/{s}/main.zig", .{game.name}),
+                wasm_target,
+                optimize,
+                engine_module,
+                ecs_dep,
+                raylib_dep,
                 raylib_artifact,
-                lib,
-            };
-            for (link_items) |item| {
-                emcc_command.addFileArg(item.getEmittedBin());
-                emcc_command.step.dependOn(&item.step);
-            }
-            b.default_step.dependOn(&emcc_command.step);
-
+                sysroot_include,
+                emcc_exe_path,
+                &emcc_args,
+            );
+            
             // secondary binaries
             for (game.secondaries) |secondary| {
-                const secondary_lib = b.addStaticLibrary(.{
-                    .name = b.fmt("{s}-{s}", .{ game.name, secondary }),
-                    .root_source_file = b.path(b.fmt("src/games/{s}/{s}.zig", .{ game.name, secondary })),
-                    .target = wasm_target,
-                    .optimize = optimize,
-                    .link_libc = true,
-                });
-                secondary_lib.shared_memory = false;
-                secondary_lib.root_module.single_threaded = true;
-                secondary_lib.root_module.addImport("engine", engine_module);
-                secondary_lib.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
-                secondary_lib.linkLibrary(raylib_artifact);
-                secondary_lib.addIncludePath(raylib_dep.path("src"));
-                secondary_lib.addIncludePath(.{ .cwd_relative = sysroot_include });
-
-                const emcc_secondary = b.addSystemCommand(&[_][]const u8{emcc_exe_path});
-                emcc_secondary.addArgs(&[_][]const u8{
-                    "-o",
-                    b.fmt("zig-out/web/{s}-{s}.html", .{ game.name, secondary }),
-                });
-                emcc_secondary.addArgs(&emcc_args);
-                
-                const secondary_link_items: []const *std.Build.Step.Compile = &.{
+                buildWasmBinary(
+                    b,
+                    b.fmt("{s}-{s}", .{ game.name, secondary }),
+                    b.fmt("src/games/{s}/{s}.zig", .{ game.name, secondary }),
+                    wasm_target,
+                    optimize,
+                    engine_module,
+                    ecs_dep,
+                    raylib_dep,
                     raylib_artifact,
-                    secondary_lib,
-                };
-                for (secondary_link_items) |item| {
-                    emcc_secondary.addFileArg(item.getEmittedBin());
-                    emcc_secondary.step.dependOn(&item.step);
-                }
-                b.default_step.dependOn(&emcc_secondary.step);
+                    sysroot_include,
+                    emcc_exe_path,
+                    &emcc_args,
+                );
             }
         }
     } else {
         // build each game for native
         var first_game = true;
         for (games) |game| {
-            // main game executable
-            const exe = b.addExecutable(.{
-                .name = game.name,
-                .root_source_file = b.path(b.fmt("src/games/{s}/main.zig", .{game.name})),
-                .target = target,
-                .optimize = optimize,
-                .omit_frame_pointer = false, // keep frame pointer
-            });
-            exe.root_module.strip = strip;
-            exe.linkLibrary(raylib_artifact);
-            exe.root_module.addImport("engine", engine_module);
-            exe.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
-
-            b.installArtifact(exe);
-
-            const run_cmd = b.addRunArtifact(exe);
-            run_cmd.step.dependOn(b.getInstallStep());
-            if (b.args) |args| {
-                run_cmd.addArgs(args);
-            }
-
-            // create step to run this game
-            const run_step = b.step(game.name, b.fmt("Run {s} game", .{game.name}));
-            run_step.dependOn(&run_cmd.step);
-
+            const run_step = buildNativeBinary(
+                b,
+                game.name,
+                b.fmt("src/games/{s}/main.zig", .{game.name}),
+                target,
+                optimize,
+                engine_module,
+                ecs_dep,
+                raylib_dep,
+                raylib_artifact,
+                strip,
+                game.name,
+                b.fmt("Run {s} game", .{game.name}),
+            );
+            
             // the first game is the default for 'zig build run'
             if (first_game) {
                 const run_default = b.step("run", "Run the default game");
-                run_default.dependOn(&run_cmd.step);
+                run_default.dependOn(run_step);
                 first_game = false;
             }
-
+            
             // secondary binaries
             for (game.secondaries) |secondary| {
-                const secondary_exe = b.addExecutable(.{
-                    .name = b.fmt("{s}-{s}", .{ game.name, secondary }),
-                    .root_source_file = b.path(b.fmt("src/games/{s}/{s}.zig", .{ game.name, secondary })),
-                    .target = target,
-                    .optimize = optimize,
-                    .omit_frame_pointer = false, // keep frame pointer
-                });
-                secondary_exe.root_module.strip = strip;
-                secondary_exe.linkLibrary(raylib_artifact);
-                secondary_exe.root_module.addImport("engine", engine_module);
-                secondary_exe.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
-
-                b.installArtifact(secondary_exe);
-
-                const run_secondary = b.addRunArtifact(secondary_exe);
-                run_secondary.step.dependOn(b.getInstallStep());
-                if (b.args) |args| {
-                    run_secondary.addArgs(args);
-                }
-
-                const secondary_step = b.step(b.fmt("{s}-{s}", .{ game.name, secondary }), b.fmt("Run {s} {s}", .{ game.name, secondary }));
-                secondary_step.dependOn(&run_secondary.step);
+                _ = buildNativeBinary(
+                    b,
+                    b.fmt("{s}-{s}", .{ game.name, secondary }),
+                    b.fmt("src/games/{s}/{s}.zig", .{ game.name, secondary }),
+                    target,
+                    optimize,
+                    engine_module,
+                    ecs_dep,
+                    raylib_dep,
+                    raylib_artifact,
+                    strip,
+                    b.fmt("{s}-{s}", .{ game.name, secondary }),
+                    b.fmt("Run {s} {s}", .{ game.name, secondary }),
+                );
             }
-
+            
             // unit tests
             const unit_tests = b.addTest(.{
                 .root_source_file = b.path(b.fmt("src/games/{s}/main.zig", .{game.name})),
                 .target = target,
                 .optimize = optimize,
             });
-
+            unit_tests.root_module.addImport("engine", engine_module);
+            unit_tests.root_module.addImport("ecs", ecs_dep.module("zig-ecs"));
+            
             const run_unit_tests = b.addRunArtifact(unit_tests);
             const test_step = b.step(b.fmt("{s}-test", .{game.name}), b.fmt("Run {s} unit tests", .{game.name}));
             test_step.dependOn(&run_unit_tests.step);
