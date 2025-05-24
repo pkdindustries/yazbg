@@ -38,6 +38,11 @@ var texture_lut: std.StringHashMap(AtlasEntry) = undefined;
 // Store allocator for future use
 var allocator: std.mem.Allocator = undefined;
 
+// Get the current tile size
+pub fn getTileSize() i32 {
+    return tile_px;
+}
+
 // Initialize with configurable tile size
 pub fn init(alloc: std.mem.Allocator, tile_size: i32) !void {
     //std.debug.print("textures init\n", .{});

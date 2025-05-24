@@ -7,7 +7,7 @@ const ecsroot = @import("ecs");
 const components = @import("components.zig");
 const textures = @import("textures.zig");
 const shaders = @import("shaders.zig");
-const debug_layer = @import("debug_layer.zig");
+const debug_layer = @import("debug.zig");
 const systems = @import("engine.zig").systems;
 
 // ---------------------------------------------------------------------------
@@ -130,20 +130,20 @@ pub fn drawEntities(size_callback: ?*const fn (scale: f32) f32) void {
 
 pub const Layer = struct {
     name: []const u8,
-    order: i32,              // Render order (lower = first)
-    enabled: bool = true,    // Can toggle layers on/off
-    
+    order: i32, // Render order (lower = first)
+    enabled: bool = true, // Can toggle layers on/off
+
     // Lifecycle - init returns context, others receive it
     init: ?*const fn (allocator: std.mem.Allocator) anyerror!*anyopaque = null,
     deinit: ?*const fn (ctx: *anyopaque) void = null,
-    
+
     // Called every frame
     update: ?*const fn (ctx: *anyopaque, dt: f32) void = null,
     render: *const fn (ctx: *anyopaque, rc: RenderContext) void,
-    
-    // Optional event handling  
+
+    // Optional event handling
     processEvent: ?*const fn (ctx: *anyopaque, event: *const anyopaque) void = null,
-    
+
     // Internal
     context: *anyopaque = undefined,
 };
@@ -152,10 +152,10 @@ pub const RenderContext = struct {
     camera: ray.Camera2D,
     window_width: i32,
     window_height: i32,
-    logical_width: i32,   // OGWIDTH
-    logical_height: i32,  // OGHEIGHT  
+    logical_width: i32, // OGWIDTH
+    logical_height: i32, // OGHEIGHT
     font: ray.Font,
-    time: f32,           // Total elapsed time
+    time: f32, // Total elapsed time
 };
 
 // Layer comparison for sorting
@@ -164,45 +164,86 @@ fn layerLessThan(context: void, a: Layer, b: Layer) bool {
     return a.order < b.order;
 }
 
+// Graphics configuration for customizable resolution and display settings
+pub const GraphicsConfig = struct {
+    design_width: i32 = 640,
+    design_height: i32 = 760,
+    render_scale: i32 = 2, // super-sampling scale
+    fullscreen: bool = false,
+    vsync: bool = false,
+    title: []const u8 = "yazbg",
+};
+
 pub const Window = struct {
-    // Logical resolution of the off-screen render target (in pixels).
-    // All coordinates in the game are expressed in this space.  We keep
-    // those values unchanged so we do **not** have to touch any gameplay or
-    // UI code when changing the internal rendering scale.
+    // Backwards compatibility constants (deprecated)
     pub const OGWIDTH: i32 = 640;
     pub const OGHEIGHT: i32 = 760;
+    pub const SCALE: i32 = 2;
 
-    /// Render at a higher resolution than `OGWIDTH`×`OGHEIGHT` and scale the
-    /// image down to the window size afterwards.  This acts like super-
-    /// sampling and gives us crisper visuals (less aliasing) while keeping
-    /// the window dimensions identical.
-    pub const SCALE: i32 = 2; // <-- increase internal resolution by 2×
-    width: i32 = OGWIDTH,
-    height: i32 = OGHEIGHT,
+    // Logical resolution of the off-screen render target (in pixels).
+    // All coordinates in the game are expressed in this space.
+    // These are now instance variables instead of constants.
+    design_width: i32,
+    design_height: i32,
+    render_scale: i32,
+    width: i32,
+    height: i32,
     texture: ray.RenderTexture2D = undefined,
     font: ray.Font = undefined,
     drag_active: bool = false,
-    
+
     // Layer management
     layers: std.ArrayList(Layer) = undefined,
     allocator: std.mem.Allocator = undefined,
     start_time: i64 = undefined,
 
-    pub fn init(self: *Window, allocator: std.mem.Allocator) !void {
-        // Initialize window
-        ray.SetConfigFlags(ray.FLAG_MSAA_4X_HINT | ray.FLAG_WINDOW_RESIZABLE);
-        ray.InitWindow(Window.OGWIDTH, Window.OGHEIGHT, "yazbg");
+    pub fn init(self: *Window, allocator: std.mem.Allocator, config: GraphicsConfig) !void {
+        // Store design resolution
+        self.design_width = config.design_width;
+        self.design_height = config.design_height;
+        self.render_scale = config.render_scale;
+        self.width = config.design_width;
+        self.height = config.design_height;
 
-        // Calculate initial window size based on 65% of screen height
-        const monitor_height = ray.GetMonitorHeight(0);
-        const initial_height = @divTrunc(monitor_height * 65, 100); // 65% of screen height
-        const initial_width = @divTrunc(initial_height * Window.OGWIDTH, Window.OGHEIGHT);
-        ray.SetWindowSize(initial_width, initial_height);
+        // Initialize window flags
+        var flags: c_uint = ray.FLAG_MSAA_4X_HINT;
+        if (!config.fullscreen) {
+            flags |= ray.FLAG_WINDOW_RESIZABLE;
+        }
+        if (config.vsync) {
+            flags |= ray.FLAG_VSYNC_HINT;
+        }
+        if (config.fullscreen) {
+            flags |= ray.FLAG_FULLSCREEN_MODE;
+        }
+
+        ray.SetConfigFlags(flags);
+
+        if (config.fullscreen) {
+            // For fullscreen, use monitor resolution
+            const monitor = ray.GetCurrentMonitor();
+            const monitor_width = ray.GetMonitorWidth(monitor);
+            const monitor_height = ray.GetMonitorHeight(monitor);
+            ray.InitWindow(monitor_width, monitor_height, config.title.ptr);
+            self.width = monitor_width;
+            self.height = monitor_height;
+        } else {
+            // Windowed mode - start with design resolution
+            ray.InitWindow(config.design_width, config.design_height, config.title.ptr);
+
+            // Calculate initial window size based on 65% of screen height
+            const monitor_height = ray.GetMonitorHeight(0);
+            const initial_height = @divTrunc(monitor_height * 65, 100);
+            const initial_width = @divTrunc(initial_height * config.design_width, config.design_height);
+            ray.SetWindowSize(initial_width, initial_height);
+            self.width = initial_width;
+            self.height = initial_height;
+        }
 
         // Create render texture at higher resolution (super-sampling)
         self.texture = ray.LoadRenderTexture(
-            Window.OGWIDTH * Window.SCALE,
-            Window.OGHEIGHT * Window.SCALE,
+            config.design_width * config.render_scale,
+            config.design_height * config.render_scale,
         );
         ray.SetTextureFilter(self.texture.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);
 
@@ -210,7 +251,7 @@ pub const Window = struct {
         self.font = ray.LoadFont("resources/font/space.ttf");
         ray.GenTextureMipmaps(&self.font.texture);
         ray.SetTextureFilter(self.font.texture, ray.TEXTURE_FILTER_ANISOTROPIC_16X);
-        
+
         // Initialize layer system
         self.allocator = allocator;
         self.layers = std.ArrayList(Layer).init(allocator);
@@ -227,26 +268,30 @@ pub const Window = struct {
             }
         }
         self.layers.deinit();
-        
+
         ray.UnloadTexture(self.texture.texture);
         ray.UnloadFont(self.font);
     }
 
     // Handle window resizing
     pub fn updateScale(self: *Window) void {
-        if (ray.IsWindowResized()) {
+        if (ray.IsWindowResized() and !ray.IsWindowFullscreen()) {
             var width = ray.GetScreenWidth();
-            var height = @divTrunc(width * Window.OGHEIGHT, Window.OGWIDTH);
-            const maxheight = ray.GetMonitorHeight(0) - 100; // Assuming the primary monitor
+            var height = @divTrunc(width * self.design_height, self.design_width);
+            const maxheight = ray.GetMonitorHeight(0) - 100;
             if (height > maxheight) {
                 height = maxheight;
-                width = @divTrunc(height * Window.OGWIDTH, Window.OGHEIGHT);
+                width = @divTrunc(height * self.design_width, self.design_height);
             }
             self.width = width;
             self.height = height;
-            // std.debug.print("window resized to {}x{}\n", .{ self.width, self.height });
             ray.GenTextureMipmaps(&self.texture.texture);
             ray.SetWindowSize(width, height);
+        } else if (ray.IsWindowFullscreen()) {
+            // In fullscreen, update dimensions to current monitor size
+            const monitor = ray.GetCurrentMonitor();
+            self.width = ray.GetMonitorWidth(monitor);
+            self.height = ray.GetMonitorHeight(monitor);
         }
     }
 
@@ -294,22 +339,22 @@ pub const Window = struct {
         const tgt = ray.Rectangle{ .x = 0, .y = 0, .width = @floatFromInt(self.width), .height = @floatFromInt(self.height) };
         ray.DrawTexturePro(self.texture.texture, src, tgt, ray.Vector2{ .x = 0, .y = 0 }, 0, ray.WHITE);
     }
-    
+
     // Layer management
     pub fn addLayer(self: *Window, layer: Layer) !void {
         var new_layer = layer;
-        
+
         // Initialize layer if it has an init function
         if (new_layer.init) |initFn| {
             new_layer.context = try initFn(self.allocator);
         }
-        
+
         try self.layers.append(new_layer);
-        
+
         // Sort layers by order
         std.sort.heap(Layer, self.layers.items, {}, layerLessThan);
     }
-    
+
     pub fn getLayer(self: *Window, name: []const u8) ?*Layer {
         for (self.layers.items) |*layer| {
             if (std.mem.eql(u8, layer.name, name)) {
@@ -318,7 +363,7 @@ pub const Window = struct {
         }
         return null;
     }
-    
+
     pub fn removeLayer(self: *Window, name: []const u8) void {
         var i: usize = 0;
         while (i < self.layers.items.len) {
@@ -332,7 +377,7 @@ pub const Window = struct {
             }
         }
     }
-    
+
     // Update all layers
     fn updateLayers(self: *Window, dt: f32) void {
         for (self.layers.items) |*layer| {
@@ -342,38 +387,38 @@ pub const Window = struct {
             }
         }
     }
-    
+
     // Render all layers
     fn renderLayers(self: *Window) void {
         const elapsed_ms = std.time.milliTimestamp() - self.start_time;
         const time = @as(f32, @floatFromInt(elapsed_ms)) / 1000.0;
-        
+
         const rc = RenderContext{
             .camera = ray.Camera2D{
                 .offset = ray.Vector2{ .x = 0, .y = 0 },
                 .target = ray.Vector2{ .x = 0, .y = 0 },
                 .rotation = 0,
-                .zoom = @as(f32, @floatFromInt(Window.SCALE)),
+                .zoom = @as(f32, @floatFromInt(self.render_scale)),
             },
             .window_width = self.width,
             .window_height = self.height,
-            .logical_width = Window.OGWIDTH,
-            .logical_height = Window.OGHEIGHT,
+            .logical_width = self.design_width,
+            .logical_height = self.design_height,
             .font = self.font,
             .time = time,
         };
-        
+
         ray.BeginMode2D(rc.camera);
         ray.ClearBackground(ray.BLACK);
-        
+
         for (self.layers.items) |*layer| {
             if (!layer.enabled) continue;
             layer.render(layer.context, rc);
         }
-        
+
         ray.EndMode2D();
     }
-    
+
     pub fn processEvent(self: *Window, event: *const anyopaque) void {
         for (self.layers.items) |*layer| {
             if (!layer.enabled) continue;
@@ -382,18 +427,52 @@ pub const Window = struct {
             }
         }
     }
+
+    // Toggle fullscreen mode
+    pub fn toggleFullscreen(self: *Window) void {
+        if (ray.IsWindowFullscreen()) {
+            // Exit fullscreen
+            ray.ToggleFullscreen();
+            // Restore window to design resolution aspect ratio
+            const monitor_height = ray.GetMonitorHeight(0);
+            const initial_height = @divTrunc(monitor_height * 65, 100);
+            const initial_width = @divTrunc(initial_height * self.design_width, self.design_height);
+            ray.SetWindowSize(initial_width, initial_height);
+            self.width = initial_width;
+            self.height = initial_height;
+        } else {
+            // Enter fullscreen
+            ray.ToggleFullscreen();
+            const monitor = ray.GetCurrentMonitor();
+            self.width = ray.GetMonitorWidth(monitor);
+            self.height = ray.GetMonitorHeight(monitor);
+        }
+    }
 };
 
-pub var window = Window{};
+pub var window = Window{
+    .design_width = Window.OGWIDTH,
+    .design_height = Window.OGHEIGHT,
+    .render_scale = Window.SCALE,
+    .width = Window.OGWIDTH,
+    .height = Window.OGHEIGHT,
+};
 
+// Legacy init function for backwards compatibility
 pub fn init(allocator: std.mem.Allocator, texture_tile_size: i32) !void {
-    std.debug.print("init gfx\n", .{});
-    // Initialize window with layer system
-    try window.init(allocator);
+    const config = GraphicsConfig{};
+    try initWithConfig(allocator, texture_tile_size, config);
+}
+
+// New init function with graphics configuration
+pub fn initWithConfig(allocator: std.mem.Allocator, texture_tile_size: i32, config: GraphicsConfig) !void {
+    std.debug.print("init gfx with config: {}x{} (scale: {})\n", .{ config.design_width, config.design_height, config.render_scale });
+    // Initialize window with layer system and config
+    try window.init(allocator, config);
     // Initialize texture and shader systems
     try textures.init(allocator, texture_tile_size);
     try shaders.init(allocator);
-    
+
     // Automatically add the engine debug layer
     const debug = try debug_layer.createDebugLayer(allocator);
     try window.addLayer(debug);
@@ -402,73 +481,90 @@ pub fn init(allocator: std.mem.Allocator, texture_tile_size: i32) !void {
 pub fn deinit() void {
     // Clean up window resources (includes layers)
     window.deinit();
-    
+
     // Clean up texture and shader systems
     textures.deinit();
     shaders.deinit();
 }
 
+// Add debug layer on demand
+pub fn addDebugLayer(allocator: std.mem.Allocator) !void {
+    const debug = try debug_layer.createDebugLayer(allocator);
+    try window.addLayer(debug);
+}
+
 pub fn frame(dt: f32) void {
-    var timer = std.time.Timer.start() catch return;
-    
+    // Check if debug layer is active
+    var debug_active = false;
+    if (window.getLayer("engine_debug")) |debug_layer_ptr| {
+        const ctx = debug_layer_ptr.context;
+        const debug_ctx: *debug_layer.DebugLayerContext = @ptrCast(@alignCast(ctx));
+        debug_active = debug_ctx.debug_state.enabled;
+    }
+
+    // Only create timer and measure performance if debug layer is active
+    var timer: ?std.time.Timer = null;
+    if (debug_active) {
+        timer = std.time.Timer.start() catch null;
+    }
+
     // Handle window resizing
     window.updateScale();
-    
+
     // Check for debug layer toggle (Shift+D)
     checkDebugToggle();
-    
-    // Time animation system
-    const anim_start = timer.read();
-    systems.anim.update(); // no dt parameter
-    const anim_end = timer.read();
+
+    // Run animation system
+    const anim_start = if (timer) |*t| t.read() else 0;
+    systems.anim.update();
+    const anim_end = if (timer) |*t| t.read() else 0;
     const anim_time = anim_end - anim_start;
-    
-    // Time collision system  
-    const collision_start = timer.read();
+
+    // Run collision system
+    const collision_start = if (timer) |*t| t.read() else 0;
     systems.collision.update();
-    const collision_end = timer.read();
+    const collision_end = if (timer) |*t| t.read() else 0;
     const collision_time = collision_end - collision_start;
-    
+
     // Update all enabled layers
     window.updateLayers(dt);
 
     ray.BeginDrawing();
     ray.BeginTextureMode(window.texture);
-    
-    // Time rendering
-    const render_start = timer.read();
-    
+
     // Render all enabled layers
+    const render_start = if (timer) |*t| t.read() else 0;
     window.renderLayers();
-    
-    const render_end = timer.read();
+    const render_end = if (timer) |*t| t.read() else 0;
     const render_time = render_end - render_start;
-    
+
     ray.EndTextureMode();
-    
-    // Time shader operations (this happens during rendering but we'll approximate)
-    const shader_time: u64 = render_time / 4; // rough estimate - shaders are part of render
-    
+
     // Scale render texture to actual window size
     window.drawScaled();
     ray.EndDrawing();
-    
-    const total_systems_time = anim_time + collision_time + render_time;
-    
-    // Update debug timing stats
-    updateDebugSystemTiming(
-        anim_time / 1000,           // convert to microseconds
-        shader_time / 1000,
-        collision_time / 1000,
-        render_time / 1000,
-        total_systems_time / 1000
-    );
+
+    // Only update debug timing if we have measurements
+    if (debug_active and timer != null) {
+        const shader_time: u64 = render_time / 4; // rough estimate
+        const total_systems_time = anim_time + collision_time + render_time;
+
+        updateDebugSystemTiming(anim_time / 1000, // convert to microseconds
+            shader_time / 1000, collision_time / 1000, render_time / 1000, total_systems_time / 1000);
+    }
 }
 
-// Check for debug layer toggle input
+// Check for debug layer toggle input and fullscreen toggle
 fn checkDebugToggle() void {
     if ((ray.IsKeyDown(ray.KEY_LEFT_SHIFT) or ray.IsKeyDown(ray.KEY_RIGHT_SHIFT)) and ray.IsKeyPressed(ray.KEY_D)) {
         toggleDebugLayer();
+    }
+
+    // F11 or Alt+Enter for fullscreen toggle
+    if (ray.IsKeyPressed(ray.KEY_F11) or
+        ((ray.IsKeyDown(ray.KEY_LEFT_ALT) or ray.IsKeyDown(ray.KEY_RIGHT_ALT)) and ray.IsKeyPressed(ray.KEY_ENTER)))
+    {
+        window.toggleFullscreen();
     }
 }
 
@@ -477,7 +573,7 @@ pub fn toggleDebugLayer() void {
     if (window.getLayer("engine_debug")) |debug_layer_ptr| {
         const ctx = debug_layer_ptr.context;
         const debug_ctx: *debug_layer.DebugLayerContext = @ptrCast(@alignCast(ctx));
-        debug_ctx.toggle();
+        debug_ctx.cycleDebugMode();
     }
 }
 

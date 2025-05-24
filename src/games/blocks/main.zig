@@ -41,7 +41,6 @@ pub fn main() !void {
     // Load audio configuration
     try sfx.loadConfig(audio.audio_config);
 
-    // Initialize graphics with texture tile size (2x cell size for high quality)
     try gfx.init(allocator, constants.CELL_SIZE * 2);
     defer gfx.deinit();
 

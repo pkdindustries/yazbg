@@ -196,13 +196,22 @@ pub const CollisionState = struct {
 // Debug System
 // ---------------------------------------------------------------------------
 
+// Debug display modes
+pub const DebugMode = enum {
+    off,
+    charts_only,
+    full_monty,
+};
+
 // Global debug state
 pub const DebugState = struct {
     enabled: bool = false,
+    mode: DebugMode = .off,
     show_entity_count: bool = true,
     show_fps: bool = true,
     show_component_info: bool = true,
     show_entity_bounds: bool = true,
     show_grid: bool = false,
-    overlay_opacity: u8 = 128,
+    show_graphs: bool = true,
+    overlay_opacity: u8 = 40, // 0-255, 0=transparent, 255=opaque
 };

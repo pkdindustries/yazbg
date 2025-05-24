@@ -71,10 +71,6 @@ fn checkCollisions() void {
             }
         }
     }
-
-    if (collision_count > 0) {
-        std.debug.print("collision system: {} entities, {} collisions detected\n", .{ entity_count, collision_count }); // divide by 2 because each collision is counted twice
-    }
 }
 
 fn checkCollision(

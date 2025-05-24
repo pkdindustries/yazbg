@@ -10,7 +10,7 @@ const constants = common.game_constants;
 var player_entity: ?ecs.Entity = null;
 var game_time: f32 = 0.0;
 var last_enemy_spawn: f32 = 0.0;
-const ENEMY_SPAWN_INTERVAL: f32 = 2.0; // seconds between spawns
+const ENEMY_SPAWN_INTERVAL: f32 = 0.25; // seconds between spawns
 
 pub fn init(allocator: std.mem.Allocator) !void {
     _ = allocator;
@@ -54,6 +54,15 @@ pub fn update(dt: f32) void {
 
     // Spawn enemies periodically
     if (game_time - last_enemy_spawn > ENEMY_SPAWN_INTERVAL) {
+        spawnEnemy() catch |err| {
+            std.debug.print("Failed to spawn enemy: {}\n", .{err});
+        };
+        spawnEnemy() catch |err| {
+            std.debug.print("Failed to spawn enemy: {}\n", .{err});
+        };
+        spawnEnemy() catch |err| {
+            std.debug.print("Failed to spawn enemy: {}\n", .{err});
+        };
         spawnEnemy() catch |err| {
             std.debug.print("Failed to spawn enemy: {}\n", .{err});
         };
@@ -113,7 +122,6 @@ fn updatePlayerMovement(dt: f32) void {
         }
     }
 }
-
 
 fn updateCamera() void {
     // Center camera on player

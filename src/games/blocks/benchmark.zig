@@ -26,6 +26,15 @@ const pieces = @import("pieces.zig");
 const ecsroot = @import("ecs");
 
 // ---------------------------------------------------------------------------
+// Global state for size callback (needed because Zig closures can't capture runtime values)
+// ---------------------------------------------------------------------------
+var g_base_piece_size: f32 = 40.0;
+
+fn calculateSizeFromScale(scale: f32) f32 {
+    return g_base_piece_size * scale;
+}
+
+// ---------------------------------------------------------------------------
 // Benchmark Layer Context
 // ---------------------------------------------------------------------------
 
@@ -35,6 +44,7 @@ pub const BenchmarkContext = struct {
     global_prng: std.Random.DefaultPrng,
     last_reset_ms: i64,
     total_pieces: usize,
+    base_piece_size: f32, // Base size for pieces scaled to resolution
 
     const RESET_INTERVAL_MS: i64 = 3_000;
 
@@ -45,13 +55,22 @@ pub const BenchmarkContext = struct {
         var seed: u64 = undefined;
         std.crypto.random.bytes(std.mem.asBytes(&seed));
 
+        // Calculate base piece size based on design resolution
+        // For 1920x1080, we want pieces to be smaller for the benchmark
+        // Original was ~40 pixels at 640x760, but for 10k sprites we want them smaller
+        const base_size_for_benchmark = 15.0; // Much smaller for performance testing
+
         self.* = .{
             .allocator = allocator,
             .piece_entries = undefined,
             .global_prng = std.Random.DefaultPrng.init(seed),
             .last_reset_ms = std.time.milliTimestamp(),
             .total_pieces = 10000,
+            .base_piece_size = base_size_for_benchmark,
         };
+
+        // Update global for the size callback
+        g_base_piece_size = self.base_piece_size;
 
         // Create atlas entries for all tetrominos
         try self.createPieceAtlasEntries();
@@ -108,17 +127,19 @@ pub const BenchmarkContext = struct {
 
     // Spawn one animated tetromino
     fn spawnAnimatedTetromino(self: *BenchmarkContext, rng: anytype) !void {
-        const screen_w: f32 = @floatFromInt(gfx.Window.OGWIDTH);
-        const screen_h: f32 = @floatFromInt(gfx.Window.OGHEIGHT);
+        // Use actual design resolution, not hardcoded values
+        const screen_w: f32 = 1920.0; // Should match config
+        const screen_h: f32 = 1080.0;
 
         // Random tetromino type
         const t_index = rng.intRangeAtMost(usize, 0, pieces.tetraminos.len - 1);
         const entry = self.piece_entries[t_index];
 
         // Random starting position
-        const piece_px_f: f32 = @floatFromInt(piecePx());
-        const start_x = rng.float(f32) * (screen_w - piece_px_f);
-        const start_y = rng.float(f32) * (screen_h - piece_px_f);
+        // Piece is 4 blocks wide, each block is base_piece_size
+        const piece_size = self.base_piece_size * 4.0;
+        const start_x = rng.float(f32) * (screen_w - piece_size);
+        const start_y = rng.float(f32) * (screen_h - piece_size);
 
         // Random scale and rotation
         const scale0_blocks = (rng.float(f32) * 2.0) - 0.5; // -0.5 to 1.5
@@ -158,9 +179,10 @@ pub const BenchmarkContext = struct {
         var it = view.entityIterator();
 
         const rng = self.global_prng.random();
-        const screen_w: f32 = @floatFromInt(gfx.Window.OGWIDTH);
-        const screen_h: f32 = @floatFromInt(gfx.Window.OGHEIGHT);
-        const piece_px_f: f32 = @floatFromInt(piecePx());
+        // Use actual design resolution, not hardcoded values
+        const screen_w: f32 = 1920.0; // Should match config
+        const screen_h: f32 = 1080.0;
+        const piece_size = self.base_piece_size * 4.0;
 
         while (it.next()) |entity| {
             const pos_ptr = view.get(components.Position, entity);
@@ -168,8 +190,8 @@ pub const BenchmarkContext = struct {
             const anim_ptr = view.get(components.Animation, entity);
 
             // New random start position
-            const start_x = rng.float(f32) * (screen_w - piece_px_f);
-            const start_y = rng.float(f32) * (screen_h - piece_px_f);
+            const start_x = rng.float(f32) * (screen_w - piece_size);
+            const start_y = rng.float(f32) * (screen_h - piece_size);
             pos_ptr.* = .{ .x = start_x, .y = start_y };
 
             // Huge outward burst – pick a direction and push far off-screen
@@ -208,20 +230,6 @@ pub const BenchmarkContext = struct {
 // ---------------------------------------------------------------------------
 // Helper Functions
 // ---------------------------------------------------------------------------
-
-// Convert sprite scale to actual pixel size
-fn calculateSizeFromScale(scale: f32) f32 {
-    return 10.0 * scale; // match the gfx.init cell size
-}
-
-// Size calculations for tetromino pieces
-fn tilePx() i32 {
-    return 10 * 2; // match the gfx.init cell size
-}
-
-fn piecePx() i32 {
-    return tilePx() * 4;
-}
 
 // Draw a tetromino into a single atlas tile
 fn drawTetrominoIntoTile(
@@ -304,7 +312,20 @@ pub fn main() !void {
     ecs.init(allocator);
     defer ecs.deinit();
 
-    try gfx.init(std.heap.c_allocator, game_constants.CELL_SIZE * 2);
+    // Create custom graphics config for benchmark
+    // Can use fullscreen for maximum performance testing
+    const config = gfx.GraphicsConfig{
+        .design_width = 1920, // HD resolution for more space
+        .design_height = 1080,
+        .render_scale = 4,
+        .fullscreen = false, // Set to true for fullscreen benchmark
+        .vsync = false, // Disable vsync for uncapped FPS
+        .title = "Blocks Benchmark",
+    };
+
+    const texture_tile_size = 256;
+
+    try gfx.initWithConfig(std.heap.c_allocator, texture_tile_size, config);
     defer gfx.deinit();
 
     // Add the benchmark layer

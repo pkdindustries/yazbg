@@ -29,7 +29,17 @@ pub fn main() !void {
     defer events.deinit();
 
     // Initialize graphics first - needed for texture system
-    try gfx.init(allocator, 32); // 32x32 base sprite size
+    // Custom config for spaced game - wider aspect ratio for space game
+    const config = gfx.GraphicsConfig{
+        .design_width = 1920, // Wider for space shooter
+        .design_height = 1080, // 16:9 aspect ratio
+        .render_scale = 2, // Keep super-sampling for quality
+        .fullscreen = false, // Can be set to true
+        .vsync = false,
+        .title = "Spaced - Space Shooter",
+    };
+
+    try gfx.initWithConfig(allocator, 32, config); // 32x32 base sprite size
     defer gfx.deinit();
 
     try game.init(allocator);
