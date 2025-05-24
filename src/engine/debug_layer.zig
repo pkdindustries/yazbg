@@ -29,6 +29,36 @@ pub const DebugLayerContext = struct {
     cached_shader_entities: u32 = 0,
     cached_anim_entities: u32 = 0,
 
+    // entity count history for graph
+    total_entity_history: [GRAPH_HISTORY_SIZE]u32 = [_]u32{0} ** GRAPH_HISTORY_SIZE,
+
+    // performance graph data
+    frame_time_history: [GRAPH_HISTORY_SIZE]f32 = [_]f32{0.0} ** GRAPH_HISTORY_SIZE,
+    frame_time_index: usize = 0,
+    max_frame_time: f32 = 0.0,
+    avg_frame_time: f32 = 0.0,
+
+    // component breakdown history for stacked graph
+    anim_history: [GRAPH_HISTORY_SIZE]f32 = [_]f32{0.0} ** GRAPH_HISTORY_SIZE,
+    shader_history: [GRAPH_HISTORY_SIZE]f32 = [_]f32{0.0} ** GRAPH_HISTORY_SIZE,
+    collision_history: [GRAPH_HISTORY_SIZE]f32 = [_]f32{0.0} ** GRAPH_HISTORY_SIZE,
+    render_history: [GRAPH_HISTORY_SIZE]f32 = [_]f32{0.0} ** GRAPH_HISTORY_SIZE,
+
+    // fixed interval sampling
+    sample_accumulator: f32 = 0.0,
+    sample_interval_ms: f32 = 16.0, // sample every 16ms (60Hz)
+    
+    // accumulated values for current sample
+    accumulated_frame_time: f32 = 0.0,
+    accumulated_anim_time: f32 = 0.0,
+    accumulated_shader_time: f32 = 0.0,
+    accumulated_collision_time: f32 = 0.0,
+    accumulated_render_time: f32 = 0.0,
+    accumulated_samples: u32 = 0,
+    accumulated_entity_count: u32 = 0,
+
+    const GRAPH_HISTORY_SIZE = 300; // 5 seconds at 60Hz sampling
+
     const LayerTiming = struct {
         name: []const u8,
         time_us: u64,
@@ -51,9 +81,102 @@ pub const DebugLayerContext = struct {
     }
 
     pub fn update(ctx: *anyopaque, dt: f32) void {
-        _ = ctx;
-        _ = dt;
-        // no per-frame updates needed for debug layer
+        const self: *DebugLayerContext = @ptrCast(@alignCast(ctx));
+        const world = ecs.getWorld();
+        
+        const frame_ms = dt * 1000.0;
+        
+        // count entities every frame (for accumulation)
+        var current_entity_count: u32 = 0;
+        
+        // count entities with position
+        var pos_count: u32 = 0;
+        var pos_view = world.view(.{components.Position}, .{});
+        var pos_it = pos_view.entityIterator();
+        while (pos_it.next()) |_| pos_count += 1;
+        current_entity_count = pos_count;
+        
+        // count other component types for cached display
+        var sprite_count: u32 = 0;
+        var sprite_view = world.view(.{components.Sprite}, .{});
+        var sprite_it = sprite_view.entityIterator();
+        while (sprite_it.next()) |_| sprite_count += 1;
+        
+        var texture_count: u32 = 0;
+        var texture_view = world.view(.{components.Texture}, .{});
+        var texture_it = texture_view.entityIterator();
+        while (texture_it.next()) |_| texture_count += 1;
+        
+        var shader_count: u32 = 0;
+        var shader_view = world.view(.{components.Shader}, .{});
+        var shader_it = shader_view.entityIterator();
+        while (shader_it.next()) |_| shader_count += 1;
+        
+        var anim_count: u32 = 0;
+        var anim_view = world.view(.{components.Animation}, .{});
+        var anim_it = anim_view.entityIterator();
+        while (anim_it.next()) |_| anim_count += 1;
+        
+        const total_count = pos_count + sprite_count + texture_count + shader_count + anim_count;
+        
+        // accumulate values for averaging
+        self.accumulated_frame_time += frame_ms;
+        self.accumulated_anim_time += @as(f32, @floatFromInt(self.last_anim_time_us)) / 1000.0;
+        self.accumulated_shader_time += @as(f32, @floatFromInt(self.last_shader_time_us)) / 1000.0;
+        self.accumulated_collision_time += @as(f32, @floatFromInt(self.last_collision_time_us)) / 1000.0;
+        self.accumulated_render_time += @as(f32, @floatFromInt(self.last_render_time_us)) / 1000.0;
+        self.accumulated_entity_count += total_count;
+        self.accumulated_samples += 1;
+        
+        // update accumulator
+        self.sample_accumulator += frame_ms;
+        
+        // check if we should take a sample
+        if (self.sample_accumulator >= self.sample_interval_ms) {
+            // calculate averages for this sample period
+            const avg_frame = if (self.accumulated_samples > 0) self.accumulated_frame_time / @as(f32, @floatFromInt(self.accumulated_samples)) else frame_ms;
+            const avg_anim = if (self.accumulated_samples > 0) self.accumulated_anim_time / @as(f32, @floatFromInt(self.accumulated_samples)) else 0.0;
+            const avg_shader = if (self.accumulated_samples > 0) self.accumulated_shader_time / @as(f32, @floatFromInt(self.accumulated_samples)) else 0.0;
+            const avg_collision = if (self.accumulated_samples > 0) self.accumulated_collision_time / @as(f32, @floatFromInt(self.accumulated_samples)) else 0.0;
+            const avg_render = if (self.accumulated_samples > 0) self.accumulated_render_time / @as(f32, @floatFromInt(self.accumulated_samples)) else 0.0;
+            const avg_entities = if (self.accumulated_samples > 0) self.accumulated_entity_count / self.accumulated_samples else total_count;
+            
+            // store the averaged sample
+            self.frame_time_history[self.frame_time_index] = avg_frame;
+            self.anim_history[self.frame_time_index] = avg_anim;
+            self.shader_history[self.frame_time_index] = avg_shader;
+            self.collision_history[self.frame_time_index] = avg_collision;
+            self.render_history[self.frame_time_index] = avg_render;
+            self.total_entity_history[self.frame_time_index] = avg_entities;
+            
+            // update cached counts for display
+            self.cached_pos_entities = pos_count;
+            self.cached_sprite_entities = sprite_count;
+            self.cached_texture_entities = texture_count;
+            self.cached_shader_entities = shader_count;
+            self.cached_anim_entities = anim_count;
+            
+            self.frame_time_index = (self.frame_time_index + 1) % GRAPH_HISTORY_SIZE;
+            
+            // reset accumulators
+            self.sample_accumulator = 0.0;
+            self.accumulated_frame_time = 0.0;
+            self.accumulated_anim_time = 0.0;
+            self.accumulated_shader_time = 0.0;
+            self.accumulated_collision_time = 0.0;
+            self.accumulated_render_time = 0.0;
+            self.accumulated_entity_count = 0;
+            self.accumulated_samples = 0;
+        }
+
+        // calculate statistics
+        self.max_frame_time = 0.0;
+        var sum: f32 = 0.0;
+        for (self.frame_time_history) |time| {
+            sum += time;
+            if (time > self.max_frame_time) self.max_frame_time = time;
+        }
+        self.avg_frame_time = sum / @as(f32, DebugLayerContext.GRAPH_HISTORY_SIZE);
     }
 
     pub fn render(ctx: *anyopaque, rc: gfx.RenderContext) void {
@@ -98,12 +221,14 @@ pub const DebugLayerContext = struct {
 };
 
 fn renderDebugOverlay(ctx: *DebugLayerContext, rc: gfx.RenderContext) void {
-    const world = ecs.getWorld();
     // increment frame counter
     ctx.frame_count += 1;
 
     // semi-transparent dark overlay
     ray.DrawRectangle(0, 0, rc.logical_width, rc.logical_height, .{ .r = 0, .g = 0, .b = 0, .a = ctx.debug_state.overlay_opacity });
+
+    // render performance graph on the right side
+    renderPerformanceGraph(ctx, rc);
 
     var y_offset: i32 = 10;
     const line_height: i32 = 10;
@@ -115,139 +240,9 @@ fn renderDebugOverlay(ctx: *DebugLayerContext, rc: gfx.RenderContext) void {
         defer std.heap.c_allocator.free(fps_text);
         ray.DrawText(fps_text, 10, y_offset, font_size, ray.GREEN);
         y_offset += line_height;
-
-        const frame_time = ray.GetFrameTime() * 1000; // convert to ms
-        const frame_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Total Frame: {d:.2}ms", .{frame_time}) catch "Frame: ERROR";
-        defer std.heap.c_allocator.free(frame_text);
-        ray.DrawText(frame_text, 10, y_offset, font_size, ray.GREEN);
-        y_offset += line_height;
-
-        // engine system timing breakdown if we have data
-        if (ctx.last_total_systems_us > 0) {
-            const anim_ms = @as(f32, @floatFromInt(ctx.last_anim_time_us)) / 1000.0;
-            const shader_ms = @as(f32, @floatFromInt(ctx.last_shader_time_us)) / 1000.0;
-            const collision_ms = @as(f32, @floatFromInt(ctx.last_collision_time_us)) / 1000.0;
-            const render_ms = @as(f32, @floatFromInt(ctx.last_render_time_us)) / 1000.0;
-            const total_systems_ms = @as(f32, @floatFromInt(ctx.last_total_systems_us)) / 1000.0;
-            const other_ms = frame_time - total_systems_ms;
-
-            // display system timings - one per line
-            ray.DrawText("Engine Systems:", 10, y_offset, font_size, ray.YELLOW);
-            y_offset += line_height;
-
-            const anim_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Animation: {d:.2}ms", .{anim_ms}) catch "Animation: ERROR";
-            defer std.heap.c_allocator.free(anim_text);
-            ray.DrawText(anim_text, 20, y_offset, font_size, ray.WHITE);
-            y_offset += line_height;
-
-            const shader_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Shader: {d:.2}ms", .{shader_ms}) catch "Shader: ERROR";
-            defer std.heap.c_allocator.free(shader_text);
-            ray.DrawText(shader_text, 20, y_offset, font_size, ray.WHITE);
-            y_offset += line_height;
-
-            const collision_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Collision: {d:.2}ms", .{collision_ms}) catch "Collision: ERROR";
-            defer std.heap.c_allocator.free(collision_text);
-            ray.DrawText(collision_text, 20, y_offset, font_size, ray.WHITE);
-            y_offset += line_height;
-
-            const render_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Render: {d:.2}ms", .{render_ms}) catch "Render: ERROR";
-            defer std.heap.c_allocator.free(render_text);
-            ray.DrawText(render_text, 20, y_offset, font_size, ray.WHITE);
-            y_offset += line_height;
-
-            const other_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Other: {d:.2}ms (game logic, input, etc)", .{other_ms}) catch "Other: ERROR";
-            defer std.heap.c_allocator.free(other_text);
-            ray.DrawText(other_text, 10, y_offset, font_size, ray.LIGHTGRAY);
-            y_offset += line_height;
-        }
     }
 
-    // system-level statistics (updated every 30 frames)
-    if (ctx.debug_state.show_entity_count) {
-        // update entity counts every 30 frames
-        if (ctx.frame_count % 30 == 0) {
-            // total entities with position
-            ctx.cached_pos_entities = 0;
-            var pos_view = world.view(.{components.Position}, .{});
-            var pos_it = pos_view.entityIterator();
-            while (pos_it.next()) |_| ctx.cached_pos_entities += 1;
-
-            // entities by component type
-            ctx.cached_sprite_entities = 0;
-            var sprite_view = world.view(.{components.Sprite}, .{});
-            var sprite_it = sprite_view.entityIterator();
-            while (sprite_it.next()) |_| ctx.cached_sprite_entities += 1;
-
-            ctx.cached_texture_entities = 0;
-            var texture_view = world.view(.{components.Texture}, .{});
-            var texture_it = texture_view.entityIterator();
-            while (texture_it.next()) |_| ctx.cached_texture_entities += 1;
-
-            ctx.cached_shader_entities = 0;
-            var shader_view = world.view(.{components.Shader}, .{});
-            var shader_it = shader_view.entityIterator();
-            while (shader_it.next()) |_| ctx.cached_shader_entities += 1;
-
-            ctx.cached_anim_entities = 0;
-            var anim_view = world.view(.{components.Animation}, .{});
-            var anim_it = anim_view.entityIterator();
-            while (anim_it.next()) |_| ctx.cached_anim_entities += 1;
-        }
-
-        // memory usage approximation using cached values
-        const approx_memory_kb = (ctx.cached_pos_entities * @sizeOf(components.Position) +
-            ctx.cached_sprite_entities * @sizeOf(components.Sprite) +
-            ctx.cached_texture_entities * @sizeOf(components.Texture) +
-            ctx.cached_shader_entities * @sizeOf(components.Shader) +
-            ctx.cached_anim_entities * @sizeOf(components.Animation)) / 1024;
-
-        // display entity counts - one per line
-        ray.DrawText("Entity Components:", 10, y_offset, font_size, ray.YELLOW);
-        y_offset += line_height;
-
-        const pos_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Position: {d}", .{ctx.cached_pos_entities}) catch "Position: ERROR";
-        defer std.heap.c_allocator.free(pos_text);
-        ray.DrawText(pos_text, 20, y_offset, font_size, ray.WHITE);
-        y_offset += line_height;
-
-        const sprite_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Sprite: {d}", .{ctx.cached_sprite_entities}) catch "Sprite: ERROR";
-        defer std.heap.c_allocator.free(sprite_text);
-        ray.DrawText(sprite_text, 20, y_offset, font_size, ray.WHITE);
-        y_offset += line_height;
-
-        const texture_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Texture: {d}", .{ctx.cached_texture_entities}) catch "Texture: ERROR";
-        defer std.heap.c_allocator.free(texture_text);
-        ray.DrawText(texture_text, 20, y_offset, font_size, ray.WHITE);
-        y_offset += line_height;
-
-        const shader_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Shader: {d}", .{ctx.cached_shader_entities}) catch "Shader: ERROR";
-        defer std.heap.c_allocator.free(shader_text);
-        ray.DrawText(shader_text, 20, y_offset, font_size, ray.WHITE);
-        y_offset += line_height;
-
-        const anim_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Animation: {d}", .{ctx.cached_anim_entities}) catch "Animation: ERROR";
-        defer std.heap.c_allocator.free(anim_text);
-        ray.DrawText(anim_text, 20, y_offset, font_size, ray.WHITE);
-        y_offset += line_height;
-
-        const memory_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Component Memory: ~{d}KB", .{approx_memory_kb}) catch "Memory: ERROR";
-        defer std.heap.c_allocator.free(memory_text);
-        ray.DrawText(memory_text, 10, y_offset, font_size, ray.ORANGE);
-        y_offset += line_height;
-
-        // calculate texture memory usage
-        const texture_memory_kb = calculateTextureMemory();
-        const texture_mem_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Texture Memory: ~{d}KB", .{texture_memory_kb}) catch "Texture Memory: ERROR";
-        defer std.heap.c_allocator.free(texture_mem_text);
-        ray.DrawText(texture_mem_text, 10, y_offset, font_size, ray.ORANGE);
-        y_offset += line_height;
-
-        // render batching info using cached values
-        const batch_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Render: {d} textured, {d} with shaders", .{ ctx.cached_texture_entities, ctx.cached_shader_entities }) catch "Render: ERROR";
-        defer std.heap.c_allocator.free(batch_text);
-        ray.DrawText(batch_text, 10, y_offset, font_size, ray.LIGHTGRAY);
-        y_offset += line_height;
-    }
+    // entity counts are now updated in the update function at fixed intervals
 
     // render entity bounds and info
     if (ctx.debug_state.show_entity_bounds or ctx.debug_state.show_component_info) {
@@ -274,13 +269,7 @@ fn renderEntityDebugInfo(ctx: *DebugLayerContext, y_offset: *i32, font_size: i32
         // draw entity bounds as a rectangle (adjusted for center origin)
         const bounds_color = ray.Color{ .r = 255, .g = 0, .b = 255, .a = 100 }; // magenta with transparency
         const half_size = sprite.size / 2.0;
-        ray.DrawRectangleLines(
-            @intFromFloat(pos.x - half_size), 
-            @intFromFloat(pos.y - half_size), 
-            @intFromFloat(sprite.size), 
-            @intFromFloat(sprite.size), 
-            bounds_color
-        );
+        ray.DrawRectangleLines(@intFromFloat(pos.x - half_size), @intFromFloat(pos.y - half_size), @intFromFloat(sprite.size), @intFromFloat(sprite.size), bounds_color);
 
         // draw component letters above the entity
         var letter_x: i32 = @intFromFloat(pos.x);
@@ -317,14 +306,14 @@ fn renderEntityDebugInfo(ctx: *DebugLayerContext, y_offset: *i32, font_size: i32
         if (world.has(components.Collider, entity)) {
             ray.DrawText("c", letter_x, letter_y, letter_size, ray.PURPLE);
             letter_x += letter_spacing;
-            
+
             // Draw collision bounds with animation
             const collider = world.get(components.Collider, entity);
-            
+
             // determine color based on collision state
             var collision_color = ray.Color{ .r = 0, .g = 255, .b = 0, .a = 80 }; // default green
             var line_thickness: f32 = 1.0;
-            
+
             if (world.has(components.CollisionState, entity)) {
                 const collision_state = world.get(components.CollisionState, entity);
                 if (collision_state.in_collision) {
@@ -335,7 +324,7 @@ fn renderEntityDebugInfo(ctx: *DebugLayerContext, y_offset: *i32, font_size: i32
                     line_thickness = 2.0 + (1.0 - flash_progress) * 2.0; // thicker lines during collision
                 }
             }
-            
+
             switch (collider.shape) {
                 .rectangle => |rect| {
                     // Adjust for sprite center origin
@@ -380,6 +369,156 @@ fn calculateTextureMemory() u32 {
 
     // Convert to KB
     return (window_memory + atlas_memory) / 1024;
+}
+
+// Render the performance graph
+fn renderPerformanceGraph(ctx: *DebugLayerContext, rc: gfx.RenderContext) void {
+    const base_x = rc.logical_width - 160;
+    const base_y = 10;
+    const graph_width = 150;
+    const graph_height = 50;
+    const graph_spacing = 70;
+    const padding = 3;
+
+    // define the graphs to render
+    const GraphType = enum { timing, entity };
+    const GraphInfo = struct {
+        title: []const u8,
+        data: []const f32,
+        color: ray.Color,
+        current_value: f32,
+        graph_type: GraphType,
+    };
+
+    // convert entity count to f32 for display
+    var entity_data: [DebugLayerContext.GRAPH_HISTORY_SIZE]f32 = undefined;
+
+    for (0..DebugLayerContext.GRAPH_HISTORY_SIZE) |i| {
+        entity_data[i] = @floatFromInt(ctx.total_entity_history[i]);
+    }
+
+    const graphs = [_]GraphInfo{
+        // Performance graphs
+        .{
+            .title = "Frame Time",
+            .data = &ctx.frame_time_history,
+            .color = ray.WHITE,
+            .current_value = ctx.frame_time_history[(ctx.frame_time_index + DebugLayerContext.GRAPH_HISTORY_SIZE - 1) % DebugLayerContext.GRAPH_HISTORY_SIZE],
+            .graph_type = .timing,
+        },
+        .{
+            .title = "Animation",
+            .data = &ctx.anim_history,
+            .color = .{ .r = 255, .g = 100, .b = 100, .a = 255 },
+            .current_value = ctx.anim_history[(ctx.frame_time_index + DebugLayerContext.GRAPH_HISTORY_SIZE - 1) % DebugLayerContext.GRAPH_HISTORY_SIZE],
+            .graph_type = .timing,
+        },
+        .{
+            .title = "Shader",
+            .data = &ctx.shader_history,
+            .color = .{ .r = 255, .g = 255, .b = 100, .a = 255 },
+            .current_value = ctx.shader_history[(ctx.frame_time_index + DebugLayerContext.GRAPH_HISTORY_SIZE - 1) % DebugLayerContext.GRAPH_HISTORY_SIZE],
+            .graph_type = .timing,
+        },
+        .{
+            .title = "Collision",
+            .data = &ctx.collision_history,
+            .color = .{ .r = 200, .g = 100, .b = 255, .a = 255 },
+            .current_value = ctx.collision_history[(ctx.frame_time_index + DebugLayerContext.GRAPH_HISTORY_SIZE - 1) % DebugLayerContext.GRAPH_HISTORY_SIZE],
+            .graph_type = .timing,
+        },
+        .{
+            .title = "Render",
+            .data = &ctx.render_history,
+            .color = .{ .r = 100, .g = 150, .b = 255, .a = 255 },
+            .current_value = ctx.render_history[(ctx.frame_time_index + DebugLayerContext.GRAPH_HISTORY_SIZE - 1) % DebugLayerContext.GRAPH_HISTORY_SIZE],
+            .graph_type = .timing,
+        },
+        // Entity count graph
+        .{
+            .title = "Total Entities",
+            .data = &entity_data,
+            .color = .{ .r = 150, .g = 255, .b = 150, .a = 255 },
+            .current_value = @floatFromInt(ctx.cached_pos_entities + ctx.cached_sprite_entities + ctx.cached_texture_entities + ctx.cached_shader_entities + ctx.cached_anim_entities),
+            .graph_type = .entity,
+        },
+    };
+
+    // render each graph
+    for (graphs, 0..) |graph_info, idx| {
+        const graph_y = base_y + @as(i32, @intCast(idx)) * graph_spacing;
+
+        // draw graph background
+        ray.DrawRectangle(base_x - padding, graph_y - padding, graph_width + padding * 2, graph_height + padding * 2, .{ .r = 20, .g = 20, .b = 20, .a = 200 });
+        ray.DrawRectangleLines(base_x - padding, graph_y - padding, graph_width + padding * 2, graph_height + padding * 2, .{ .r = 60, .g = 60, .b = 60, .a = 255 });
+
+        // draw title and current value
+        ray.DrawText(graph_info.title.ptr, base_x - padding, graph_y - padding - 10, 5, graph_info.color);
+        const value_text = if (graph_info.graph_type == .timing)
+            std.fmt.allocPrintZ(std.heap.c_allocator, "{d:.2}ms", .{graph_info.current_value}) catch "ERROR"
+        else
+            std.fmt.allocPrintZ(std.heap.c_allocator, "{d:.0}", .{graph_info.current_value}) catch "ERROR";
+        defer std.heap.c_allocator.free(value_text);
+        ray.DrawText(value_text, base_x + graph_width - 40, graph_y - padding - 10, 5, ray.LIGHTGRAY);
+
+        // find max value for this graph to auto-scale
+        var max_value: f32 = 0.1; // minimum scale
+        for (graph_info.data) |value| {
+            if (value > max_value) max_value = value;
+        }
+        // round up to nice numbers
+        if (max_value > 10) {
+            max_value = @ceil(max_value / 10) * 10;
+        } else if (max_value > 1) {
+            max_value = @ceil(max_value);
+        } else {
+            max_value = @ceil(max_value * 10) / 10;
+        }
+
+        // draw scale indicator
+        const scale_text = std.fmt.allocPrintZ(std.heap.c_allocator, "{d:.1}", .{max_value}) catch "ERROR";
+        defer std.heap.c_allocator.free(scale_text);
+        ray.DrawText(scale_text, base_x - padding - 25, graph_y - padding, 6, .{ .r = 100, .g = 100, .b = 100, .a = 255 });
+
+        // draw the graph line
+        const samples_to_draw = @min(DebugLayerContext.GRAPH_HISTORY_SIZE, graph_width);
+        const x_step = @as(f32, @floatFromInt(graph_width)) / @as(f32, @floatFromInt(samples_to_draw));
+
+        for (1..samples_to_draw) |i| {
+            const history_idx = (ctx.frame_time_index + DebugLayerContext.GRAPH_HISTORY_SIZE - samples_to_draw + i) % DebugLayerContext.GRAPH_HISTORY_SIZE;
+            const prev_idx = (ctx.frame_time_index + DebugLayerContext.GRAPH_HISTORY_SIZE - samples_to_draw + i - 1) % DebugLayerContext.GRAPH_HISTORY_SIZE;
+
+            const x = base_x + @as(i32, @intFromFloat(@as(f32, @floatFromInt(i)) * x_step));
+            const prev_x = base_x + @as(i32, @intFromFloat(@as(f32, @floatFromInt(i - 1)) * x_step));
+
+            const height = (graph_info.data[history_idx] / max_value) * @as(f32, @floatFromInt(graph_height));
+            const prev_height = (graph_info.data[prev_idx] / max_value) * @as(f32, @floatFromInt(graph_height));
+
+            const y = graph_y + graph_height - @as(i32, @intFromFloat(height));
+            const prev_y = graph_y + graph_height - @as(i32, @intFromFloat(prev_height));
+
+            // use dimmer color for the first graph if performance is bad
+            var line_color = graph_info.color;
+            if (idx == 0) { // frame time graph
+                if (graph_info.data[history_idx] > 33.333) {
+                    line_color = .{ .r = 255, .g = 0, .b = 0, .a = 255 }; // red
+                } else if (graph_info.data[history_idx] > 16.667) {
+                    line_color = .{ .r = 255, .g = 255, .b = 0, .a = 255 }; // yellow
+                }
+            }
+
+            ray.DrawLine(prev_x, prev_y, x, y, line_color);
+        }
+
+        // draw zero line
+        ray.DrawLine(base_x, graph_y + graph_height, base_x + graph_width, graph_y + graph_height, .{ .r = 80, .g = 80, .b = 80, .a = 100 });
+    }
+
+    // draw overall stats at the bottom
+    const stats_y = base_y + @as(i32, @intCast(graphs.len)) * graph_spacing;
+    const stats_text = std.fmt.allocPrintZ(std.heap.c_allocator, "Avg: {d:.1}ms Max: {d:.1}ms", .{ ctx.avg_frame_time, ctx.max_frame_time }) catch "Stats: ERROR";
+    defer std.heap.c_allocator.free(stats_text);
+    ray.DrawText(stats_text, base_x, stats_y, 8, ray.LIGHTGRAY);
 }
 
 // Wrapper function to properly cast the init return type

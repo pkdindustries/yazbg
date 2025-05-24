@@ -62,7 +62,7 @@ fn checkCollisions() void {
 
             if (checkCollision(pos1, col1, pos2, col2)) {
                 collision_count += 1;
-                std.debug.print("collision detected: {} <-> {}\n", .{ entity1, entity2 });
+                // std.debug.print("collision detected: {} <-> {}\n", .{ entity1, entity2 });
                 // mark entities as in collision
                 markCollision(entity1);
                 markCollision(entity2);
@@ -235,15 +235,15 @@ pub fn createTrigger(width: f32, height: f32, layer: u8) components.Collider {
 fn updateCollisionStates() void {
     var collision_states = ecs.getWorld().view(.{components.CollisionState}, .{});
     var iter = collision_states.entityIterator();
-    
+
     const dt = ray.GetFrameTime();
-    
+
     while (iter.next()) |entity| {
         const state = collision_states.get(entity);
-        
+
         // update timer
         state.collision_timer += dt;
-        
+
         // reset collision flag if enough time has passed
         if (state.collision_timer > state.flash_duration) {
             state.in_collision = false;
